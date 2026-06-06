@@ -9,6 +9,12 @@ bun run dev -- --install-dir /path/to/client
 
 The installed binary name is `honcho`.
 
+The wizard is an interactive terminal UI. It scans the target project, prompts
+for Honch auth or signup, lets the user pick or create a project, confirms the
+planned install, then writes a setup report. Passing `--run-agent` runs the
+Claude Agent SDK through the Honch platform LLM proxy and exposes local MCP
+tools for package detection and safe `.env` updates.
+
 ## Local Dry Run
 
 You can exercise scanning, confirmation, and setup report generation without a
@@ -28,6 +34,24 @@ node dist/bin.mjs \
 
 This writes `honch-setup-report.md` in the target project and does not modify
 SDK source files unless `--run-agent` is also provided.
+
+## Platform Agent Run
+
+Run the platform API from the platform branch that includes the wizard proxy,
+then point the wizard at it:
+
+```sh
+bun run build
+node dist/bin.mjs \
+  --install-dir /path/to/client \
+  --api-base-url http://127.0.0.1:3000 \
+  --run-agent
+```
+
+The platform must be configured with its Anthropic provider credentials. The
+wizard asks for Honch login/signup, organization, project, device model,
+firmware version, capture host, and final confirmation before the agent mutates
+the target project.
 
 ## Commands
 
@@ -61,8 +85,12 @@ bun run format:check
 src/
   agent/      Prompt assembly and agent run configuration
   cli/        CLI option parsing
+  platform/   Honch auth, project, and wizard-token client
+  project/    Target-project disk scanning
+  report/     Setup report generation
   sdk/        SDK target detection and target metadata
   secrets/    In-memory secret vault
+  tools/      Local Claude Agent SDK MCP tools
   ui/         Ink terminal UI
 SPEC/         Product and implementation spec
 test/         Unit tests
