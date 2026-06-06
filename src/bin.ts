@@ -38,27 +38,63 @@ const prompter = new TuiPrompter({
   runMode: options.runAgent ? "agent install" : "dry run",
 });
 
-if (process.stdout.isTTY) {
+const useTui = Boolean(process.stdin.isTTY && process.stdout.isTTY);
+
+if (useTui) {
   process.stdout.write("\x1b[2J\x1b[3J\x1b[H");
 }
 
-const instance = render(React.createElement(App, { options, prompter }));
+let shuttingDown = false;
+const instance = useTui
+  ? render(
+      React.createElement(App, { options, prompter, onCancel: handleSigint }),
+      {
+        exitOnCtrlC: false,
+      },
+    )
+  : undefined;
 
-try {
-  const result = await runWorkflow(options, { prompter });
-  prompter.finish?.({ reportPath: result.reportPath });
-  await new Promise((resolve) => setTimeout(resolve, 250));
-  process.stdout.write(`\nSetup report: ${result.reportPath}\n`);
-  process.stdout.write(
-    result.agentRan
-      ? "Agent run completed.\n"
-      : "Dry run completed; pass --run-agent after platform auth is configured.\n",
-  );
-  instance.unmount();
-} catch (error) {
-  prompter.fail?.((error as Error).message);
-  await new Promise((resolve) => setTimeout(resolve, 250));
-  instance.unmount();
-  process.stderr.write(`Honcho failed: ${(error as Error).message}\n`);
-  process.exit(1);
+function unmount() {
+  instance?.unmount();
 }
+
+function handleSigint() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  prompter.cancel?.("Wizard cancelled");
+  unmount();
+  process.stdout.write("\nWizard cancelled.\n");
+  process.exit(130);
+}
+
+process.once("SIGINT", handleSigint);
+
+async function main() {
+  try {
+    const result = await runWorkflow(options, { prompter });
+    process.off("SIGINT", handleSigint);
+    prompter.finish?.({ reportPath: result.reportPath });
+    await delay(250);
+    process.stdout.write(`\nSetup report: ${result.reportPath}\n`);
+    process.stdout.write(
+      result.agentRan
+        ? "Agent run completed.\n"
+        : "Dry run completed; pass --run-agent after platform auth is configured.\n",
+    );
+    unmount();
+  } catch (error) {
+    process.off("SIGINT", handleSigint);
+    if (shuttingDown) return;
+    prompter.fail?.((error as Error).message);
+    await delay(250);
+    unmount();
+    process.stderr.write(`Honcho failed: ${(error as Error).message}\n`);
+    process.exitCode = 1;
+  }
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+void main();

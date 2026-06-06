@@ -51,7 +51,7 @@ export type TuiSnapshot = {
   steps: WizardStep[];
   summary: WizardSummary;
   currentPrompt?: PromptRequest;
-  runMessages: string[];
+  runMessages: Array<{ id: number; text: string }>;
   error?: string;
   completed?: boolean;
 };
@@ -60,6 +60,7 @@ export type Prompter = {
   question(prompt: string, options?: { sensitive?: boolean }): Promise<string>;
   confirm(prompt: string): Promise<boolean>;
   close(): void;
+  cancel?(message?: string): void;
   setStep?(id: WizardStepId, detail?: string): void;
   completeStep?(id: WizardStepId, detail?: string): void;
   setSummary?(summary: Partial<WizardSummary>): void;
@@ -81,12 +82,14 @@ const INITIAL_STEPS: WizardStep[] = [
 
 type PendingPrompt = {
   resolve: (value: string) => void;
+  reject: (error: Error) => void;
 };
 
 export class TuiPrompter implements Prompter {
   private snapshot: TuiSnapshot;
   private listeners = new Set<() => void>();
   private promptId = 0;
+  private runMessageId = 0;
   private pending?: PendingPrompt;
 
   constructor(summary: WizardSummary) {
@@ -105,16 +108,16 @@ export class TuiPrompter implements Prompter {
   getSnapshot = () => this.snapshot;
 
   question(prompt: string, options?: { sensitive?: boolean }): Promise<string> {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const request = this.buildRequest(prompt, options?.sensitive ?? false);
-      this.pending = { resolve };
+      this.pending = { resolve, reject };
       this.update({ currentPrompt: request });
     });
   }
 
   confirm(prompt: string): Promise<boolean> {
-    return new Promise((resolve) => {
-      this.pending = { resolve: (value) => resolve(value === "yes") };
+    return new Promise((resolve, reject) => {
+      this.pending = { resolve: (value) => resolve(value === "yes"), reject };
       this.update({
         currentPrompt: {
           id: ++this.promptId,
@@ -156,7 +159,10 @@ export class TuiPrompter implements Prompter {
 
   addRunMessage(message: string) {
     this.update({
-      runMessages: [...this.snapshot.runMessages.slice(-6), message],
+      runMessages: [
+        ...this.snapshot.runMessages.slice(-6),
+        { id: ++this.runMessageId, text: message },
+      ],
     });
   }
 
@@ -170,6 +176,13 @@ export class TuiPrompter implements Prompter {
 
   fail(message: string) {
     this.update({ error: message, currentPrompt: undefined });
+  }
+
+  cancel(message = "Wizard cancelled") {
+    const pending = this.pending;
+    this.pending = undefined;
+    this.update({ currentPrompt: undefined, error: message });
+    pending?.reject(new Error(message));
   }
 
   close() {

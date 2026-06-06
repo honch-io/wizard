@@ -16,15 +16,23 @@ const COLORS = {
 export function App({
   options,
   prompter,
+  onCancel,
 }: {
   options: CliOptions;
   prompter: TuiPrompter;
+  onCancel: () => void;
 }) {
   const snapshot = useSyncExternalStore(
     prompter.subscribe,
     prompter.getSnapshot,
   );
   const prompt = snapshot.currentPrompt;
+
+  useInput((input, key) => {
+    if (key.ctrl && input.toLowerCase() === "c") {
+      onCancel();
+    }
+  });
 
   return (
     <Box flexDirection="column" paddingX={2} paddingY={1} gap={1}>
@@ -282,16 +290,20 @@ function TextInput({
   );
 }
 
-function RunView({ messages }: { messages: string[] }) {
+function RunView({
+  messages,
+}: {
+  messages: Array<{ id: number; text: string }>;
+}) {
   return (
     <Box flexDirection="column">
       {messages.length === 0 ? (
         <Text color={COLORS.help}>Preparing setup...</Text>
       ) : (
         messages.map((message) => (
-          <Text key={message}>
+          <Text key={message.id}>
             <Text color={COLORS.accent}>~</Text>{" "}
-            <Text color={COLORS.value}>{message}</Text>
+            <Text color={COLORS.value}>{message.text}</Text>
           </Text>
         ))
       )}

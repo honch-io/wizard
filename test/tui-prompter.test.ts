@@ -54,4 +54,15 @@ describe("TuiPrompter", () => {
     prompter.answer("secret");
     await expect(answer).resolves.toBe("secret");
   });
+
+  it("rejects a pending prompt when cancelled", async () => {
+    const prompter = new TuiPrompter({});
+
+    const answer = prompter.question("Email:");
+    prompter.cancel("Wizard cancelled");
+
+    await expect(answer).rejects.toThrow("Wizard cancelled");
+    expect(prompter.getSnapshot().currentPrompt).toBeUndefined();
+    expect(prompter.getSnapshot().error).toBe("Wizard cancelled");
+  });
 });
