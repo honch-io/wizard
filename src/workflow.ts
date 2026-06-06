@@ -33,37 +33,71 @@ export async function runWorkflow(
   const vault = createSecretVault();
 
   try {
+    prompter.setStep?.("scan", "reading project files");
     const scan = scanProject(options.installDir);
+    prompter.completeStep?.(
+      "scan",
+      scan.detectedTargets.length > 0
+        ? `detected ${scan.detectedTargets.map((target) => target.label).join(", ")}`
+        : "no target auto-detected",
+    );
+
+    prompter.setStep?.("target", "selecting SDK target");
     const target = await resolveTarget(
       options.target,
       scan.detectedTargets,
       prompter,
     );
+    prompter.setSummary?.({ sdkTarget: target.label });
+    prompter.completeStep?.("target", target.label);
+
+    prompter.setStep?.("auth", "connecting Honch account");
     const auth = await resolveAuth(options, platformClient, prompter);
+    prompter.setSummary?.({ authMode: auth.mode });
+    prompter.completeStep?.(
+      "auth",
+      auth.accessToken
+        ? "platform authenticated"
+        : "local credentials supplied",
+    );
+
+    prompter.setStep?.("project", "loading Honch projects");
     const project = await resolveProject(
       options,
       auth.accessToken,
       platformClient,
       prompter,
     );
+    prompter.setSummary?.({ projectName: project.name });
+    prompter.completeStep?.("project", project.name);
+
+    prompter.setStep?.("config", "collecting device configuration");
     const deviceModel = await requiredInput(
       options.deviceModel,
       "Device model:",
       prompter,
     );
+    prompter.setSummary?.({ deviceModel });
     const firmwareVersion = await requiredInput(
       options.firmwareVersion,
       "Firmware version:",
       prompter,
     );
+    prompter.setSummary?.({ firmwareVersion });
     const captureHost =
       options.captureHost ??
-      (await prompter.question("Capture host:", { sensitive: false })) ??
+      normalizeDefault(
+        await prompter.question("Capture host:", { sensitive: false }),
+        "https://capture.honch.io",
+      ) ??
       "https://capture.honch.io";
+    prompter.setSummary?.({ captureHost });
     const projectApiKey =
       project.apiKey ?? (await prompter.question("Project API key:"));
     const projectApiKeyRef = vault.put("Honch project API key", projectApiKey);
+    prompter.completeStep?.("config", "device and capture settings ready");
 
+    prompter.setStep?.("confirm", "waiting for confirmation");
     const confirmed =
       options.yes ||
       (await prompter.confirm(
@@ -72,10 +106,13 @@ export async function runWorkflow(
     if (!confirmed) {
       throw new Error("Wizard cancelled before project mutation");
     }
+    prompter.completeStep?.("confirm", "install approved");
 
     let agentRan = false;
     const verification: string[] = [];
     if (options.runAgent && auth.wizardToken) {
+      prompter.setStep?.("agent", "running Claude Agent SDK");
+      prompter.addRunMessage?.("Building Honch SDK installation prompt");
       const prompt = buildAgentPrompt({
         targetId: target.id,
         projectApiKeyRef,
@@ -83,6 +120,7 @@ export async function runWorkflow(
         deviceModel,
         firmwareVersion,
       });
+      prompter.addRunMessage?.("Starting agent with local Honcho MCP tools");
       await runAgent({
         cwd: options.installDir,
         prompt,
@@ -97,10 +135,17 @@ export async function runWorkflow(
       });
       agentRan = true;
       verification.push("agent run completed");
+      prompter.completeStep?.("agent", "agent install completed");
     } else {
+      prompter.setStep?.("agent", "dry run selected");
       verification.push("dry run: no files modified");
+      prompter.addRunMessage?.(
+        "Dry run selected; target files were not mutated",
+      );
+      prompter.completeStep?.("agent", "skipped mutation");
     }
 
+    prompter.setStep?.("report", "writing setup report");
     const report = buildSetupReport({
       targetLabel: target.label,
       projectName: project.name,
@@ -112,6 +157,8 @@ export async function runWorkflow(
     });
     const reportPath = path.join(options.installDir, "honch-setup-report.md");
     writeFileSync(reportPath, report);
+    prompter.setSummary?.({ reportPath });
+    prompter.completeStep?.("report", reportPath);
     return { reportPath, agentRan };
   } finally {
     prompter.close();
@@ -137,14 +184,14 @@ async function resolveAuth(
   prompter: Prompter,
 ) {
   if (options.projectApiKey) {
-    return { accessToken: "", wizardToken: undefined };
+    return { accessToken: "", wizardToken: undefined, mode: "local API key" };
   }
 
   if (options.authToken) {
     const wizardToken = options.runAgent
       ? (await platformClient.createWizardToken(options.authToken)).accessToken
       : undefined;
-    return { accessToken: options.authToken, wizardToken };
+    return { accessToken: options.authToken, wizardToken, mode: "token" };
   }
 
   const mode = (
@@ -159,7 +206,7 @@ async function resolveAuth(
   const wizardToken = options.runAgent
     ? (await platformClient.createWizardToken(token.accessToken)).accessToken
     : undefined;
-  return { accessToken: token.accessToken, wizardToken };
+  return { accessToken: token.accessToken, wizardToken, mode };
 }
 
 async function resolveProject(
@@ -189,12 +236,13 @@ async function resolveProject(
       ? `Project name or blank for ${existing.name}:`
       : "Project name to create:",
   );
-  if (!answer && existing) return existing;
-  const byName = projects.find((project) => project.name === answer);
+  const projectName = answer.trim();
+  if (!projectName && existing) return existing;
+  const byName = projects.find((project) => project.name === projectName);
   if (byName) return byName;
   return platformClient.createProject(
     accessToken,
-    answer,
+    projectName || "Honch Project",
     organizationId || undefined,
   );
 }
@@ -205,4 +253,9 @@ async function requiredInput(
   prompter: Prompter,
 ) {
   return value ?? prompter.question(prompt);
+}
+
+function normalizeDefault(value: string, fallback: string) {
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : fallback;
 }

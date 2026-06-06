@@ -2,6 +2,8 @@
 import { render } from "ink";
 import React from "react";
 import { parseOptions } from "./cli/options.js";
+import { TuiPrompter } from "./cli/prompt.js";
+import { SDK_TARGETS } from "./sdk/targets.js";
 import { App } from "./ui/App.js";
 import { runWorkflow } from "./workflow.js";
 
@@ -29,19 +31,29 @@ Options:
   process.exit(0);
 }
 
-const instance = render(React.createElement(App, { options }));
+const prompter = new TuiPrompter({
+  targetProject: options.installDir,
+  platformApi: options.apiBaseUrl,
+  sdkTarget: options.target ? SDK_TARGETS[options.target].label : undefined,
+  runMode: options.runAgent ? "agent install" : "dry run",
+});
+const instance = render(React.createElement(App, { options, prompter }));
 
 try {
-  const result = await runWorkflow(options);
-  instance.unmount();
+  const result = await runWorkflow(options, { prompter });
+  prompter.finish?.({ reportPath: result.reportPath });
+  await new Promise((resolve) => setTimeout(resolve, 250));
   process.stdout.write(`\nSetup report: ${result.reportPath}\n`);
   process.stdout.write(
     result.agentRan
       ? "Agent run completed.\n"
       : "Dry run completed; pass --run-agent after platform auth is configured.\n",
   );
-} catch (error) {
   instance.unmount();
-  process.stderr.write(`\nHoncho failed: ${(error as Error).message}\n`);
+} catch (error) {
+  prompter.fail?.((error as Error).message);
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  instance.unmount();
+  process.stderr.write(`Honcho failed: ${(error as Error).message}\n`);
   process.exit(1);
 }
