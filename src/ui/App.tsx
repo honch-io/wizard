@@ -3,6 +3,8 @@ import { type ReactNode, useState, useSyncExternalStore } from "react";
 import type { CliOptions } from "../cli/options.js";
 import type { PromptRequest, TuiPrompter } from "../cli/prompt.js";
 
+const HONCH_ORANGE = "#ea5924";
+
 export function App({
   options,
   prompter,
@@ -24,7 +26,7 @@ export function App({
           <Panel title="Progress">
             {snapshot.steps.map((step) => (
               <Text key={step.id}>
-                <Text color={step.status === "active" ? "cyan" : "gray"}>
+                <Text color={step.status === "active" ? HONCH_ORANGE : "gray"}>
                   {stepIcon(step.status)}
                 </Text>
                 <Text
@@ -95,12 +97,12 @@ export function App({
 function Hero() {
   return (
     <Box flexDirection="column">
-      <Text bold color="cyan">
+      <Text bold color={HONCH_ORANGE}>
         HONCHO WIZARD
       </Text>
       <Text>
-        <Text color="cyan">Agent-powered</Text> Honch SDK setup for firmware
-        projects
+        <Text color={HONCH_ORANGE}>Agent-powered</Text> Honch SDK setup for
+        firmware projects
       </Text>
     </Box>
   );
@@ -115,7 +117,7 @@ function Panel({ title, children }: { title: string; children: ReactNode }) {
       paddingY={0}
       flexDirection="column"
     >
-      <Text bold color="cyan">
+      <Text bold color={HONCH_ORANGE}>
         {title}
       </Text>
       <Box flexDirection="column">{children}</Box>
@@ -171,7 +173,9 @@ function Picker({
           const active = index === focused;
           return (
             <Text key={option.value}>
-              <Text color={active ? "cyan" : "gray"}>{active ? ">" : " "}</Text>
+              <Text color={active ? HONCH_ORANGE : "gray"}>
+                {active ? ">" : " "}
+              </Text>
               <Text bold={active} dimColor={!active}>
                 {" "}
                 {option.label}
@@ -214,10 +218,10 @@ function TextInput({
   return (
     <Box flexDirection="column" gap={1}>
       <Text>{prompt.message}</Text>
-      <Box borderStyle="single" borderColor="cyan" paddingX={1}>
+      <Box borderStyle="single" borderColor={HONCH_ORANGE} paddingX={1}>
         <Text>
           {visibleValue}
-          <Text color="cyan">_</Text>
+          <Text color={HONCH_ORANGE}>_</Text>
         </Text>
       </Box>
       {prompt.defaultValue ? (
@@ -237,7 +241,7 @@ function RunView({ messages }: { messages: string[] }) {
       ) : (
         messages.map((message) => (
           <Text key={message}>
-            <Text color="cyan">~</Text> {message}
+            <Text color={HONCH_ORANGE}>~</Text> {message}
           </Text>
         ))
       )}
