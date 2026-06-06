@@ -8,6 +8,13 @@ export type CliOptions = {
   apiBaseUrl: string;
   installDir: string;
   target?: SdkTargetId;
+  authToken?: string;
+  captureHost?: string;
+  deviceModel?: string;
+  firmwareVersion?: string;
+  projectName?: string;
+  projectApiKey?: string;
+  runAgent: boolean;
   yes: boolean;
   help: boolean;
 };
@@ -48,6 +55,32 @@ export function parseOptions(argv: string[], env: Env): CliOptions {
         process.cwd(),
     ),
     target,
+    authToken:
+      stringFlag(flags, "auth-token") ??
+      env.HONCH_WIZARD_AUTH_TOKEN ??
+      undefined,
+    captureHost:
+      stringFlag(flags, "capture-host") ??
+      env.HONCH_WIZARD_CAPTURE_HOST ??
+      "https://capture.honch.io",
+    deviceModel:
+      stringFlag(flags, "device-model") ??
+      env.HONCH_WIZARD_DEVICE_MODEL ??
+      undefined,
+    firmwareVersion:
+      stringFlag(flags, "firmware-version") ??
+      env.HONCH_WIZARD_FIRMWARE_VERSION ??
+      undefined,
+    projectName:
+      stringFlag(flags, "project-name") ??
+      env.HONCH_WIZARD_PROJECT_NAME ??
+      undefined,
+    projectApiKey:
+      stringFlag(flags, "project-api-key") ??
+      env.HONCH_WIZARD_PROJECT_API_KEY ??
+      undefined,
+    runAgent:
+      booleanFlag(flags, "run-agent") || env.HONCH_WIZARD_RUN_AGENT === "1",
     yes: booleanFlag(flags, "yes") || env.HONCH_WIZARD_YES === "1",
     help: booleanFlag(flags, "help"),
   };

@@ -22,4 +22,22 @@ describe("parseOptions", () => {
     expect(options.installDir).toBe(process.cwd());
     expect(options.yes).toBe(false);
   });
+
+  it("parses local project credentials for offline report testing", () => {
+    const options = parseOptions(
+      [
+        "--project-name",
+        "Camera",
+        "--project-api-key",
+        "honch_test",
+        "--device-model",
+        "ActionCam",
+      ],
+      {},
+    );
+
+    expect(options.projectName).toBe("Camera");
+    expect(options.projectApiKey).toBe("honch_test");
+    expect(options.deviceModel).toBe("ActionCam");
+  });
 });
