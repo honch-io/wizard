@@ -37,6 +37,11 @@ const prompter = new TuiPrompter({
   sdkTarget: options.target ? SDK_TARGETS[options.target].label : undefined,
   runMode: options.runAgent ? "agent install" : "dry run",
 });
+
+if (process.stdout.isTTY) {
+  process.stdout.write("\x1b[2J\x1b[3J\x1b[H");
+}
+
 const instance = render(React.createElement(App, { options, prompter }));
 
 try {

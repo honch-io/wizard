@@ -3,7 +3,15 @@ import { type ReactNode, useState, useSyncExternalStore } from "react";
 import type { CliOptions } from "../cli/options.js";
 import type { PromptRequest, TuiPrompter } from "../cli/prompt.js";
 
-const HONCH_ORANGE = "#ea5924";
+const COLORS = {
+  accent: "#ea5924",
+  label: "#6f7895",
+  value: "#d8dee9",
+  neutral: "#8b93a7",
+  success: "#8bd17c",
+  failure: "#ff6b5f",
+  help: "#a7adbb",
+} as const;
 
 export function App({
   options,
@@ -19,47 +27,59 @@ export function App({
   const prompt = snapshot.currentPrompt;
 
   return (
-    <Box flexDirection="column" paddingX={1} paddingY={1} gap={1}>
+    <Box flexDirection="column" paddingX={2} paddingY={1} gap={1}>
       <Hero />
       <Box gap={2}>
         <Box width={34} flexDirection="column" gap={1}>
-          <Panel title="Progress">
+          <Panel title="Progress" active>
             {snapshot.steps.map((step) => (
-              <Text key={step.id}>
-                <Text color={step.status === "active" ? HONCH_ORANGE : "gray"}>
-                  {stepIcon(step.status)}
+              <Box key={step.id} flexDirection="column">
+                <Text>
+                  <Text
+                    color={
+                      step.status === "active" ? COLORS.accent : COLORS.neutral
+                    }
+                  >
+                    {stepIcon(step.status)}
+                  </Text>
+                  <Text
+                    bold={step.status === "active"}
+                    color={
+                      step.status === "done" ? COLORS.value : COLORS.neutral
+                    }
+                    dimColor={step.status === "pending"}
+                  >
+                    {" "}
+                    {step.label}
+                  </Text>
                 </Text>
-                <Text
-                  bold={step.status === "active"}
-                  dimColor={step.status === "pending"}
-                >
-                  {" "}
-                  {step.label}
-                </Text>
-              </Text>
+                {step.status === "active" && step.detail ? (
+                  <Text color={COLORS.help}> {truncate(step.detail, 23)}</Text>
+                ) : null}
+              </Box>
             ))}
           </Panel>
           <Panel title="Project">
             <SummaryLine
               label="Target"
               value={options.installDir}
-              maxLength={14}
+              maxLength={16}
             />
             <SummaryLine
               label="Platform"
               value={options.apiBaseUrl}
-              maxLength={14}
+              maxLength={16}
             />
             <SummaryLine
               label="Mode"
               value={snapshot.summary.runMode ?? "dry run"}
-              maxLength={14}
+              maxLength={16}
             />
           </Panel>
         </Box>
 
-        <Box width={72} flexDirection="column" gap={1}>
-          <Panel title={prompt?.title ?? panelTitle(snapshot.completed)}>
+        <Box width={74} flexDirection="column" gap={1}>
+          <Panel title={prompt?.title ?? panelTitle(snapshot.completed)} active>
             {snapshot.error ? (
               <ErrorView message={snapshot.error} />
             ) : snapshot.completed ? (
@@ -87,8 +107,8 @@ export function App({
           </Panel>
         </Box>
       </Box>
-      <Text dimColor>
-        Arrow keys navigate choices. Enter selects. Ctrl+C exits before setup.
+      <Text color={COLORS.help}>
+        ↑/↓ navigate | enter select | ctrl+c exit before setup
       </Text>
     </Box>
   );
@@ -96,28 +116,49 @@ export function App({
 
 function Hero() {
   return (
-    <Box flexDirection="column">
-      <Text bold color={HONCH_ORANGE}>
-        HONCHO WIZARD
-      </Text>
-      <Text>
-        <Text color={HONCH_ORANGE}>Agent-powered</Text> Honch SDK setup for
-        firmware projects
-      </Text>
+    <Box flexDirection="column" width={78}>
+      <Box
+        borderStyle="round"
+        borderColor={COLORS.accent}
+        paddingX={1}
+        flexDirection="column"
+      >
+        <Text>
+          <Text bold color={COLORS.accent}>
+            HONCHO
+          </Text>
+          <Text bold color={COLORS.value}>
+            {" "}
+            WIZARD
+          </Text>
+          <Text color={COLORS.neutral}> / AI SDK install chain</Text>
+        </Text>
+        <Text color={COLORS.help}>
+          Scan firmware projects, connect Honch, and let the agent wire the SDK.
+        </Text>
+      </Box>
     </Box>
   );
 }
 
-function Panel({ title, children }: { title: string; children: ReactNode }) {
+function Panel({
+  title,
+  children,
+  active = false,
+}: {
+  title: string;
+  children: ReactNode;
+  active?: boolean;
+}) {
   return (
     <Box
       borderStyle="round"
-      borderColor="gray"
+      borderColor={active ? COLORS.accent : COLORS.neutral}
       paddingX={1}
       paddingY={0}
       flexDirection="column"
     >
-      <Text bold color={HONCH_ORANGE}>
+      <Text bold color={active ? COLORS.accent : COLORS.label}>
         {title}
       </Text>
       <Box flexDirection="column">{children}</Box>
@@ -167,20 +208,26 @@ function Picker({
 
   return (
     <Box flexDirection="column" gap={1}>
-      <Text>{prompt.message}</Text>
+      <Text color={COLORS.value}>{prompt.message}</Text>
       <Box flexDirection="column">
         {prompt.options.map((option, index) => {
           const active = index === focused;
           return (
             <Text key={option.value}>
-              <Text color={active ? HONCH_ORANGE : "gray"}>
+              <Text color={active ? COLORS.accent : COLORS.neutral}>
                 {active ? ">" : " "}
               </Text>
-              <Text bold={active} dimColor={!active}>
+              <Text
+                bold={active}
+                color={active ? COLORS.value : COLORS.neutral}
+                dimColor={!active}
+              >
                 {" "}
                 {option.label}
               </Text>
-              {option.hint ? <Text dimColor> - {option.hint}</Text> : null}
+              {option.hint ? (
+                <Text color={COLORS.help}> - {truncate(option.hint, 48)}</Text>
+              ) : null}
             </Text>
           );
         })}
@@ -217,17 +264,19 @@ function TextInput({
 
   return (
     <Box flexDirection="column" gap={1}>
-      <Text>{prompt.message}</Text>
-      <Box borderStyle="single" borderColor={HONCH_ORANGE} paddingX={1}>
-        <Text>
+      <Text color={COLORS.value}>{prompt.message}</Text>
+      <Box borderStyle="single" borderColor={COLORS.accent} paddingX={1}>
+        <Text color={COLORS.value}>
           {visibleValue}
-          <Text color={HONCH_ORANGE}>_</Text>
+          <Text color={COLORS.accent}>_</Text>
         </Text>
       </Box>
       {prompt.defaultValue ? (
-        <Text dimColor>Default is pre-filled. Press Enter to keep it.</Text>
+        <Text color={COLORS.help}>
+          Default is pre-filled. Press Enter to keep it.
+        </Text>
       ) : (
-        <Text dimColor>Type a value and press Enter.</Text>
+        <Text color={COLORS.help}>Type a value and press Enter.</Text>
       )}
     </Box>
   );
@@ -237,11 +286,12 @@ function RunView({ messages }: { messages: string[] }) {
   return (
     <Box flexDirection="column">
       {messages.length === 0 ? (
-        <Text dimColor>Preparing setup...</Text>
+        <Text color={COLORS.help}>Preparing setup...</Text>
       ) : (
         messages.map((message) => (
           <Text key={message}>
-            <Text color={HONCH_ORANGE}>~</Text> {message}
+            <Text color={COLORS.accent}>~</Text>{" "}
+            <Text color={COLORS.value}>{message}</Text>
           </Text>
         ))
       )}
@@ -252,10 +302,13 @@ function RunView({ messages }: { messages: string[] }) {
 function DoneView({ reportPath }: { reportPath?: string }) {
   return (
     <Box flexDirection="column">
-      <Text color="green" bold>
+      <Text color={COLORS.success} bold>
         Setup flow complete
       </Text>
-      <Text>Report: {truncate(reportPath ?? "honch-setup-report.md", 44)}</Text>
+      <Text color={COLORS.help}>Report:</Text>
+      <Text color={COLORS.value}>
+        {truncate(reportPath ?? "honch-setup-report.md", 56)}
+      </Text>
     </Box>
   );
 }
@@ -263,10 +316,10 @@ function DoneView({ reportPath }: { reportPath?: string }) {
 function ErrorView({ message }: { message: string }) {
   return (
     <Box flexDirection="column">
-      <Text color="red" bold>
+      <Text color={COLORS.failure} bold>
         Wizard failed
       </Text>
-      <Text>{message}</Text>
+      <Text color={COLORS.value}>{message}</Text>
     </Box>
   );
 }
@@ -282,8 +335,10 @@ function SummaryLine({
 }) {
   return (
     <Text>
-      <Text dimColor>{label.padEnd(9)}</Text>
-      <Text>{truncate(value ?? "pending", maxLength)}</Text>
+      <Text color={COLORS.label}>{label.padEnd(9)}</Text>
+      <Text color={value ? COLORS.value : COLORS.neutral}>
+        {truncate(value ?? "pending", maxLength)}
+      </Text>
     </Text>
   );
 }
