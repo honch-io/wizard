@@ -158,11 +158,15 @@ export class TuiPrompter implements Prompter {
   }
 
   addRunMessage(message: string) {
+    const messages = message
+      .split("\n")
+      .map((line) => line.trimEnd())
+      .filter((line) => line.length > 0);
     this.update({
       runMessages: [
-        ...this.snapshot.runMessages.slice(-6),
-        { id: ++this.runMessageId, text: message },
-      ],
+        ...this.snapshot.runMessages,
+        ...messages.map((text) => ({ id: ++this.runMessageId, text })),
+      ].slice(-10),
     });
   }
 

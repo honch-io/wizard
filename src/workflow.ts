@@ -2,6 +2,7 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { buildAgentPrompt } from "./agent/prompt.js";
 import { runAgent } from "./agent/runner.js";
+import { loadAuthSession, saveAuthSession } from "./auth/session.js";
 import type { CliOptions } from "./cli/options.js";
 import { createPrompter, type Prompter } from "./cli/prompt.js";
 import { PlatformClient, type ProjectResponse } from "./platform/client.js";
@@ -126,6 +127,9 @@ export async function runWorkflow(
         prompt,
         platformToken: auth.wizardToken,
         llmBaseUrl: `${options.apiBaseUrl.replace(/\/+$/, "")}/api/wizard/llm`,
+        onEvent: (event) => {
+          prompter.addRunMessage?.(event.text);
+        },
         mcpServers: {
           "honcho-tools": createLocalToolsServer({
             workingDirectory: options.installDir,
@@ -191,7 +195,28 @@ async function resolveAuth(
     const wizardToken = options.runAgent
       ? (await platformClient.createWizardToken(options.authToken)).accessToken
       : undefined;
+    saveAuthSession({
+      apiBaseUrl: options.apiBaseUrl,
+      accessToken: options.authToken,
+    });
     return { accessToken: options.authToken, wizardToken, mode: "token" };
+  }
+
+  const saved = loadAuthSession(options.apiBaseUrl);
+  if (saved) {
+    prompter.addRunMessage?.(
+      saved.email
+        ? `Using saved Honch session for ${saved.email}`
+        : "Using saved Honch session",
+    );
+    const wizardToken = options.runAgent
+      ? (await platformClient.createWizardToken(saved.accessToken)).accessToken
+      : undefined;
+    return {
+      accessToken: saved.accessToken,
+      wizardToken,
+      mode: "saved session",
+    };
   }
 
   const mode = (
@@ -206,6 +231,11 @@ async function resolveAuth(
   const wizardToken = options.runAgent
     ? (await platformClient.createWizardToken(token.accessToken)).accessToken
     : undefined;
+  saveAuthSession({
+    apiBaseUrl: options.apiBaseUrl,
+    accessToken: token.accessToken,
+    email,
+  });
   return { accessToken: token.accessToken, wizardToken, mode };
 }
 

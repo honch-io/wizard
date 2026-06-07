@@ -58,6 +58,7 @@ export function App({
         <Text color={COLORS.rule}>{verticalRule(26)}</Text>
         <Box width={MAIN_WIDTH} flexDirection="column">
           <MainArea
+            activeStep={activeStepLabel(snapshot.steps)}
             prompt={prompt}
             completed={snapshot.completed}
             error={snapshot.error}
@@ -148,6 +149,7 @@ function Timeline({ steps }: { steps: WizardStep[] }) {
 }
 
 function MainArea({
+  activeStep,
   prompt,
   completed,
   error,
@@ -155,6 +157,7 @@ function MainArea({
   messages,
   onAnswer,
 }: {
+  activeStep: string;
   prompt?: PromptRequest;
   completed?: boolean;
   error?: string;
@@ -166,7 +169,7 @@ function MainArea({
   if (completed) return <DoneView reportPath={reportPath} />;
   if (prompt)
     return <PromptView key={prompt.id} prompt={prompt} onAnswer={onAnswer} />;
-  return <RunView messages={messages} />;
+  return <RunView activeStep={activeStep} messages={messages} />;
 }
 
 function PromptView({
@@ -382,17 +385,26 @@ function Arrow() {
 }
 
 function RunView({
+  activeStep,
   messages,
 }: {
+  activeStep: string;
   messages: Array<{ id: number; text: string }>;
 }) {
+  const isAgent = activeStep === "agent";
   return (
     <Box flexDirection="column">
-      <StepHeading title="Preparing Honcho install" />
+      <StepHeading
+        title={
+          isAgent ? "Claude is installing Honch" : "Preparing Honcho install"
+        }
+      />
       <Box height={1} />
       {messages.length === 0 ? (
         <Text color={COLORS.help}>
-          Analyzing project and preparing setup...
+          {isAgent
+            ? "Waiting for Claude to inspect the project..."
+            : "Analyzing project and preparing setup..."}
         </Text>
       ) : (
         messages.map((message) => (

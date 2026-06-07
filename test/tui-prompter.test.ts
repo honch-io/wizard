@@ -44,6 +44,16 @@ describe("TuiPrompter", () => {
     });
   });
 
+  it("splits multiline run messages for live agent output", () => {
+    const prompter = new TuiPrompter({});
+
+    prompter.addRunMessage("Edit main/app_main.c\nhonch_init(&config);");
+
+    expect(
+      prompter.getSnapshot().runMessages.map((message) => message.text),
+    ).toEqual(["Edit main/app_main.c", "honch_init(&config);"]);
+  });
+
   it("marks sensitive questions as password prompts", async () => {
     const prompter = new TuiPrompter({});
 
