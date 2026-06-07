@@ -26,12 +26,9 @@ export function parseOptions(argv: string[], env: Env): CliOptions {
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === "--yes" || arg === "-y") {
-      flags.set("yes", true);
-      continue;
-    }
-    if (arg === "--help" || arg === "-h") {
-      flags.set("help", true);
+    const booleanKey = booleanFlagName(arg);
+    if (booleanKey) {
+      flags.set(booleanKey, true);
       continue;
     }
     if (arg.startsWith("--") && argv[i + 1] && !argv[i + 1].startsWith("--")) {
@@ -93,4 +90,11 @@ function stringFlag(flags: Map<string, string | boolean>, key: string) {
 
 function booleanFlag(flags: Map<string, string | boolean>, key: string) {
   return flags.get(key) === true;
+}
+
+function booleanFlagName(arg: string) {
+  if (arg === "--yes" || arg === "-y") return "yes";
+  if (arg === "--help" || arg === "-h") return "help";
+  if (arg === "--run-agent") return "run-agent";
+  return undefined;
 }

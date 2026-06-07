@@ -40,4 +40,10 @@ describe("parseOptions", () => {
     expect(options.projectApiKey).toBe("honch_test");
     expect(options.deviceModel).toBe("ActionCam");
   });
+
+  it("parses run-agent as a boolean flag", () => {
+    const options = parseOptions(["--run-agent"], {});
+
+    expect(options.runAgent).toBe(true);
+  });
 });
