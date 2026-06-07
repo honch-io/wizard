@@ -18,6 +18,7 @@ describe("buildAgentOptions", () => {
     });
 
     expect(options.cwd).toBe("/tmp/project");
+    expect(options.model).toBe("haiku");
     expect(options.mcpServers).toHaveProperty("honcho-tools");
     expect(options.env).toEqual(
       expect.objectContaining({

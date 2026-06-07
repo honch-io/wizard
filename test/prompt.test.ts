@@ -14,6 +14,11 @@ describe("buildAgentPrompt", () => {
     expect(prompt).toContain("ESP-IDF");
     expect(prompt).toContain("secret:project");
     expect(prompt).toContain("ActionCam X1");
-    expect(prompt).not.toContain("honch_");
+    expect(prompt).toContain("Required workflow");
+    expect(prompt).toContain("detect_package_manager MCP tool");
+    expect(prompt).toContain("call honch_tick() only from a low-priority task");
+    expect(prompt).toContain("honch-setup-report.md");
+    expect(prompt).not.toContain("honch_test");
+    expect(prompt).not.toContain("sk_");
   });
 });

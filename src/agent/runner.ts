@@ -11,6 +11,7 @@ export type AgentRunInput = {
 export function buildAgentOptions(input: Omit<AgentRunInput, "prompt">) {
   return {
     cwd: input.cwd,
+    model: "haiku",
     permissionMode: "acceptEdits" as const,
     mcpServers: input.mcpServers,
     allowedTools: [
