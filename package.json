@@ -1,21 +1,21 @@
 {
-  "name": "@posthog/wizard",
-  "version": "2.17.0",
-  "homepage": "https://github.com/PostHog/wizard",
-  "repository": "https://github.com/PostHog/wizard",
-  "description": "The PostHog wizard helps you to configure your project",
+  "name": "@honch/wizard",
+  "version": "0.1.0",
+  "homepage": "https://github.com/honch-io/wizard",
+  "repository": "https://github.com/honch-io/wizard",
+  "description": "The Honch wizard installs the Honch analytics SDK into your project",
   "keywords": [
-    "posthog",
-    "wizard",
+    "honch",
+    "analytics",
     "sdk",
     "cli",
-    "project",
+    "firmware",
+    "esp-idf",
     "setup",
-    "install",
-    "configure"
+    "install"
   ],
   "bin": {
-    "wizard": "dist/bin.js"
+    "honch": "dist/bin.js"
   },
   "publishConfig": {
     "access": "public"
@@ -36,6 +36,7 @@
     "@inkjs/ui": "^2.0.0",
     "@langchain/core": "^0.3.40",
     "axios": "1.7.4",
+    "diff": "^5.2.0",
     "fast-glob": "^3.3.3",
     "glob": "9.3.5",
     "ink": "^6.8.0",
@@ -63,6 +64,7 @@
     "@babel/preset-env": "^7.29.0",
     "@babel/types": "~7.21.4",
     "@types/chai": "^4.3.17",
+    "@types/diff": "^5.2.3",
     "@types/glob": "^7.2.0",
     "@types/inquirer": "^0.0.43",
     "@types/jest": "^29.5.14",
@@ -172,7 +174,7 @@
       "prettier --write"
     ]
   },
-  "author": "PostHog",
+  "author": "Honch",
   "license": "MIT",
   "volta": {
     "node": "24.14.1",

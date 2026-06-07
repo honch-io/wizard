@@ -1,5 +1,5 @@
 /**
- * Shared constants for the PostHog wizard.
+ * Shared constants for the Honch wizard.
  */
 
 import { VERSION } from './version';
@@ -49,15 +49,21 @@ export const DEBUG = false;
 
 // ── URLs ─────────────────────────────────────────────────────────────
 
-export const DEFAULT_URL = IS_DEV
-  ? 'http://localhost:8010'
-  : 'https://us.posthog.com';
-export const DEFAULT_HOST_URL = IS_DEV
-  ? 'http://localhost:8010'
-  : 'https://us.i.posthog.com';
-export const ISSUES_URL = 'https://github.com/posthog/wizard/issues';
+/** Honch platform API base — mints wizard tokens, lists projects, hosts the LLM proxy. */
+export const DEFAULT_API_BASE_URL = IS_DEV
+  ? 'http://localhost:3000'
+  : 'https://app.honch.io';
+/** Honch event-ingestion host the device/app SDK uploads to (X-Honch-Project-Key). */
+export const DEFAULT_CAPTURE_HOST = IS_DEV
+  ? 'http://localhost:8000'
+  : 'https://capture.honch.io';
+/** Back-compat generic aliases for the two hosts above. */
+export const DEFAULT_URL = DEFAULT_API_BASE_URL;
+export const DEFAULT_HOST_URL = DEFAULT_CAPTURE_HOST;
+export const ISSUES_URL = 'https://github.com/honch-io/wizard/issues';
 export const CONTEXT_MILL_URL = 'https://github.com/PostHog/context-mill';
-export const POSTHOG_DOCS_URL = 'https://posthog.com/docs';
+export const HONCH_DOCS_URL = 'https://docs.honch.io';
+export const POSTHOG_DOCS_URL = HONCH_DOCS_URL;
 
 /** Remote base URL for fetching the skill menu + downloading skills. */
 export const REMOTE_SKILLS_BASE_URL =
@@ -89,7 +95,7 @@ export const POSTHOG_US_CLIENT_ID = 'c4Rdw8DIxgtQfA80IiSnGKlNX8QN00cFWF00QQhM';
 export const POSTHOG_EU_CLIENT_ID = 'bx2C5sZRN03TkdjraCcetvQFPGH6N2Y9vRLkcKEy';
 export const POSTHOG_DEV_CLIENT_ID = 'DC5uRLVbGI02YQ82grxgnK6Qn12SXWpCqdPb60oZ';
 export const POSTHOG_PROXY_CLIENT_ID = POSTHOG_US_CLIENT_ID;
-export const DUMMY_PROJECT_API_KEY = '_YOUR_POSTHOG_PROJECT_TOKEN_';
+export const DUMMY_PROJECT_API_KEY = '_YOUR_HONCH_PROJECT_KEY_';
 
 /**
  * Scopes the wizard requests during the agentic provisioning signup flow.
@@ -149,7 +155,7 @@ export const WIZARD_VARIANTS: Record<string, Record<string, string>> = {
   subagents: { VARIANT: 'subagents' },
 };
 /** User-Agent for wizard HTTP requests and MCP server identification. */
-export const WIZARD_USER_AGENT = `posthog/wizard; version: ${VERSION}`;
+export const WIZARD_USER_AGENT = `honch/wizard; version: ${VERSION}`;
 
 // ── HTTP headers ─────────────────────────────────────────────────────
 

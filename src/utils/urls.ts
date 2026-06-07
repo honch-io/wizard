@@ -1,88 +1,36 @@
-import axios from 'axios';
-import { IS_DEV, WIZARD_USER_AGENT } from '@lib/constants';
+import { DEFAULT_API_BASE_URL } from '@lib/constants';
 import type { CloudRegion } from './types';
 
-export const getAssetHostFromHost = (host: string) => {
-  if (host.includes('us.i.posthog.com')) {
-    return 'https://us-assets.i.posthog.com';
-  }
+/**
+ * Honch is single-region. These helpers are retained with their original
+ * signatures so existing call sites keep compiling, but they all resolve to
+ * the configured Honch platform/capture hosts rather than PostHog regions.
+ */
 
-  if (host.includes('eu.i.posthog.com')) {
-    return 'https://eu-assets.i.posthog.com';
-  }
+export const getAssetHostFromHost = (host: string): string => host;
 
-  return host;
-};
+export const getUiHostFromHost = (_host: string): string => DEFAULT_API_BASE_URL;
 
-export const getUiHostFromHost = (host: string) => {
-  if (host.includes('us.i.posthog.com')) {
-    return 'https://us.posthog.com';
-  }
+export const getHostFromRegion = (_region: CloudRegion): string =>
+  DEFAULT_API_BASE_URL;
 
-  if (host.includes('eu.i.posthog.com')) {
-    return 'https://eu.posthog.com';
-  }
+export const getCloudUrlFromRegion = (_region?: CloudRegion): string =>
+  DEFAULT_API_BASE_URL;
 
-  return host;
-};
-
-export const getHostFromRegion = (region: CloudRegion) => {
-  if (IS_DEV) {
-    return 'http://localhost:8010';
-  }
-
-  if (region === 'eu') {
-    return 'https://eu.i.posthog.com';
-  }
-
-  return 'https://us.i.posthog.com';
-};
-
-export const getCloudUrlFromRegion = (region: CloudRegion) => {
-  if (IS_DEV) {
-    return 'http://localhost:8010';
-  }
-
-  if (region === 'eu') {
-    return 'https://eu.posthog.com';
-  }
-
-  return 'https://us.posthog.com';
-};
-
-export async function detectRegionFromToken(
-  accessToken: string,
+/** Honch has a single cloud; every token resolves to the same region. */
+export function detectRegionFromToken(
+  _accessToken: string,
 ): Promise<CloudRegion> {
-  if (IS_DEV) {
-    return 'us';
-  }
-
-  const headers = {
-    Authorization: `Bearer ${accessToken}`,
-    'User-Agent': WIZARD_USER_AGENT,
-  };
-
-  const [usResult, euResult] = await Promise.allSettled([
-    axios.get('https://us.posthog.com/api/users/@me/', { headers }),
-    axios.get('https://eu.posthog.com/api/users/@me/', { headers }),
-  ]);
-
-  if (usResult.status === 'fulfilled') return 'us';
-  if (euResult.status === 'fulfilled') return 'eu';
-
-  throw new Error(
-    'Could not determine cloud region from access token. Please check your PostHog account.',
-  );
+  return Promise.resolve('us');
 }
 
-export const getLlmGatewayUrlFromHost = (host: string) => {
-  if (host.includes('localhost')) {
-    return 'http://localhost:3308/wizard';
-  }
-
-  if (host.includes('eu.posthog.com') || host.includes('eu.i.posthog.com')) {
-    return 'https://gateway.eu.posthog.com/wizard';
-  }
-
-  return 'https://gateway.us.posthog.com/wizard';
-};
+/**
+ * The Honch wizard LLM proxy lives at `${apiBaseUrl}/api/wizard/llm`.
+ *
+ * The agent SDK appends `/v1/messages` (etc.) to ANTHROPIC_BASE_URL; the
+ * backend strips the `/api/wizard/llm` prefix and re-targets Anthropic. The
+ * input is the platform base URL (e.g. https://app.honch.io), NOT the capture
+ * host.
+ */
+export const getLlmGatewayUrlFromHost = (apiBaseUrl: string): string =>
+  `${apiBaseUrl.replace(/\/+$/, '')}/api/wizard/llm`;

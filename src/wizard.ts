@@ -6,51 +6,50 @@ import { toCommandModule, type Command } from './commands/command';
 
 /**
  * Global yargs options applied to every command. These are read from the
- * `POSTHOG_WIZARD` env prefix as well as flags.
+ * `HONCH_WIZARD` env prefix as well as flags.
  */
 export const GLOBAL_OPTIONS = {
   debug: {
     default: false,
-    describe: 'Enable verbose logging\nenv: POSTHOG_WIZARD_DEBUG',
+    describe: 'Enable verbose logging\nenv: HONCH_WIZARD_DEBUG',
     type: 'boolean' as const,
   },
-  region: {
-    describe: 'PostHog cloud region\nenv: POSTHOG_WIZARD_REGION',
-    choices: ['us', 'eu'] as const,
+  token: {
+    describe:
+      'Honch platform bearer token. Paste it once and the wizard installs the SDK automatically.\nenv: HONCH_WIZARD_TOKEN',
     type: 'string' as const,
   },
-  signup: {
-    default: false,
+  'api-base-url': {
     describe:
-      'Create a new PostHog account during setup\nenv: POSTHOG_WIZARD_SIGNUP',
-    type: 'boolean' as const,
+      'Honch platform API base URL (mints the wizard token + lists projects)\nenv: HONCH_WIZARD_API_BASE_URL',
+    type: 'string' as const,
   },
-  'local-mcp': {
-    default: false,
+  'capture-host': {
     describe:
-      'Use local MCP server at http://localhost:8787/mcp\nenv: POSTHOG_WIZARD_LOCAL_MCP',
-    type: 'boolean' as const,
+      'Honch event-ingestion host the installed SDK uploads to\nenv: HONCH_WIZARD_CAPTURE_HOST',
+    type: 'string' as const,
+  },
+  project: {
+    describe:
+      'Project id or name to install into (defaults to your only/first project)\nenv: HONCH_WIZARD_PROJECT',
+    type: 'string' as const,
+  },
+  'device-model': {
+    describe:
+      'Device model to stamp on events (firmware targets)\nenv: HONCH_WIZARD_DEVICE_MODEL',
+    type: 'string' as const,
+  },
+  'firmware-version': {
+    describe:
+      'Firmware version to stamp on events (firmware targets)\nenv: HONCH_WIZARD_FIRMWARE_VERSION',
+    type: 'string' as const,
   },
   telemetry: {
     default: true,
     describe:
-      'Send wizard run state to PostHog (pass --no-telemetry to disable)\nenv: POSTHOG_WIZARD_TELEMETRY',
+      'Reserved (no-op). The Honch wizard sends no telemetry.\nenv: HONCH_WIZARD_TELEMETRY',
     type: 'boolean' as const,
-  },
-  'api-key': {
-    describe:
-      'PostHog personal API key (phx_xxx) for authentication\nenv: POSTHOG_WIZARD_API_KEY',
-    type: 'string' as const,
-  },
-  'project-id': {
-    describe:
-      'PostHog project ID to use (optional; when not set, uses default from API key or OAuth)\nenv: POSTHOG_WIZARD_PROJECT_ID',
-    type: 'string' as const,
-  },
-  email: {
-    describe:
-      'Email address for signup (used with --signup)\nenv: POSTHOG_WIZARD_EMAIL',
-    type: 'string' as const,
+    hidden: true,
   },
 };
 
@@ -59,7 +58,7 @@ export class Wizard {
 
   private constructor() {
     let cli = yargs(hideBin(process.argv))
-      .env('POSTHOG_WIZARD')
+      .env('HONCH_WIZARD')
       .options(GLOBAL_OPTIONS);
 
     // CI mode (--ci) is only supported in dev/test. It is left undeclared in
@@ -70,7 +69,7 @@ export class Wizard {
       cli = cli.option('ci', {
         default: false,
         describe:
-          'Enable CI mode for non-interactive execution\nenv: POSTHOG_WIZARD_CI',
+          'Enable CI mode for non-interactive execution\nenv: HONCH_WIZARD_CI',
         type: 'boolean',
       });
     }
@@ -117,8 +116,8 @@ export class Wizard {
         (a) => a === '--ci' || a === '--no-ci' || a.startsWith('--ci='),
       );
       const envHasCI =
-        process.env.POSTHOG_WIZARD_CI != null &&
-        process.env.POSTHOG_WIZARD_CI !== '';
+        process.env.HONCH_WIZARD_CI != null &&
+        process.env.HONCH_WIZARD_CI !== '';
       if (argvHasCI || envHasCI) {
         process.stderr.write(
           `\n\x1b[1;91m✖ CI mode is not currently supported in published builds.\x1b[0m\n\n`,

@@ -31,9 +31,9 @@ export function configureLogFile(opts: {
 }
 
 export function configureLogFileFromEnvironment(): void {
-  const dir = runtimeEnv('POSTHOG_WIZARD_LOG_DIR');
+  const dir = runtimeEnv('HONCH_WIZARD_LOG_DIR');
   if (dir) {
-    configureLogFile({ path: path.join(dir, 'posthog-wizard.log') });
+    configureLogFile({ path: path.join(dir, 'honch-wizard.log') });
   }
 }
 

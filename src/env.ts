@@ -1,5 +1,5 @@
 /**
- * Central environment variable access for the PostHog wizard.
+ * Central environment variable access for the Honch wizard.
  *
  * ── Build-time constants ────────────────────────────────────────────
  * Inlined by tsdown's `env` option at compile time. After build, the
@@ -39,15 +39,15 @@ export const IS_PRODUCTION_BUILD = process.env.NODE_ENV === 'production';
  * Add new keys here when a new runtime dependency is needed.
  */
 type RuntimeEnvKey =
-  // Wizard CLI configuration (yargs POSTHOG_WIZARD_ prefix)
-  | 'POSTHOG_WIZARD_BENCHMARK_CONFIG'
-  | 'POSTHOG_WIZARD_BENCHMARK_FILE'
-  | 'POSTHOG_WIZARD_LOG_DIR'
-  | 'POSTHOG_WIZARD_DEBUG'
+  // Wizard CLI configuration (yargs HONCH_WIZARD_ prefix)
+  | 'HONCH_WIZARD_BENCHMARK_CONFIG'
+  | 'HONCH_WIZARD_BENCHMARK_FILE'
+  | 'HONCH_WIZARD_LOG_DIR'
+  | 'HONCH_WIZARD_DEBUG'
   | 'DEBUG'
-  // Agent / MCP
+  // Agent / MCP + platform bearer token
   | 'MCP_URL'
-  | 'POSTHOG_API_KEY'
+  | 'HONCH_WIZARD_TOKEN'
   // Platform: terminal detection
   | 'TERM'
   | 'TERM_PROGRAM'
