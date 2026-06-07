@@ -41,7 +41,13 @@ export function runWizard(
         debug: options.debug as boolean | undefined,
         localMcp: options.localMcp as boolean | undefined,
         installDir,
-        token: options.token as string | undefined,
+        // Accept the bearer token as --token, env, OR the first positional arg
+        // (so `npx -y @honch/wizard <token>` works as a true one-liner).
+        token:
+          (options.token as string | undefined) ??
+          (Array.isArray(options._) && options._.length > 0
+            ? String(options._[0])
+            : undefined),
         apiBaseUrl: options.apiBaseUrl as string | undefined,
         captureHost: options.captureHost as string | undefined,
         project: options.project as string | undefined,
