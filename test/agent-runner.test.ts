@@ -18,17 +18,18 @@ describe("buildAgentOptions", () => {
     });
 
     expect(options.cwd).toBe("/tmp/project");
-    expect(options.model).toBe("claude-3-5-haiku-20241022");
-    expect(options.fallbackModel).toBe("claude-3-haiku-20240307");
+    expect(options.model).toBe("claude-sonnet-4-6");
+    expect(options).not.toHaveProperty("fallbackModel");
     expect(options.includePartialMessages).toBe(true);
     expect(options.mcpServers).toHaveProperty("honcho-tools");
     expect(options.env).toEqual(
       expect.objectContaining({
         ANTHROPIC_BASE_URL: "https://app.honch.io/api/wizard/llm",
-        ANTHROPIC_AUTH_TOKEN: "wizard-token",
+        ANTHROPIC_API_KEY: "wizard-token",
       }),
     );
-    expect(options.env).not.toHaveProperty("ANTHROPIC_API_KEY");
+    expect(options.env).not.toHaveProperty("ANTHROPIC_AUTH_TOKEN");
+    expect(options.env).not.toHaveProperty("CLAUDE_CODE_OAUTH_TOKEN");
   });
 
   it("renders edit tool events with code previews", () => {

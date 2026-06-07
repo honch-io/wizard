@@ -18,13 +18,12 @@ export type AgentRunEvent = {
   text: string;
 };
 
-const HONCH_AGENT_MODEL = "claude-3-5-haiku-20241022";
+const HONCH_AGENT_MODEL = "claude-sonnet-4-6";
 
 export function buildAgentOptions(input: Omit<AgentRunInput, "prompt">) {
   return {
     cwd: input.cwd,
     model: HONCH_AGENT_MODEL,
-    fallbackModel: "claude-3-haiku-20240307",
     permissionMode: "acceptEdits" as const,
     mcpServers: input.mcpServers,
     includePartialMessages: true,
@@ -44,8 +43,7 @@ export function buildAgentOptions(input: Omit<AgentRunInput, "prompt">) {
     env: {
       ...safeProcessEnv(),
       ANTHROPIC_BASE_URL: input.llmBaseUrl,
-      ANTHROPIC_AUTH_TOKEN: input.platformToken,
-      CLAUDE_CODE_OAUTH_TOKEN: input.platformToken,
+      ANTHROPIC_API_KEY: input.platformToken,
     },
   };
 }
