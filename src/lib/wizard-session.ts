@@ -134,6 +134,26 @@ export interface PendingQuestion {
   source: string;
 }
 
+/** One rendered line of a file diff (add/del/context/hunk-marker). */
+export interface FileDiffLine {
+  kind: 'add' | 'del' | 'ctx' | 'hunk';
+  text: string;
+}
+
+/**
+ * A single file change the agent made, surfaced live in the Run screen as a
+ * colored diff. Built from the agent's Write/Edit/MultiEdit tool calls.
+ */
+export interface FileDiff {
+  /** File path as the agent referenced it. */
+  path: string;
+  /** Tool that produced it: 'Write' | 'Edit' | 'MultiEdit'. */
+  tool: string;
+  added: number;
+  removed: number;
+  lines: FileDiffLine[];
+}
+
 /**
  * PostHog dashboard URL emitted by the agent during a program run.
  * Populated via the `[DASHBOARD_URL]` text marker in agent assistant messages

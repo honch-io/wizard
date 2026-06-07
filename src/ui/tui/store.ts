@@ -22,6 +22,7 @@ import {
   type DiscoveredFeature,
   type PendingQuestion,
   type AskAnswers,
+  type FileDiff,
   AdditionalFeature,
   McpOutcome,
   RunPhase,
@@ -82,6 +83,7 @@ export class WizardStore {
   private $statusExpanded = atom(false);
   private $tasks = atom<TaskItem[]>([]);
   private $eventPlan = atom<PlannedEvent[]>([]);
+  private $fileDiffs = atom<FileDiff[]>([]);
   private $learnCardBlockIdx = atom(0);
   private $learnCardComplete = atom(false);
   private $version = atom(0);
@@ -233,6 +235,10 @@ export class WizardStore {
 
   get statusMessages(): string[] {
     return this.$statusMessages.get();
+  }
+
+  get fileDiffs(): FileDiff[] {
+    return this.$fileDiffs.get();
   }
 
   get tasks(): TaskItem[] {
@@ -673,6 +679,18 @@ export class WizardStore {
         ? [...msgs.slice(msgs.length - MAX_STATUS_MESSAGES + 1), message]
         : [...msgs, message];
     this.$statusMessages.set(next);
+    this.emitChange();
+  }
+
+  /** Append a live file diff from the agent's Write/Edit/MultiEdit calls. */
+  pushFileDiff(diff: FileDiff): void {
+    const MAX_FILE_DIFFS = 8;
+    const cur = this.$fileDiffs.get();
+    const next =
+      cur.length >= MAX_FILE_DIFFS
+        ? [...cur.slice(cur.length - MAX_FILE_DIFFS + 1), diff]
+        : [...cur, diff];
+    this.$fileDiffs.set(next);
     this.emitChange();
   }
 

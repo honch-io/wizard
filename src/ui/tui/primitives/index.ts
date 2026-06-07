@@ -15,6 +15,7 @@ export { Divider } from './Divider.js';
 export { ModalOverlay } from './ModalOverlay.js';
 export { LogViewer } from './LogViewer.js';
 export { EventPlanViewer } from './EventPlanViewer.js';
+export { DiffViewer } from './DiffViewer.js';
 export { ScreenContainer } from './ScreenContainer.js';
 export { ScreenErrorBoundary } from './ScreenErrorBoundary.js';
 export { TabContainer } from './TabContainer.js';

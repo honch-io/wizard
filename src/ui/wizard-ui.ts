@@ -15,6 +15,7 @@ import type {
   AskAnswers,
   OutroData,
   PendingQuestion,
+  FileDiff,
 } from '@lib/wizard-session';
 
 export enum TaskStatus {
@@ -77,6 +78,9 @@ export interface WizardUI {
 
   note(message: string): void;
   pushStatus(message: string): void;
+
+  /** Surface a live file diff (Write/Edit/MultiEdit) in the Run screen. */
+  pushFileDiff(diff: FileDiff): void;
 
   // ── Spinner ───────────────────────────────────────────────────────
   spinner(): SpinnerHandle;

@@ -17,8 +17,11 @@ import {
 } from '@lib/constants';
 import {
   type AdditionalFeature,
+  type FileDiff,
+  type FileDiffLine,
   ADDITIONAL_FEATURE_PROMPTS,
 } from '@lib/wizard-session';
+import { diffLines } from 'diff';
 import { registerCleanup, wizardAbort, WizardError } from '@utils/wizard-abort';
 import { createCustomHeaders } from '@utils/custom-headers';
 import { getLlmGatewayUrlFromHost } from '@utils/urls';
@@ -1411,6 +1414,64 @@ function extractTaskIdFromResult(content: unknown): string | undefined {
   return undefined;
 }
 
+/**
+ * Build a colored line diff from a Write/Edit/MultiEdit tool call so the Run
+ * screen can show changes live as the agent makes them. Returns null for any
+ * other tool or malformed input. Caps very large diffs.
+ */
+function buildFileDiff(toolName: string, input: unknown): FileDiff | null {
+  if (toolName !== 'Write' && toolName !== 'Edit' && toolName !== 'MultiEdit') {
+    return null;
+  }
+  const rec = (input ?? {}) as Record<string, unknown>;
+  const path = typeof rec.file_path === 'string' ? rec.file_path : undefined;
+  if (!path) return null;
+
+  const pairs: Array<[string, string]> = [];
+  if (toolName === 'Write') {
+    if (typeof rec.content !== 'string') return null;
+    pairs.push(['', rec.content]); // new file / overwrite → all additions
+  } else if (toolName === 'Edit') {
+    if (typeof rec.old_string !== 'string' || typeof rec.new_string !== 'string')
+      return null;
+    pairs.push([rec.old_string, rec.new_string]);
+  } else {
+    const edits = Array.isArray(rec.edits) ? rec.edits : [];
+    for (const e of edits) {
+      const er = (e ?? {}) as Record<string, unknown>;
+      if (typeof er.old_string === 'string' && typeof er.new_string === 'string') {
+        pairs.push([er.old_string, er.new_string]);
+      }
+    }
+    if (pairs.length === 0) return null;
+  }
+
+  const MAX_LINES = 80;
+  const lines: FileDiffLine[] = [];
+  let added = 0;
+  let removed = 0;
+  let truncated = false;
+  for (const [oldStr, newStr] of pairs) {
+    for (const change of diffLines(oldStr, newStr)) {
+      const kind: FileDiffLine['kind'] = change.added
+        ? 'add'
+        : change.removed
+          ? 'del'
+          : 'ctx';
+      const chunk = change.value.split('\n');
+      if (chunk.length > 0 && chunk[chunk.length - 1] === '') chunk.pop();
+      for (const text of chunk) {
+        if (change.added) added++;
+        else if (change.removed) removed++;
+        if (lines.length < MAX_LINES) lines.push({ kind, text });
+        else truncated = true;
+      }
+    }
+  }
+  if (truncated) lines.push({ kind: 'hunk', text: '… (diff truncated)' });
+  return { path, tool: toolName, added, removed, lines };
+}
+
 function handleSDKMessage(
   message: SDKMessage,
   options: WizardRunOptions,
@@ -1504,6 +1565,15 @@ function handleSDKMessage(
               tasks,
               sync: syncTasks,
             });
+          }
+
+          // Surface Write/Edit/MultiEdit as live colored diffs in the Run screen.
+          if (block.type === 'tool_use') {
+            const fileDiff = buildFileDiff(
+              block.name,
+              (block as { input?: unknown }).input,
+            );
+            if (fileDiff) getUI().pushFileDiff(fileDiff);
           }
         }
       }

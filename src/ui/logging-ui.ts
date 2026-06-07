@@ -21,6 +21,7 @@ import type {
   AskAnswers,
   OutroData,
   PendingQuestion,
+  FileDiff,
 } from '@lib/wizard-session';
 
 export class LoggingUI implements WizardUI {
@@ -84,6 +85,10 @@ export class LoggingUI implements WizardUI {
 
   pushStatus(message: string): void {
     console.log(`◇  ${message}`);
+  }
+
+  pushFileDiff(diff: FileDiff): void {
+    console.log(`±  ${diff.path}  +${diff.added}/-${diff.removed}`);
   }
 
   setDetectedFramework(label: string): void {

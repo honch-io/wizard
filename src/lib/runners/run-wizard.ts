@@ -61,7 +61,8 @@ export function runWizard(
 
       activeTui.store.session = session;
 
-      const taskStreamEnabled = !session.noTelemetry;
+      // Honch wizard sends no telemetry — the run-state stream stays disabled.
+      const taskStreamEnabled = false;
       taskStream = new TaskStreamPush({
         store: activeTui.store,
         programId: config.id,

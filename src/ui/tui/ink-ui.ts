@@ -15,6 +15,7 @@ import type {
   AskAnswers,
   OutroData,
   PendingQuestion,
+  FileDiff,
 } from '@lib/wizard-session';
 import { RunPhase, OutroKind } from '@lib/wizard-session';
 
@@ -197,6 +198,10 @@ export class InkUI implements WizardUI {
 
   pushStatus(message: string): void {
     this.store.pushStatus(message);
+  }
+
+  pushFileDiff(diff: FileDiff): void {
+    this.store.pushFileDiff(diff);
   }
 
   syncTodos(

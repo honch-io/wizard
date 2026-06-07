@@ -8,7 +8,7 @@
 
 import { useMemo, useSyncExternalStore } from 'react';
 import { join } from 'node:path';
-import { Box } from 'ink';
+import { Box, Text } from 'ink';
 import type { WizardStore } from '@ui/tui/store';
 import {
   TabContainer,
@@ -16,6 +16,7 @@ import {
   ProgressList,
   LogViewer,
   EventPlanViewer,
+  DiffViewer,
   HNViewer,
 } from '@ui/tui/primitives/index';
 import type { ProgressItem } from '@ui/tui/primitives/index';
@@ -100,7 +101,7 @@ export const RunScreen = ({ store }: RunScreenProps) => {
   const progressList = <ProgressList items={progressItems} title="Tasks" />;
 
   // On narrow terminals, drop the learn pane and show only progress
-  const statusComponent =
+  const base =
     columns < 80 ? (
       <Box flexDirection="column" flexGrow={1}>
         {progressList}
@@ -109,8 +110,31 @@ export const RunScreen = ({ store }: RunScreenProps) => {
       <SplitView left={leftPane} right={progressList} />
     );
 
+  // Surface the most recent edits inline so changes are visible live without
+  // switching tabs; the full history lives in the "Changes" tab.
+  const statusComponent = (
+    <Box flexDirection="column" flexGrow={1}>
+      {base}
+      {store.fileDiffs.length > 0 ? (
+        <Box flexDirection="column" marginTop={1}>
+          <Text color="gray">Latest changes — full list in the “Changes” tab:</Text>
+          <DiffViewer diffs={store.fileDiffs.slice(-2)} />
+        </Box>
+      ) : null}
+    </Box>
+  );
+
   const tabs = [
     { id: 'status', label: 'Status', component: statusComponent },
+    ...(store.fileDiffs.length > 0
+      ? [
+          {
+            id: 'changes',
+            label: 'Changes',
+            component: <DiffViewer diffs={store.fileDiffs} />,
+          },
+        ]
+      : []),
     ...(store.eventPlan.length > 0
       ? [
           {
