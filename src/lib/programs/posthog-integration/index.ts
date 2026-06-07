@@ -17,7 +17,6 @@ import { wizardAbort } from '@utils/wizard-abort';
 import { WIZARD_INTERACTION_EVENT_NAME } from '@lib/constants';
 import { getUI } from '@ui/index';
 import { getCloudUrlFromRegion } from '@utils/urls';
-import { requestDeepLink } from '@utils/provisioning';
 import type { CloudRegion } from '@utils/types';
 import { POSTHOG_INTEGRATION_PROGRAM } from './steps.js';
 import { getContentBlocks } from './content/index.js';
@@ -196,48 +195,6 @@ Important: Use the detect_package_manager tool (from the wizard-tools MCP server
 
 
 `;
-      },
-
-      postRun: async (sess, credentials) => {
-        const envVars = config.environment.getEnvVars(
-          credentials.projectApiKey,
-          credentials.host,
-        );
-        if (config.environment.uploadToHosting) {
-          const { uploadEnvironmentVariablesStep } = await import(
-            '@steps/index'
-          );
-          const uploadedEnvVars = await uploadEnvironmentVariablesStep(
-            envVars,
-            {
-              integration: config.metadata.integration,
-              session: sess,
-            },
-          );
-          if (uploadedEnvVars.length > 0) {
-            analytics.capture(WIZARD_INTERACTION_EVENT_NAME, {
-              action: 'wizard_env_vars_uploaded',
-              integration: config.metadata.integration,
-              variable_count: uploadedEnvVars.length,
-              variable_keys: uploadedEnvVars,
-            });
-          }
-        }
-
-        if (sess.signup) {
-          const deepLink = await requestDeepLink(
-            credentials.accessToken,
-            credentials.host,
-          );
-          if (deepLink) {
-            sess.frameworkContext[DASHBOARD_DEEP_LINK_KEY] = deepLink;
-            if (process.env.NODE_ENV !== 'test') {
-              opn(deepLink, { wait: false }).catch(() => {
-                // opn throws in environments without a browser
-              });
-            }
-          }
-        }
       },
 
       buildOutroData: (sess, credentials, cloudRegion) => {

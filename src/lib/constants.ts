@@ -7,33 +7,19 @@ import { VERSION } from './version';
 // ── Integration / CLI ───────────────────────────────────────────────
 
 /**
- * Detection order matters: put framework-specific integrations BEFORE basic language fallbacks.
+ * Honch SDK targets. Detection order matters: most specific first (esp-idf
+ * before c-posix, since both are CMake). Mobile targets follow firmware.
  */
 export enum Integration {
-  // Frameworks
-  nextjs = 'nextjs',
-  nuxt = 'nuxt',
-  vue = 'vue',
-  reactRouter = 'react-router',
-  tanstackStart = 'tanstack-start',
-  tanstackRouter = 'tanstack-router',
-  reactNative = 'react-native',
-  angular = 'angular',
-  astro = 'astro',
-  django = 'django',
-  flask = 'flask',
-  fastapi = 'fastapi',
-  laravel = 'laravel',
-  sveltekit = 'sveltekit',
-  swift = 'swift',
-  android = 'android',
-  rails = 'rails',
+  // Firmware (Device SDK)
+  espIdf = 'esp-idf',
+  cPosix = 'c-posix',
+  micropython = 'micropython',
 
-  // Language fallbacks
-  python = 'python',
-  ruby = 'ruby',
-  javascriptNode = 'javascript_node',
-  javascript_web = 'javascript_web',
+  // Mobile (App SDK / relay)
+  reactNativeRelay = 'react-native-relay',
+  iosSwift = 'ios-swift',
+  androidKotlin = 'android-kotlin',
 }
 
 export interface Args {

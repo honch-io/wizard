@@ -10,7 +10,16 @@
 
 export const AUDIT_CHECKS_FILE = '.honch-audit-checks.json';
 
-export type AuditStatus = 'pending' | 'pass' | 'fail' | 'skip' | 'unknown';
+export type AuditStatus =
+  | 'pending'
+  | 'pass'
+  | 'fail'
+  | 'skip'
+  | 'unknown'
+  | 'error'
+  | 'warning'
+  | 'suggestion'
+  | 'info';
 
 export interface AuditCheck {
   id: string;

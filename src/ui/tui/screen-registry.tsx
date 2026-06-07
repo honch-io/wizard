@@ -1,118 +1,82 @@
 /**
  * ScreenId registry — maps screen names to React components.
  *
- * Adding a new screen:
- *   1. Create the component in screens/ (or screens/<program>/).
- *   2. Add a `ScreenId` enum entry in screen-sequences.ts.
- *   3. Add an entry here.
- *   4. Reference the screen by name in the program's `steps` array.
+ * The Honch fork ships a single program (SDK integration) plus the generic
+ * agent-skill runner. ScreenIds belonging to removed PostHog programs (audit,
+ * doctor, revenue, source-maps, migration, MCP install, OAuth) are kept in the
+ * enum for type-exhaustiveness but are never navigated to; they map to a
+ * harmless placeholder so this Record stays total without dragging the router,
+ * store, and sequences through a coordinated enum edit.
  */
 
 import type { ReactNode } from 'react';
 import type { WizardStore } from './store.js';
 import { ScreenId, Overlay, type ScreenName } from './router.js';
 
-import { HealthCheckScreen } from './screens/health/HealthCheckScreen.js';
-import { DoctorIntroScreen } from './screens/doctor/DoctorIntroScreen.js';
-import { DoctorReportScreen } from './screens/doctor/DoctorReportScreen.js';
 import { SettingsOverrideScreen } from './screens/SettingsOverrideScreen.js';
 import { ManagedSettingsScreen } from './screens/ManagedSettingsScreen.js';
 import { PortConflictScreen } from './screens/PortConflictScreen.js';
-import { ManualAuthCodeScreen } from './screens/ManualAuthCodeScreen.js';
 import { PostHogIntegrationIntroScreen } from './screens/PostHogIntegrationIntroScreen.js';
-import { RevenueIntroScreen } from './screens/RevenueIntroScreen.js';
-import { MigrationIntroScreen } from './screens/MigrationIntroScreen.js';
-import { SourceMapsIntroScreen } from './screens/SourceMapsIntroScreen.js';
-import { SourceMapsOutroScreen } from './screens/SourceMapsOutroScreen.js';
 import { AgentSkillIntroScreen } from './screens/AgentSkillIntroScreen.js';
-import { AuditIntroScreen } from './screens/audit/AuditIntroScreen.js';
-import { AuditRunScreen } from './screens/audit/AuditRunScreen.js';
-import { AuditOutroScreen } from './screens/audit/AuditOutroScreen.js';
-import { Audit3000IntroScreen } from './screens/audit-3000/Audit3000IntroScreen.js';
-import { Audit3000RunScreen } from './screens/audit-3000/Audit3000RunScreen.js';
-import { Audit3000OutroScreen } from './screens/audit-3000/Audit3000OutroScreen.js';
 import { SetupScreen } from './screens/SetupScreen.js';
-import { AuthScreen } from './screens/AuthScreen.js';
 import { RunScreen } from './screens/RunScreen.js';
-import { McpScreen } from './screens/McpScreen.js';
-import { McpSuggestedPromptsScreen } from './screens/McpSuggestedPromptsScreen.js';
 import { KeepSkillsScreen } from './screens/KeepSkillsScreen.js';
 import { OutroScreen } from './screens/OutroScreen.js';
 import { ExitScreen } from './screens/ExitScreen.js';
-import { AuthErrorScreen } from './screens/AuthErrorScreen.js';
 import { WizardAskScreen } from './screens/WizardAskScreen.js';
-import { createMcpInstaller } from './services/mcp-installer.js';
-import type { McpInstaller } from './services/mcp-installer.js';
-import { createMcpSuggestedPromptsServices } from './services/mcp-suggested-prompts-services.js';
-import type { McpSuggestedPromptsServices } from './services/mcp-suggested-prompts-services.js';
 
-export interface ScreenServices {
-  mcpInstaller: McpInstaller;
-  mcpSuggestedPromptsServices: McpSuggestedPromptsServices;
-}
+// Removed PostHog programs left these services behind; the Honch wizard needs
+// no per-screen services, so this is intentionally empty.
+export type ScreenServices = Record<string, never>;
 
-export function createServices(store: WizardStore): ScreenServices {
-  return {
-    mcpInstaller: createMcpInstaller(),
-    mcpSuggestedPromptsServices: createMcpSuggestedPromptsServices(store),
-  };
+export function createServices(_store: WizardStore): ScreenServices {
+  return {};
 }
 
 export function createScreens(
   store: WizardStore,
-  services: ScreenServices,
+  _services: ScreenServices,
 ): Record<ScreenName, ReactNode> {
+  // Placeholder for ScreenIds that belong to removed programs and are never
+  // reached at runtime.
+  const removed = <ExitScreen />;
+
   return {
     // Overlays
     [Overlay.SettingsOverride]: <SettingsOverrideScreen store={store} />,
     [Overlay.ManagedSettings]: <ManagedSettingsScreen store={store} />,
     [Overlay.PortConflict]: <PortConflictScreen store={store} />,
-    [Overlay.ManualAuthCode]: <ManualAuthCodeScreen store={store} />,
-    [Overlay.AuthError]: <AuthErrorScreen store={store} />,
     [Overlay.WizardAsk]: <WizardAskScreen store={store} />,
+    [Overlay.ManualAuthCode]: removed,
+    [Overlay.AuthError]: removed,
 
-    // Wizard flow
+    // Honch wizard flow
     [ScreenId.Intro]: <PostHogIntegrationIntroScreen store={store} />,
-    [ScreenId.RevenueIntro]: <RevenueIntroScreen store={store} />,
-    [ScreenId.SourceMapsIntro]: <SourceMapsIntroScreen store={store} />,
-    [ScreenId.SourceMapsOutro]: <SourceMapsOutroScreen store={store} />,
-    [ScreenId.MigrationIntro]: <MigrationIntroScreen store={store} />,
     [ScreenId.AgentSkillIntro]: <AgentSkillIntroScreen store={store} />,
-    [ScreenId.AuditIntro]: <AuditIntroScreen store={store} />,
-    [ScreenId.AuditRun]: <AuditRunScreen store={store} />,
-    [ScreenId.AuditOutro]: <AuditOutroScreen store={store} />,
-    [ScreenId.Audit3000Intro]: <Audit3000IntroScreen store={store} />,
-    [ScreenId.Audit3000Run]: <Audit3000RunScreen store={store} />,
-    [ScreenId.Audit3000Outro]: <Audit3000OutroScreen store={store} />,
-    [ScreenId.HealthCheck]: <HealthCheckScreen store={store} />,
-    [ScreenId.DoctorIntro]: <DoctorIntroScreen store={store} />,
-    [ScreenId.DoctorReport]: <DoctorReportScreen store={store} />,
     [ScreenId.Setup]: <SetupScreen store={store} />,
-    [ScreenId.Auth]: <AuthScreen store={store} />,
     [ScreenId.Run]: <RunScreen store={store} />,
-    [ScreenId.Mcp]: (
-      <McpScreen store={store} installer={services.mcpInstaller} />
-    ),
-    [ScreenId.McpSuggestedPrompts]: (
-      <McpSuggestedPromptsScreen
-        store={store}
-        services={services.mcpSuggestedPromptsServices}
-      />
-    ),
     [ScreenId.KeepSkills]: <KeepSkillsScreen store={store} />,
     [ScreenId.Outro]: <OutroScreen store={store} />,
     [ScreenId.Exit]: <ExitScreen />,
 
-    // Standalone MCP flows
-    [ScreenId.McpAdd]: (
-      <McpScreen store={store} installer={services.mcpInstaller} />
-    ),
-    [ScreenId.McpRemove]: (
-      <McpScreen
-        store={store}
-        installer={services.mcpInstaller}
-        mode="remove"
-      />
-    ),
+    // Removed PostHog program screens (unreachable placeholders)
+    [ScreenId.RevenueIntro]: removed,
+    [ScreenId.SourceMapsIntro]: removed,
+    [ScreenId.SourceMapsOutro]: removed,
+    [ScreenId.MigrationIntro]: removed,
+    [ScreenId.AuditIntro]: removed,
+    [ScreenId.AuditRun]: removed,
+    [ScreenId.AuditOutro]: removed,
+    [ScreenId.Audit3000Intro]: removed,
+    [ScreenId.Audit3000Run]: removed,
+    [ScreenId.Audit3000Outro]: removed,
+    [ScreenId.HealthCheck]: removed,
+    [ScreenId.DoctorIntro]: removed,
+    [ScreenId.DoctorReport]: removed,
+    [ScreenId.Auth]: removed,
+    [ScreenId.Mcp]: removed,
+    [ScreenId.McpSuggestedPrompts]: removed,
+    [ScreenId.McpAdd]: removed,
+    [ScreenId.McpRemove]: removed,
   };
 }
