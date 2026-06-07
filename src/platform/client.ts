@@ -97,8 +97,51 @@ export class PlatformClient {
 }
 
 async function parseJson<T>(response: Response): Promise<T> {
+  const body = await readResponseBody(response);
   if (!response.ok) {
-    throw new Error(`Platform request failed: HTTP ${response.status}`);
+    throw new Error(formatPlatformError(response.status, body));
   }
-  return (await response.json()) as T;
+  return body as T;
+}
+
+async function readResponseBody(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (!text) return undefined;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return text;
+  }
+}
+
+function formatPlatformError(status: number, body: unknown) {
+  const detail = platformErrorDetail(body);
+  if (detail) {
+    return `Platform request failed: HTTP ${status} - ${detail}`;
+  }
+  return `Platform request failed: HTTP ${status}`;
+}
+
+function platformErrorDetail(body: unknown) {
+  if (typeof body === "string") return body;
+  if (!body || typeof body !== "object") return undefined;
+
+  const record = body as Record<string, unknown>;
+  if (typeof record.message === "string" && record.message.length > 0) {
+    return record.message;
+  }
+  if (typeof record.error === "string" && record.error.length > 0) {
+    return knownPlatformError(record.error) ?? record.error;
+  }
+  return undefined;
+}
+
+function knownPlatformError(code: string) {
+  const messages: Record<string, string> = {
+    "auth.emailAlreadyRegistered":
+      "Email already registered. Choose login instead of signup.",
+    "auth.invalidCredentials": "Incorrect email or password.",
+    "auth.alreadyHasOrganization": "You already belong to an organisation.",
+  };
+  return messages[code];
 }

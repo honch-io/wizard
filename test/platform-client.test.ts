@@ -28,11 +28,33 @@ describe("PlatformClient", () => {
       }),
     );
   });
+
+  it("includes platform error details when requests fail", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response(
+          { error: "auth.emailAlreadyRegistered", status: 409 },
+          { status: 409 },
+        ),
+      );
+    const client = new PlatformClient("https://app.honch.io", fetcher);
+
+    await expect(
+      client.register({
+        email: "user@example.com",
+        password: "password",
+      }),
+    ).rejects.toThrow(
+      "Platform request failed: HTTP 409 - Email already registered. Choose login instead of signup.",
+    );
+  });
 });
 
-function response(body: unknown) {
+function response(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
     status: 200,
     headers: { "content-type": "application/json" },
+    ...init,
   });
 }
