@@ -16,9 +16,16 @@ describe("buildAgentPrompt", () => {
     expect(prompt).toContain("ActionCam X1");
     expect(prompt).toContain("Required workflow");
     expect(prompt).toContain("detect_package_manager MCP tool");
-    expect(prompt).toContain("call honch_tick() only from a low-priority task");
+    expect(prompt).toContain("drive honch_tick() from a low-priority task");
     expect(prompt).toContain("honch-setup-report.md");
     expect(prompt).not.toContain("honch_test");
     expect(prompt).not.toContain("sk_");
+
+    // Anti-hallucination guarantees: the prompt must carry the verified API
+    // and steer the agent away from the symbols it previously invented.
+    expect(prompt).toContain("source of truth");
+    expect(prompt).toContain("honch_track(event, properties, property_count)");
+    expect(prompt).toContain("honch_err_t");
+    expect(prompt).toContain("honch_capture() does not exist");
   });
 });

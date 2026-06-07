@@ -2,6 +2,13 @@ import { stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
 import { SDK_TARGETS, type SdkTargetId } from "../sdk/targets.js";
 
+/**
+ * Thrown (as a rejection) by a prompt when the user asks to go back a step.
+ * The workflow driver catches this to return to the previous step instead of
+ * treating it as a fatal error.
+ */
+export const GO_BACK = Symbol("wizard.goBack");
+
 export type WizardStepId =
   | "scan"
   | "target"
@@ -45,6 +52,7 @@ export type PromptRequest = {
   kind: "text" | "password" | "select" | "confirm";
   options: PromptOption[];
   defaultValue?: string;
+  allowBack?: boolean;
 };
 
 export type TuiSnapshot = {
@@ -56,11 +64,24 @@ export type TuiSnapshot = {
   completed?: boolean;
 };
 
+export type PromptOptions = {
+  sensitive?: boolean;
+  defaultValue?: string;
+  allowBack?: boolean;
+};
+
 export type Prompter = {
-  question(prompt: string, options?: { sensitive?: boolean }): Promise<string>;
-  confirm(prompt: string): Promise<boolean>;
+  question(prompt: string, options?: PromptOptions): Promise<string>;
+  confirm(prompt: string, options?: { allowBack?: boolean }): Promise<boolean>;
+  select(
+    title: string,
+    message: string,
+    options: PromptOption[],
+    opts?: { allowBack?: boolean },
+  ): Promise<string>;
   close(): void;
   cancel?(message?: string): void;
+  back?(): void;
   setStep?(id: WizardStepId, detail?: string): void;
   completeStep?(id: WizardStepId, detail?: string): void;
   setSummary?(summary: Partial<WizardSummary>): void;
@@ -82,7 +103,7 @@ const INITIAL_STEPS: WizardStep[] = [
 
 type PendingPrompt = {
   resolve: (value: string) => void;
-  reject: (error: Error) => void;
+  reject: (error: unknown) => void;
 };
 
 export class TuiPrompter implements Prompter {
@@ -107,15 +128,15 @@ export class TuiPrompter implements Prompter {
 
   getSnapshot = () => this.snapshot;
 
-  question(prompt: string, options?: { sensitive?: boolean }): Promise<string> {
+  question(prompt: string, options?: PromptOptions): Promise<string> {
     return new Promise((resolve, reject) => {
-      const request = this.buildRequest(prompt, options?.sensitive ?? false);
+      const request = this.buildRequest(prompt, options ?? {});
       this.pending = { resolve, reject };
       this.update({ currentPrompt: request });
     });
   }
 
-  confirm(prompt: string): Promise<boolean> {
+  confirm(prompt: string, options?: { allowBack?: boolean }): Promise<boolean> {
     return new Promise((resolve, reject) => {
       this.pending = { resolve: (value) => resolve(value === "yes"), reject };
       this.update({
@@ -132,9 +153,39 @@ export class TuiPrompter implements Prompter {
             },
             { label: "Cancel", value: "no", hint: "leave project untouched" },
           ],
+          allowBack: options?.allowBack ?? false,
         },
       });
     });
+  }
+
+  select(
+    title: string,
+    message: string,
+    options: PromptOption[],
+    opts?: { allowBack?: boolean },
+  ): Promise<string> {
+    return new Promise((resolve, reject) => {
+      this.pending = { resolve, reject };
+      this.update({
+        currentPrompt: {
+          id: ++this.promptId,
+          title,
+          message,
+          kind: "select",
+          options,
+          allowBack: opts?.allowBack ?? false,
+        },
+      });
+    });
+  }
+
+  back() {
+    const pending = this.pending;
+    if (!pending) return;
+    this.pending = undefined;
+    this.update({ currentPrompt: undefined });
+    pending.reject(GO_BACK);
   }
 
   answer(value: string) {
@@ -194,7 +245,9 @@ export class TuiPrompter implements Prompter {
     // Keep listeners alive until Ink unmounts the app.
   }
 
-  private buildRequest(prompt: string, sensitive: boolean): PromptRequest {
+  private buildRequest(prompt: string, options: PromptOptions): PromptRequest {
+    const sensitive = options.sensitive ?? false;
+    const allowBack = options.allowBack ?? false;
     const normalized = prompt.replace(/:$/, "");
 
     if (prompt.startsWith("SDK target")) {
@@ -208,6 +261,7 @@ export class TuiPrompter implements Prompter {
           value: id,
           hint: SDK_TARGETS[id].verificationHint,
         })),
+        allowBack,
       };
     }
 
@@ -221,6 +275,7 @@ export class TuiPrompter implements Prompter {
           { label: "Login", value: "login", hint: "existing Honch account" },
           { label: "Signup", value: "signup", hint: "create a Honch account" },
         ],
+        allowBack,
       };
     }
 
@@ -230,9 +285,12 @@ export class TuiPrompter implements Prompter {
       message: normalized,
       kind: sensitive ? "password" : "text",
       options: [],
-      defaultValue: prompt.startsWith("Capture host")
-        ? "https://capture.honch.io"
-        : undefined,
+      defaultValue:
+        options.defaultValue ??
+        (prompt.startsWith("Capture host")
+          ? "https://capture.honch.io"
+          : undefined),
+      allowBack,
     };
   }
 
@@ -273,12 +331,25 @@ export function createPrompter(): Prompter {
   const rl = createInterface({ input, output });
 
   return {
-    async question(prompt) {
-      return rl.question(`${prompt} `);
+    async question(prompt, options) {
+      const answer = await rl.question(`${prompt} `);
+      if (answer.trim().length === 0 && options?.defaultValue) {
+        return options.defaultValue;
+      }
+      return answer;
     },
     async confirm(prompt) {
       const answer = await rl.question(`${prompt} [y/N] `);
       return answer.trim().toLowerCase() === "y";
+    },
+    async select(title, message, options) {
+      output.write(`${title}\n${message}\n`);
+      options.forEach((option, index) => {
+        output.write(`  ${index + 1}) ${option.label}\n`);
+      });
+      const answer = await rl.question("> ");
+      const index = Number.parseInt(answer.trim(), 10) - 1;
+      return options[index]?.value ?? options[0]?.value ?? "";
     },
     close() {
       rl.close();

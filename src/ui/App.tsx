@@ -65,6 +65,7 @@ export function App({
             reportPath={snapshot.summary.reportPath}
             messages={snapshot.runMessages}
             onAnswer={(value) => prompter.answer(value)}
+            onBack={() => prompter.back?.()}
           />
           <Box height={2} />
           <InstallPlan activeStep={activeStepLabel(snapshot.steps)} />
@@ -72,7 +73,11 @@ export function App({
       </Box>
       <Box height={1} />
       <Text color={COLORS.rule}>{rule(WIDTH)}</Text>
-      <Text color={COLORS.help}>↑/↓ navigate | enter select | ctrl+c exit</Text>
+      <Text color={COLORS.help}>
+        {`↑/↓ navigate | enter select${
+          prompt?.allowBack ? " | esc back" : ""
+        } | ctrl+c exit`}
+      </Text>
     </Box>
   );
 }
@@ -156,6 +161,7 @@ function MainArea({
   reportPath,
   messages,
   onAnswer,
+  onBack,
 }: {
   activeStep: string;
   prompt?: PromptRequest;
@@ -164,38 +170,54 @@ function MainArea({
   reportPath?: string;
   messages: Array<{ id: number; text: string }>;
   onAnswer: (value: string) => void;
+  onBack: () => void;
 }) {
   if (error) return <ErrorView message={error} />;
   if (completed) return <DoneView reportPath={reportPath} />;
   if (prompt)
-    return <PromptView key={prompt.id} prompt={prompt} onAnswer={onAnswer} />;
+    return (
+      <PromptView
+        key={prompt.id}
+        prompt={prompt}
+        onAnswer={onAnswer}
+        onBack={onBack}
+      />
+    );
   return <RunView activeStep={activeStep} messages={messages} />;
 }
 
 function PromptView({
   prompt,
   onAnswer,
+  onBack,
 }: {
   prompt: PromptRequest;
   onAnswer: (value: string) => void;
+  onBack: () => void;
 }) {
   if (prompt.kind === "select" || prompt.kind === "confirm") {
-    return <Picker prompt={prompt} onAnswer={onAnswer} />;
+    return <Picker prompt={prompt} onAnswer={onAnswer} onBack={onBack} />;
   }
 
-  return <TextInput prompt={prompt} onAnswer={onAnswer} />;
+  return <TextInput prompt={prompt} onAnswer={onAnswer} onBack={onBack} />;
 }
 
 function Picker({
   prompt,
   onAnswer,
+  onBack,
 }: {
   prompt: PromptRequest;
   onAnswer: (value: string) => void;
+  onBack: () => void;
 }) {
   const [focused, setFocused] = useState(0);
 
   useInput((_input, key) => {
+    if (key.escape && prompt.allowBack) {
+      onBack();
+      return;
+    }
     if (key.upArrow) {
       setFocused((current) =>
         current === 0 ? prompt.options.length - 1 : current - 1,
@@ -247,13 +269,19 @@ function Picker({
 function TextInput({
   prompt,
   onAnswer,
+  onBack,
 }: {
   prompt: PromptRequest;
   onAnswer: (value: string) => void;
+  onBack: () => void;
 }) {
   const [value, setValue] = useState(prompt.defaultValue ?? "");
 
   useInput((input, key) => {
+    if (key.escape && prompt.allowBack) {
+      onBack();
+      return;
+    }
     if (key.return) {
       onAnswer(value);
       return;
