@@ -11,16 +11,21 @@
  */
 
 import type { Integration } from './constants';
+import { DEFAULT_API_BASE_URL, DEFAULT_CAPTURE_HOST } from './constants';
 import type { FrameworkConfig } from './framework-config';
 import type { WizardReadinessResult } from './health-checks/readiness';
 import type { SettingsConflict } from './agent/agent-interface';
 import type { ApiUser } from './api';
 
 export interface Credentials {
+  /** Minted Honch wizard token (LLM proxy auth). */
   accessToken: string;
+  /** honch_ capture key written into the project's SDK config. */
   projectApiKey: string;
+  /** Capture host the SDK uploads to. */
   host: string;
-  projectId: number;
+  /** Honch project UUID. */
+  projectId: string;
 }
 
 function parseProjectIdArg(value: string | undefined): number | undefined {
@@ -141,6 +146,18 @@ export interface WizardSession {
   // From CLI args
   debug: boolean;
   installDir: string;
+  /** Honch platform bearer token (mints the wizard token + lists projects). */
+  token?: string;
+  /** Honch platform base URL (LLM proxy + projects API). */
+  apiBaseUrl: string;
+  /** Honch event-ingestion host the installed SDK uploads to. */
+  captureHost: string;
+  /** `--project` override: install into this project id or name. */
+  project?: string;
+  /** Device model to stamp on events (firmware targets). */
+  deviceModel?: string;
+  /** Firmware version to stamp on events (firmware targets). */
+  firmwareVersion?: string;
   ci: boolean;
   signup: boolean;
   localMcp: boolean;
@@ -254,6 +271,12 @@ export interface WizardSession {
 export function buildSession(args: {
   debug?: boolean;
   installDir?: string;
+  token?: string;
+  apiBaseUrl?: string;
+  captureHost?: string;
+  project?: string;
+  deviceModel?: string;
+  firmwareVersion?: string;
   ci?: boolean;
   signup?: boolean;
   localMcp?: boolean;
@@ -270,6 +293,12 @@ export function buildSession(args: {
   return {
     debug: args.debug ?? false,
     installDir: args.installDir ?? process.cwd(),
+    token: args.token,
+    apiBaseUrl: args.apiBaseUrl ?? DEFAULT_API_BASE_URL,
+    captureHost: args.captureHost ?? DEFAULT_CAPTURE_HOST,
+    project: args.project,
+    deviceModel: args.deviceModel,
+    firmwareVersion: args.firmwareVersion,
     ci: args.ci ?? false,
     signup: args.signup ?? false,
     localMcp: args.localMcp ?? false,

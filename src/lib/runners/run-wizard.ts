@@ -41,11 +41,13 @@ export function runWizard(
         debug: options.debug as boolean | undefined,
         localMcp: options.localMcp as boolean | undefined,
         installDir,
+        token: options.token as string | undefined,
+        apiBaseUrl: options.apiBaseUrl as string | undefined,
+        captureHost: options.captureHost as string | undefined,
+        project: options.project as string | undefined,
+        deviceModel: options.deviceModel as string | undefined,
+        firmwareVersion: options.firmwareVersion as string | undefined,
         ci: false,
-        signup: options.signup as boolean | undefined,
-        apiKey: options.apiKey as string | undefined,
-        projectId: options.projectId as string | undefined,
-        email: options.email as string | undefined,
         benchmark: options.benchmark as boolean | undefined,
         yaraReport: options.yaraReport as boolean | undefined,
         noTelemetry: resolveNoTelemetry(options),
@@ -106,10 +108,10 @@ export function runWizard(
         const { getOrAskForProjectData } = await import('@utils/setup-utils');
         const { projectApiKey, host, accessToken, projectId } =
           await getOrAskForProjectData({
-            signup: session.signup,
-            ci: session.ci,
-            apiKey: session.apiKey,
-            projectId: session.projectId,
+            token: session.token,
+            apiBaseUrl: session.apiBaseUrl,
+            captureHost: session.captureHost,
+            project: session.project,
           });
         activeTui.store.setCredentials({
           accessToken,

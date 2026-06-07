@@ -14,7 +14,6 @@ import {
   POSTHOG_PROPERTY_HEADER_PREFIX,
   WIZARD_VARIANT_FLAG_KEY,
   WIZARD_VARIANTS,
-  WIZARD_USER_AGENT,
 } from '@lib/constants';
 import {
   type AdditionalFeature,
@@ -237,9 +236,10 @@ export function restoreClaudeSettings(workingDirectory: string): void {
 
 export type AgentConfig = {
   workingDirectory: string;
-  posthogMcpUrl: string;
-  posthogApiKey: string;
-  posthogApiHost: string;
+  /** Minted Honch wizard token — authenticates the agent's LLM calls. */
+  platformToken: string;
+  /** Honch platform base URL; the LLM proxy lives at `${apiBaseUrl}/api/wizard/llm`. */
+  apiBaseUrl: string;
   additionalMcpServers?: Record<string, { url: string }>;
   detectPackageManager: PackageManagerDetector;
   /** Base URL for the skills server (context-mill dev or GitHub releases) */
@@ -647,19 +647,19 @@ export async function initializeAgent(
 
   try {
     // Configure LLM gateway environment variables (inherited by SDK subprocess)
-    const gatewayUrl = getLlmGatewayUrlFromHost(config.posthogApiHost);
+    const gatewayUrl = getLlmGatewayUrlFromHost(config.apiBaseUrl);
     process.env.ANTHROPIC_BASE_URL = gatewayUrl;
-    process.env.ANTHROPIC_AUTH_TOKEN = config.posthogApiKey;
+    process.env.ANTHROPIC_AUTH_TOKEN = config.platformToken;
     // Use CLAUDE_CODE_OAUTH_TOKEN to override any stored /login credentials
-    process.env.CLAUDE_CODE_OAUTH_TOKEN = config.posthogApiKey;
-    // Disable experimental betas (like input_examples) that the LLM gateway doesn't support
+    process.env.CLAUDE_CODE_OAUTH_TOKEN = config.platformToken;
+    // Disable experimental betas (like input_examples) the LLM proxy doesn't support
     process.env.CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS = 'true';
 
     logToFile('Configured LLM gateway:', gatewayUrl);
     logToFile(
-      'API key prefix:',
-      config.posthogApiKey
-        ? `${config.posthogApiKey.slice(0, 4)}***`
+      'Wizard token prefix:',
+      config.platformToken
+        ? `${config.platformToken.slice(0, 4)}***`
         : '(missing)',
     );
     const initConflicts = checkAllSettingsConflicts(options.installDir);
@@ -672,16 +672,9 @@ export async function initializeAgent(
         : 'none',
     );
 
-    // Configure MCP server with PostHog authentication
+    // In-process wizard tools + any program-provided MCP servers. Honch has
+    // no remote MCP server, so (unlike PostHog) none is wired here.
     const mcpServers: McpServersConfig = {
-      'posthog-wizard': {
-        type: 'http',
-        url: config.posthogMcpUrl,
-        headers: {
-          Authorization: `Bearer ${config.posthogApiKey}`,
-          'User-Agent': WIZARD_USER_AGENT,
-        },
-      },
       ...Object.fromEntries(
         Object.entries(config.additionalMcpServers ?? {}).map(
           ([name, { url }]) => [name, { type: 'http', url }],
@@ -721,17 +714,15 @@ export async function initializeAgent(
 
     logToFile('Agent config:', {
       workingDirectory: agentRunConfig.workingDirectory,
-      posthogMcpUrl: config.posthogMcpUrl,
       gatewayUrl,
-      apiKeyPresent: !!config.posthogApiKey,
+      tokenPresent: !!config.platformToken,
     });
 
     if (options.debug) {
       debug('Agent config:', {
         workingDirectory: agentRunConfig.workingDirectory,
-        posthogMcpUrl: config.posthogMcpUrl,
         gatewayUrl,
-        apiKeyPresent: !!config.posthogApiKey,
+        tokenPresent: !!config.platformToken,
       });
     }
 
@@ -979,12 +970,18 @@ export async function runAgent(
               'raw.githubusercontent.com',
               'release-assets.githubusercontent.com',
               'objects.githubusercontent.com',
+              // Honch platform, docs, and event ingestion
+              'app.honch.io',
+              'docs.honch.io',
+              'capture.honch.io',
+              // ESP-IDF component registry (idf.py add-dependency)
+              'components.espressif.com',
             ],
           },
         },
         env: {
           ...process.env,
-          // Prevent user's Anthropic API key from overriding the wizard's OAuth token
+          // Prevent the user's Anthropic API key from overriding the wizard token
           ANTHROPIC_API_KEY: undefined,
           // Defer MCP tool schemas to avoid bloating the system prompt.
           // The posthog-wizard MCP exposes many query tools with large schemas;

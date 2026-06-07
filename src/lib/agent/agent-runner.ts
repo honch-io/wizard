@@ -48,7 +48,6 @@ import { formatScanReport, writeScanReport } from '@lib/yara-hooks';
 import { detectNodePackageManagers } from '@lib/detection/package-manager';
 import type { PackageManagerDetector } from '@lib/detection/package-manager';
 import { getSkillsBaseUrl } from '@lib/constants';
-import { runtimeEnv } from '@env';
 import { installSkillById, type InstallSkillResult } from '@lib/wizard-tools';
 import { createWizardAskBridge } from '@lib/wizard-ask-bridge';
 import type { WizardRunOptions } from '@utils/types';
@@ -254,23 +253,22 @@ export async function runProgram(
     skill_id: config.skillId ?? null,
   });
 
-  // 4. OAuth
-  logToFile('[agent-runner] starting OAuth');
+  // 4. Auth: resolve the wizard token + project capture key from the bearer.
+  logToFile('[agent-runner] resolving Honch project data');
   const {
     projectApiKey,
     host,
+    apiBaseUrl,
     accessToken,
     projectId,
     cloudRegion,
     roleAtOrganization,
     user,
   } = await getOrAskForProjectData({
-    signup: session.signup,
-    ci: session.ci,
-    apiKey: session.apiKey,
-    projectId: session.projectId,
-    email: session.email,
-    region: session.region,
+    token: session.token,
+    apiBaseUrl: session.apiBaseUrl,
+    captureHost: session.captureHost,
+    project: session.project,
   });
 
   session.credentials = { accessToken, projectApiKey, host, projectId };
@@ -304,13 +302,6 @@ export async function runProgram(
   const wizardFlags = await analytics.getAllFlagsForWizard();
   const wizardMetadata = buildWizardMetadata(wizardFlags);
 
-  const mcpUrl = session.localMcp
-    ? 'http://localhost:8787/mcp'
-    : runtimeEnv('MCP_URL') ||
-      (cloudRegion === 'eu'
-        ? 'https://mcp-eu.posthog.com/mcp'
-        : 'https://mcp.posthog.com/mcp');
-
   const restoreSettings = () => restoreClaudeSettings(session.installDir);
   getUI().onEnterScreen('outro', restoreSettings);
 
@@ -340,9 +331,8 @@ export async function runProgram(
   const agent = await initializeAgent(
     {
       workingDirectory: session.installDir,
-      posthogMcpUrl: mcpUrl,
-      posthogApiKey: accessToken,
-      posthogApiHost: host,
+      platformToken: accessToken,
+      apiBaseUrl,
       additionalMcpServers: config.additionalMcpServers,
       detectPackageManager:
         config.detectPackageManager ?? detectNodePackageManagers,

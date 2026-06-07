@@ -14,15 +14,12 @@ import {
 } from './package-manager';
 import type { CloudRegion, WizardRunOptions } from './types';
 import { getDeclaredVersion } from './package-json';
-import {
-  DEFAULT_HOST_URL,
-  DUMMY_PROJECT_API_KEY,
-  ISSUES_URL,
-} from '@lib/constants';
+import { DUMMY_PROJECT_API_KEY, ISSUES_URL } from '@lib/constants';
 import { getOAuthScopesForProgram } from '@lib/oauth/program-scopes';
 import type { ProgramId } from '@lib/programs/program-registry';
 import { analytics } from './analytics';
 import { getUI } from '@ui';
+import { PlatformClient } from '@lib/platform/client';
 import {
   getCloudUrlFromRegion,
   getHostFromRegion,
@@ -382,105 +379,99 @@ export function isUsingTypeScript({
 }
 
 /**
- * Get project data for the wizard via OAuth or CI API key.
+ * Resolve everything an agent run needs from a single Honch bearer token:
+ *   1. mint a short-lived wizard token for the LLM proxy
+ *   2. list the user's projects and pick one (its honch_ capture key)
+ *
+ * No login, no prompts on the happy path. The raw bearer is used only here
+ * (to mint + list); only the minted wizard token leaves as `accessToken`.
  */
-export async function getOrAskForProjectData(
-  _options: Pick<WizardRunOptions, 'signup' | 'ci' | 'apiKey' | 'projectId'> & {
-    email?: string;
-    region?: CloudRegion;
-    /** Optional — picks the OAuth scope set via
-     *  `getOAuthScopesForProgram`. Omitted → default
-     *  `WIZARD_OAUTH_SCOPES`. Threaded into `askForWizardLogin`. */
-    programId?: ProgramId | null;
-  },
-): Promise<{
+export async function getOrAskForProjectData(options: {
+  token?: string;
+  apiBaseUrl: string;
+  captureHost: string;
+  project?: string;
+}): Promise<{
   host: string;
+  apiBaseUrl: string;
   projectApiKey: string;
   accessToken: string;
-  projectId: number;
+  projectId: string;
+  projectName: string;
   cloudRegion: CloudRegion;
   roleAtOrganization: string | null;
   user: ApiUser | null;
 }> {
-  // CI mode: bypass OAuth, use personal API key for LLM gateway
-  if (_options.ci && _options.apiKey) {
-    getUI().log.info('Using provided API key (CI mode - OAuth bypassed)');
-
-    const cloudRegion = await detectRegionFromToken(_options.apiKey);
-    const host = getHostFromRegion(cloudRegion);
-    const cloudUrl = getCloudUrlFromRegion(cloudRegion);
-
-    const projectData =
-      _options.projectId != null
-        ? await fetchProjectDataById(
-            _options.apiKey,
-            _options.projectId,
-            cloudUrl,
-          )
-        : await fetchProjectDataWithApiKey(_options.apiKey, cloudUrl);
-
-    // Best-effort user fetch — CI flows may run with project-scoped keys
-    // that 403 on /api/users/@me/, so swallow errors and continue with
-    // a null user (and null role).
-    let user: ApiUser | null = null;
-    let roleAtOrganization: string | null = null;
-    try {
-      user = await fetchUserData(_options.apiKey, cloudUrl);
-      roleAtOrganization = user.role_at_organization ?? null;
-    } catch {
-      // best-effort
-    }
-
-    return {
-      host,
-      projectApiKey: projectData.api_token,
-      accessToken: _options.apiKey,
-      projectId: projectData.id,
-      cloudRegion,
-      roleAtOrganization,
-      user,
-    };
+  const bearer = options.token?.trim();
+  if (!bearer) {
+    getUI().log.error(
+      'No Honch token provided. Pass it as the first argument, --token <bearer>, or set HONCH_WIZARD_TOKEN.',
+    );
+    await abort();
+    throw new Error('unreachable');
   }
 
-  const {
-    host,
-    projectApiKey,
-    accessToken,
-    projectId,
-    cloudRegion,
-    roleAtOrganization,
-    user,
-  } = await withProgress('login', () =>
-    askForWizardLogin({
-      signup: _options.signup,
-      email: _options.email,
-      region: _options.region,
-      programId: _options.programId,
-    }),
+  const client = new PlatformClient(options.apiBaseUrl);
+
+  // Mint the short-lived wizard token that authenticates the agent's LLM
+  // calls through the proxy. Requires the normal user bearer.
+  const { accessToken: wizardToken } = await withProgress('login', () =>
+    client.createWizardToken(bearer),
   );
 
-  if (!projectApiKey) {
-    const cloudUrl = getCloudUrlFromRegion(cloudRegion);
-    getUI().log.error(`Didn't receive a project token. This shouldn't happen :(
+  // List projects to resolve the capture key. The backend rejects the wizard
+  // token on this route, so the raw user bearer is required here.
+  const projects = await client.listProjects(bearer);
+  if (projects.length === 0) {
+    getUI().log.error(
+      `No Honch projects found for this account.\nCreate one in the dashboard, then re-run the wizard.\n${ISSUES_URL}`,
+    );
+    await abort();
+    throw new Error('unreachable');
+  }
 
-Please let us know if you think this is a bug in the wizard:
-${ISSUES_URL}`);
+  const selected = selectProject(projects, options.project);
+  analytics.setTag('project-id', selected.id);
 
-    getUI().log
-      .info(`In the meantime, we'll add a dummy project token ("${DUMMY_PROJECT_API_KEY}") for you to replace later.
-You can find your project token here:
-${cloudUrl}/settings/project#variables`);
+  if (!selected.apiKey) {
+    getUI().log.warn(
+      `Project "${selected.name}" did not return a capture key; using a placeholder ("${DUMMY_PROJECT_API_KEY}") for you to replace.`,
+    );
   }
 
   return {
-    accessToken,
-    host: host || DEFAULT_HOST_URL,
-    projectApiKey: projectApiKey || DUMMY_PROJECT_API_KEY,
-    projectId,
-    cloudRegion,
-    roleAtOrganization: roleAtOrganization ?? null,
-    user: user ?? null,
+    host: options.captureHost,
+    apiBaseUrl: options.apiBaseUrl,
+    projectApiKey: selected.apiKey || DUMMY_PROJECT_API_KEY,
+    accessToken: wizardToken,
+    projectId: selected.id,
+    projectName: selected.name,
+    cloudRegion: 'us',
+    roleAtOrganization: null,
+    user: null,
   };
+}
+
+/**
+ * Pick the project to install into: `--project` match (by id or name), else
+ * the only project, else the first (logged so the choice is visible).
+ */
+function selectProject(
+  projects: import('@lib/platform/client').ProjectResponse[],
+  override?: string,
+): import('@lib/platform/client').ProjectResponse {
+  if (override) {
+    const match = projects.find((p) => p.id === override || p.name === override);
+    if (match) return match;
+    getUI().log.warn(
+      `Project "${override}" not found; falling back to "${projects[0].name}".`,
+    );
+  } else if (projects.length > 1) {
+    getUI().log.info(
+      `Using project "${projects[0].name}". Pass --project <id|name> to choose another.`,
+    );
+  }
+  return projects[0];
 }
 
 async function fetchProjectDataWithApiKey(

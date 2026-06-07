@@ -13,7 +13,7 @@ import type { ProgramRun } from './agent-runner.js';
  * Values available to prompt builders after OAuth completes.
  */
 export interface PromptContext {
-  projectId: number;
+  projectId: string;
   projectApiKey: string;
   host: string;
   /** Set when skillId was provided and the skill was installed successfully. */
@@ -21,16 +21,16 @@ export interface PromptContext {
 }
 
 function defaultProjectPrompt(ctx: PromptContext): string {
-  return `You have access to the PostHog MCP server.
+  return `You are integrating the Honch analytics SDK into this project.
 
 Project context:
-- PostHog Project ID: ${ctx.projectId}
-- PostHog public token: ${ctx.projectApiKey}
-- PostHog Host: ${ctx.host}`;
+- Honch Project ID: ${ctx.projectId}
+- Honch project capture key: ${ctx.projectApiKey}
+- Honch capture host: ${ctx.host}`;
 }
 
 function skillPrompt(skillPath: string, reportFile: string): string {
-  return `A PostHog skill has been installed at ${skillPath}/. Read ${skillPath}/SKILL.md and follow its instructions completely.
+  return `A Honch skill has been installed at ${skillPath}/. Read ${skillPath}/SKILL.md and follow its instructions completely.
 
 After completing the skill workflow, write a brief markdown report to ./${reportFile} summarizing:
 - What changes were made to the project
