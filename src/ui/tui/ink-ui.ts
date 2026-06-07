@@ -80,7 +80,7 @@ export class InkUI implements WizardUI {
     accessToken: string;
     projectApiKey: string;
     host: string;
-    projectId: number;
+    projectId: string;
   }): void {
     this.store.setCredentials(credentials);
   }

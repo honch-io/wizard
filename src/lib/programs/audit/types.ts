@@ -1,52 +1,29 @@
-import type { WizardSession } from '@lib/wizard-session';
+/**
+ * Minimal audit-ledger types.
+ *
+ * The PostHog "audit" program was removed in the Honch fork, but the generic
+ * audit_* MCP tools in `wizard-tools.ts` still reference these types. They are
+ * retained (and disabled for the Honch integration program via disallowedTools)
+ * to keep the tool surface compiling. Safe to delete once the audit tools are
+ * removed from `wizard-tools.ts`.
+ */
 
-export type AuditStatus =
-  | 'pending'
-  | 'pass'
-  | 'error'
-  | 'warning'
-  | 'suggestion';
+export const AUDIT_CHECKS_FILE = '.honch-audit-checks.json';
+
+export type AuditStatus = 'pending' | 'pass' | 'fail' | 'skip' | 'unknown';
 
 export interface AuditCheck {
   id: string;
-  area: string;
-  label: string;
+  title?: string;
   status: AuditStatus;
-  file?: string;
-  details?: string;
+  detail?: string;
+  [key: string]: unknown;
 }
 
-export interface AuditSeverityStyle {
-  glyph: string;
-  color: string;
-}
-
-/** Single source of truth for status glyph + color across audit views. */
-export const AUDIT_SEVERITY_STYLE: Record<AuditStatus, AuditSeverityStyle> = {
-  pending: { glyph: '◌', color: 'gray' },
-  pass: { glyph: '✔', color: 'green' },
-  error: { glyph: '✘', color: 'red' },
-  warning: { glyph: '⚠', color: 'yellow' },
-  suggestion: { glyph: '•', color: 'cyan' },
-};
-
-export const AUDIT_CHECKS_FILE = '.posthog-audit-checks.json';
-export const AUDIT_REPORT_FILE = 'posthog-audit-report.md';
-export const AUDIT_CHECKS_KEY = 'auditChecks';
-
-export function getAuditChecks(session: WizardSession): AuditCheck[] {
-  const raw = session.frameworkContext[AUDIT_CHECKS_KEY];
-  return Array.isArray(raw) ? (raw as AuditCheck[]) : [];
-}
-
-/**
- * Read the audit checks ledger off disk. Validation lives at write time —
- * every writer (`audit_seed_checks` / `audit_add_checks` / `audit_resolve_checks`
- * MCP tools, `seedAuditLedger`) zod-parses entries before the atomic write,
- * so by the time the file watcher fires we trust the shape and only guard
- * against the file not being a JSON array (corrupted / hand-edited / not yet
- * seeded).
- */
-export function coerceAuditChecks(parsed: unknown): AuditCheck[] {
-  return Array.isArray(parsed) ? (parsed as AuditCheck[]) : [];
+export function coerceAuditChecks(value: unknown): AuditCheck[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (v): v is AuditCheck =>
+      typeof v === 'object' && v !== null && typeof (v as AuditCheck).id === 'string',
+  );
 }

@@ -11,10 +11,26 @@ import {
   detectAllPackageManagers,
   type PackageManager,
 } from '@utils/package-manager';
-import {
-  detectPackageManager as detectPythonPM,
-  PythonPackageManager,
-} from '@frameworks/python/utils';
+
+// Python is not a Honch target ecosystem. This local stub preserves the
+// detector surface so the cross-ecosystem helpers below still type-check
+// (the original lived in the now-removed @frameworks/python module).
+enum PythonPackageManager {
+  UV = 'uv',
+  POETRY = 'poetry',
+  PDM = 'pdm',
+  HATCH = 'hatch',
+  RYE = 'rye',
+  PIPENV = 'pipenv',
+  CONDA = 'conda',
+  PIP = 'pip',
+  UNKNOWN = 'unknown',
+}
+function detectPythonPM(_opts: {
+  installDir: string;
+}): Promise<PythonPackageManager> {
+  return Promise.resolve(PythonPackageManager.UNKNOWN);
+}
 
 // ---------------------------------------------------------------------------
 // Common types

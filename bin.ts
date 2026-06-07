@@ -8,7 +8,7 @@ const NODE_VERSION_RANGE = '>=18.17.0';
 if (!satisfies(process.version, NODE_VERSION_RANGE)) {
   // eslint-disable-next-line no-console
   console.log(
-    `PostHog wizard requires Node.js ${NODE_VERSION_RANGE}. You are using Node.js ${process.version}. Please upgrade your Node.js version.`,
+    `Honch wizard requires Node.js ${NODE_VERSION_RANGE}. You are using Node.js ${process.version}. Please upgrade your Node.js version.`,
   );
   process.exit(1);
 }
@@ -31,24 +31,8 @@ if (process.env.NODE_ENV === 'test') {
 
 import { Wizard } from './src/wizard';
 import { basicIntegrationCommand } from './src/commands/basic-integration';
-import { mcpCommand } from './src/commands/mcp';
-import { integrateCommand } from './src/commands/integrate';
-import { auditCommand } from './src/commands/audit';
-import { audit3000Command } from './src/commands/audit-3000';
-import { doctorCommand } from './src/commands/doctor';
-import { migrateCommand } from './src/commands/migrate';
-import { eventsAuditCommand } from './src/commands/events-audit';
-import { revenueCommand } from './src/commands/revenue';
-import { uploadSourcemapsCommand } from './src/commands/upload-sourcemaps';
 
-Wizard.use(basicIntegrationCommand)
-  .use(mcpCommand)
-  .use(integrateCommand)
-  .use(auditCommand)
-  .use(audit3000Command)
-  .use(doctorCommand)
-  .use(migrateCommand)
-  .use(eventsAuditCommand)
-  .use(revenueCommand)
-  .use(uploadSourcemapsCommand)
-  .init();
+// The Honch wizard has a single entry point: paste a bearer token and it
+// installs the Honch SDK. (PostHog's audit / revenue / migration / doctor /
+// mcp / sourcemap subcommands were removed in the fork.)
+Wizard.use(basicIntegrationCommand).init();

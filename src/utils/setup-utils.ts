@@ -15,8 +15,13 @@ import {
 import type { CloudRegion, WizardRunOptions } from './types';
 import { getDeclaredVersion } from './package-json';
 import { DUMMY_PROJECT_API_KEY, ISSUES_URL } from '@lib/constants';
-import { getOAuthScopesForProgram } from '@lib/oauth/program-scopes';
 import type { ProgramId } from '@lib/programs/program-registry';
+
+// OAuth/provisioning were removed in the Honch fork. These shims keep the
+// (now-dead) login/signup helpers below compiling without resurrecting the
+// deleted modules; they are never reached — getOrAskForProjectData uses the
+// bearer-token flow. TODO: delete the dead helpers and these shims.
+const getOAuthScopesForProgram = (_programId?: unknown): readonly string[] => [];
 import { analytics } from './analytics';
 import { getUI } from '@ui';
 import { PlatformClient } from '@lib/platform/client';
@@ -25,8 +30,14 @@ import {
   getHostFromRegion,
   detectRegionFromToken,
 } from './urls';
-import { performOAuthFlow } from './oauth';
-import { provisionNewAccount } from './provisioning';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const performOAuthFlow = (_opts?: any): Promise<any> => {
+  throw new Error('OAuth was removed in the Honch wizard fork.');
+};
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const provisionNewAccount = (..._args: any[]): Promise<any> => {
+  throw new Error('Signup provisioning was removed in the Honch wizard fork.');
+};
 import { fetchUserData, fetchProjectData, type ApiUser } from '@lib/api';
 import { versionSatisfiesRange } from './semver';
 import { wizardAbort } from './wizard-abort';

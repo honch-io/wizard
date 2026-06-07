@@ -90,7 +90,7 @@ export interface WizardUI {
     accessToken: string;
     projectApiKey: string;
     host: string;
-    projectId: number;
+    projectId: string;
   }): void;
 
   /**

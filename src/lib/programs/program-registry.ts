@@ -8,32 +8,22 @@
  *
  * screen-sequences.ts, store.ts, and bin.ts all derive their wiring from
  * this array — no need to touch those files when adding a program.
+ *
+ * The Honch fork ships a single program (the SDK integration). The generic
+ * agent-skill program is retained as the runtime skill runner.
  */
 
 import type { ProgramConfig } from './program-step.js';
 import { posthogIntegrationConfig } from './posthog-integration/index.js';
-import { revenueAnalyticsConfig } from './revenue-analytics/index.js';
-import { auditConfig } from './audit/index.js';
-import { eventsAuditConfig } from './events-audit/index.js';
-import { audit3000Config } from './audit-3000/index.js';
-import { posthogDoctorConfig } from './posthog-doctor/index.js';
-import { webAnalyticsDoctorConfig } from './web-analytics-doctor/index.js';
-import { migrationConfig } from './migration/index.js';
-import { errorTrackingUploadSourceMapsConfig } from './error-tracking-upload-source-maps/index.js';
 import { AGENT_SKILL_STEPS } from './agent-skill/index.js';
 import { getContentBlocks as agentSkillContentBlocks } from './agent-skill/content/index.js';
-import {
-  mcpAddConfig,
-  mcpRemoveConfig,
-  mcpTutorialConfig,
-} from './mcp/index.js';
 
-// Generic skill program — invoked when the wizard runs an arbitrary
-// context-mill skill chosen at runtime (session.skillId) rather than a
-// registered named program. No CLI command, no run config.
+// Generic skill program — invoked when the wizard runs an arbitrary skill
+// chosen at runtime (session.skillId) rather than a registered named program.
+// No CLI command, no run config.
 const agentSkillConfig: ProgramConfig = {
   id: 'agent-skill',
-  description: 'Run an arbitrary context-mill skill',
+  description: 'Run an arbitrary skill',
   steps: AGENT_SKILL_STEPS,
   getContentBlocks: agentSkillContentBlocks,
   allowedTools: ['Agent'],
@@ -41,39 +31,16 @@ const agentSkillConfig: ProgramConfig = {
 
 export const PROGRAM_REGISTRY = [
   posthogIntegrationConfig,
-  revenueAnalyticsConfig,
-  errorTrackingUploadSourceMapsConfig,
-  auditConfig,
-  eventsAuditConfig,
-  audit3000Config,
-  posthogDoctorConfig,
-  webAnalyticsDoctorConfig,
-  migrationConfig,
   agentSkillConfig,
-  mcpAddConfig,
-  mcpRemoveConfig,
-  mcpTutorialConfig,
 ] as const satisfies readonly ProgramConfig[];
 
 /**
- * Typed program names. Values come from each config's `id`, so there's
- * no parallel string list to keep in sync — adding `Program.Foo` here is
- * just exposing `fooConfig.id` under a friendly name for call sites.
+ * Typed program names. Values come from each config's `id`, so there's no
+ * parallel string list to keep in sync.
  */
 export const Program = {
   PostHogIntegration: posthogIntegrationConfig.id,
-  RevenueAnalyticsSetup: revenueAnalyticsConfig.id,
-  ErrorTrackingUploadSourceMaps: errorTrackingUploadSourceMapsConfig.id,
-  Migration: migrationConfig.id,
-  Audit: auditConfig.id,
-  EventsAudit: eventsAuditConfig.id,
-  Audit3000: audit3000Config.id,
-  PosthogDoctor: posthogDoctorConfig.id,
-  WebAnalyticsDoctor: webAnalyticsDoctorConfig.id,
   AgentSkill: agentSkillConfig.id,
-  McpAdd: mcpAddConfig.id,
-  McpRemove: mcpRemoveConfig.id,
-  McpTutorial: mcpTutorialConfig.id,
 } as const;
 
 /** Compile-time union of every registered program id. */
@@ -81,8 +48,7 @@ export type ProgramId = (typeof PROGRAM_REGISTRY)[number]['id'];
 
 /**
  * Look up a program config by its id. `ProgramId` is a union of every
- * registered id, so the lookup is statically guaranteed to find a match
- * — the `!` is a load-bearing assertion of that invariant, not a hope.
+ * registered id, so the lookup is statically guaranteed to find a match.
  */
 export function getProgramConfig(id: ProgramId): ProgramConfig {
   return PROGRAM_REGISTRY.find((c) => c.id === id)!;
