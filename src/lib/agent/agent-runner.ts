@@ -442,7 +442,7 @@ export async function runProgram(
   if (agentResult.error === AgentErrorType.YARA_VIOLATION) {
     await wizardAbort({
       message:
-        'Security violation detected.\nPlease report this to: wizard@posthog.com',
+        'Security violation detected.\nPlease report this to: the Honch team',
       error: new WizardError('YARA scanner terminated session', {
         integration: config.integrationLabel,
         error_type: AgentErrorType.YARA_VIOLATION,
@@ -463,7 +463,7 @@ export async function runProgram(
     await wizardAbort({
       message: `API Error\n\n${
         agentResult.message || 'Unknown error'
-      }\n\nPlease report this to: wizard@posthog.com`,
+      }\n\nPlease report this to: the Honch team`,
       error: new WizardError(`API error: ${agentResult.message}`, {
         integration: config.integrationLabel,
         error_type: agentResult.error,

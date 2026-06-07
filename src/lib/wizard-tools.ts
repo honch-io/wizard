@@ -1,5 +1,5 @@
 /**
- * Unified in-process MCP server for the PostHog wizard.
+ * Unified in-process MCP server for the Honch wizard.
  *
  * Provides tools that run locally (secret values never leave the machine):
  * - check_env_keys: Check which env var keys exist in a .env file

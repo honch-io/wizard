@@ -125,7 +125,7 @@ export const OutroScreen = ({ store }: OutroScreenProps) => {
             </Text>
           </Box>
           <Text dimColor>
-            How did this work for you? Drop us a line: wizard@posthog.com
+            How did this work for you? Drop us a line: the Honch team
           </Text>
         </Box>
       )}

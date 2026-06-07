@@ -122,7 +122,7 @@ export const PostHogIntegrationIntroScreen = ({
 
   // ── Title ──────────────────────────────────────────────────────────
 
-  const title = detecting ? 'PostHog Wizard starting up' : 'PostHog Wizard 🦔';
+  const title = detecting ? 'Honch Wizard starting up' : 'Honch Wizard 🦔';
 
   // ── Description ────────────────────────────────────────────────────
 

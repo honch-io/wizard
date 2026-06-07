@@ -1,5 +1,5 @@
 /**
- * YARA content scanner for the PostHog wizard.
+ * YARA content scanner for the Honch wizard.
  *
  * This file is the single source of truth for all wizard YARA rules.
  *

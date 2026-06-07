@@ -9,7 +9,7 @@
   "defaultKit": [
     {
       "key": "verify",
-      "prompt": "Annotate today with 'PostHog wizard install'",
+      "prompt": "Annotate today with 'Honch wizard install'",
       "description": "Creates a dated note on your project — visible on every chart. Delete anytime from PostHog."
     },
     {
@@ -38,7 +38,7 @@
     "founder": [
       {
         "key": "verify",
-        "prompt": "Annotate today with 'PostHog wizard install'",
+        "prompt": "Annotate today with 'Honch wizard install'",
         "description": "Creates a dated note on your project — visible on every chart. Delete anytime from PostHog."
       },
       {
@@ -65,7 +65,7 @@
     "product": [
       {
         "key": "verify",
-        "prompt": "Annotate today with 'PostHog wizard install'",
+        "prompt": "Annotate today with 'Honch wizard install'",
         "description": "Creates a dated note on your project — visible on every chart. Delete anytime from PostHog."
       },
       {
@@ -92,7 +92,7 @@
     "leadership": [
       {
         "key": "verify",
-        "prompt": "Annotate today with 'PostHog wizard install'",
+        "prompt": "Annotate today with 'Honch wizard install'",
         "description": "Creates a dated note on your project — visible on every chart. Delete anytime from PostHog."
       },
       {
@@ -119,7 +119,7 @@
     "marketing": [
       {
         "key": "verify",
-        "prompt": "Annotate today with 'PostHog wizard install'",
+        "prompt": "Annotate today with 'Honch wizard install'",
         "description": "Creates a dated note on your project — visible on every chart. Delete anytime from PostHog."
       },
       {
@@ -146,7 +146,7 @@
     "engineering": [
       {
         "key": "verify",
-        "prompt": "Annotate today with 'PostHog wizard install'",
+        "prompt": "Annotate today with 'Honch wizard install'",
         "description": "Creates a dated note on your project — visible on every chart. Delete anytime from PostHog."
       },
       {
@@ -173,7 +173,7 @@
     "data": [
       {
         "key": "verify",
-        "prompt": "Annotate today with 'PostHog wizard install'",
+        "prompt": "Annotate today with 'Honch wizard install'",
         "description": "Creates a dated note on your project — visible on every chart. Delete anytime from PostHog."
       },
       {

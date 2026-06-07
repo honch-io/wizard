@@ -12,12 +12,12 @@ import { resolveNoTelemetry } from './resolve-no-telemetry';
 export function validateCiOptions(options: Record<string, unknown>): void {
   if (!options.region) options.region = 'us';
   if (!options.apiKey) {
-    getUI().intro('PostHog Wizard');
+    getUI().intro('Honch Wizard');
     getUI().log.error('CI mode requires --api-key (personal API key phx_xxx)');
     process.exit(1);
   }
   if (!options.installDir) {
-    getUI().intro('PostHog Wizard');
+    getUI().intro('Honch Wizard');
     getUI().log.error(
       'CI mode requires --install-dir (directory to install in)',
     );

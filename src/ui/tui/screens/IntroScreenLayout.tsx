@@ -25,7 +25,7 @@ interface IntroScreenLayoutProps {
   /** Absolute path to the project directory */
   installDir: string;
 
-  /** Title text after the colored blocks, e.g. "PostHog Wizard 🦔" */
+  /** Title text after the colored blocks, e.g. "Honch Wizard 🦔" */
   title?: string;
 
   /** Show the default "We'll use AI…" / ".env*…" subtitle. Default true. */
@@ -69,7 +69,7 @@ const WizardTitle = ({ title }: { title: string }) => (
 
 export const IntroScreenLayout = ({
   installDir,
-  title = 'PostHog Wizard 🦔',
+  title = 'Honch Wizard 🦔',
   showSubtitle = true,
   body,
   showDetection = true,

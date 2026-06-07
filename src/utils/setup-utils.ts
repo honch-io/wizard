@@ -256,7 +256,7 @@ export async function installPackage({
       fs.writeFileSync(
         join(
           process.cwd(),
-          `posthog-wizard-installation-error-${Date.now()}.log`,
+          `honch-wizard-installation-error-${Date.now()}.log`,
         ),
         JSON.stringify({ stdout, stderr }),
         { encoding: 'utf8' },
@@ -264,7 +264,7 @@ export async function installPackage({
       sdkInstallSpinner.stop('Installation failed.');
       getUI().log.error(
         // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-        `Encountered the following error during installation:\n\n${e}\n\nThe wizard has created a \`posthog-wizard-installation-error-*.log\` file. If you think this issue is caused by the PostHog wizard, create an issue on GitHub and include the log file's content:\n${ISSUES_URL}`,
+        `Encountered the following error during installation:\n\n${e}\n\nThe wizard has created a \`honch-wizard-installation-error-*.log\` file. If you think this issue is caused by the Honch wizard, create an issue on GitHub and include the log file's content:\n${ISSUES_URL}`,
       );
       await abort();
     }

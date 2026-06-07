@@ -1,8 +1,8 @@
 import { Box, Text } from 'ink';
 import { Colors } from '@ui/tui/styles';
 
-const FEEDBACK = 'Feedback: wizard@posthog.com ';
-const FEEDBACK_SHORT = ' wizard@posthog.com ';
+const FEEDBACK = 'Feedback: the Honch team ';
+const FEEDBACK_SHORT = ' the Honch team ';
 
 interface TitleBarProps {
   version: string;
@@ -10,7 +10,7 @@ interface TitleBarProps {
 }
 
 export const TitleBar = ({ version, width }: TitleBarProps) => {
-  const fullTitle = ` PostHog Wizard v${version}`;
+  const fullTitle = ` Honch Wizard v${version}`;
   const needShort = width < fullTitle.length + FEEDBACK.length;
   const feedback = needShort ? FEEDBACK_SHORT : FEEDBACK;
   const title =

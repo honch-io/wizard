@@ -1,5 +1,5 @@
 /**
- * Shared agent interface for PostHog wizards
+ * Shared agent interface for Honch wizards
  * Uses Claude Agent SDK directly with PostHog LLM gateway
  */
 
@@ -902,9 +902,9 @@ export async function runAgent(
         agents: {
           'general-purpose': {
             description:
-              "General-purpose subagent. Inherits the parent run's tools plus the PostHog and wizard-tools MCP servers, so it can call mcp__posthog-wizard__* directly instead of curling the REST API.",
+              "General-purpose subagent. Inherits the parent run's tools, including the in-process wizard-tools MCP server (env files, package-manager detection, docs).",
             prompt:
-              'You are a general-purpose subagent for the PostHog wizard. Prefer the authenticated mcp__posthog-wizard__* MCP tools over raw HTTP — they are already authenticated for this project. Only fall back to other transports if no MCP tool covers the operation.',
+              'You are a general-purpose subagent for the Honch wizard. Use the wizard-tools MCP tools (check_env_keys, set_env_values, detect_package_manager) and the installed SDK headers + https://docs.honch.io as the source of truth. Never hardcode the project key; never invent SDK APIs.',
             mcpServers: inheritedMcpServerNames,
             // SDK does not propagate the parent's disallowedTools to subagents
             // (sdk.d.ts: AgentDefinition has its own disallowedTools, and

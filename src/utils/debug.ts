@@ -43,7 +43,7 @@ export function initLogFile(): void {
     const divider = '='.repeat(60);
     appendFileSync(
       logFilePath,
-      `\n${divider}\nPostHog Wizard Run: ${new Date().toISOString()}\n${divider}\n`,
+      `\n${divider}\nHonch Wizard Run: ${new Date().toISOString()}\n${divider}\n`,
     );
   } catch {
     // Logging must never crash the wizard.
