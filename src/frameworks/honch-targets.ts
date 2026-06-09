@@ -61,7 +61,8 @@ function readJson(dir: string, rel: string): Record<string, unknown> | null {
 
 function detectEspIdf(installDir: string): boolean {
   const t = cmakeText(installDir);
-  if (/idf_component_register|ESP_PLATFORM|\$ENV\{IDF_PATH\}/.test(t)) return true;
+  if (/idf_component_register|ESP_PLATFORM|\$ENV\{IDF_PATH\}/.test(t))
+    return true;
   return anyExists(installDir, [
     'sdkconfig',
     'sdkconfig.defaults',
@@ -191,7 +192,7 @@ export const HONCH_TARGETS: readonly FrameworkConfig[] = [
     projectTypeDetection:
       'ESP-IDF firmware: a top-level and main/ CMakeLists.txt using idf_component_register, plus idf_component.yml / sdkconfig.',
     contextLines: [
-      'Add the component with `idf.py add-dependency "honch-io/honch^0.2.0"`; if the registry 404s, wire the local SDK via EXTRA_COMPONENT_DIRS and REQUIRES honch.',
+      'The wizard has ALREADY registered the Honch SDK as a git submodule at components/honch — do NOT re-add it, replace it with the ESP component manager, vendor a copy, or point at a local path. Just add `REQUIRES honch` to the relevant idf_component_register(...) so the build links it (the SDK repo root is itself the component, so no EXTRA_COMPONENT_DIRS).',
       'honch_init() needs an active IP — call it after Wi-Fi/IP is up, never directly from app_main(); drive honch_tick() from a low-priority task, never an ISR.',
       'Honch calls return honch_err_t (success HONCH_OK), not esp_err_t. Record events with honch_track(event, props, count); honch_capture() does not exist. Read the installed honch.h as the only source of truth.',
     ],
@@ -211,7 +212,7 @@ export const HONCH_TARGETS: readonly FrameworkConfig[] = [
     contextLines: [
       'Prefer find_package(honch_posix REQUIRED); otherwise use CMake FetchContent with SOURCE_SUBDIR ports/posix. Link with honch::honch_posix.',
       'Configure api_key, endpoint_url, device_model, firmware_version, and a durable queue_directory; preserve queue durability, retry, and timestamps.',
-      'Read the installed honch.h as the only source of truth for symbols and signatures.',
+      'The POSIX API is client-handle based and returns honch_status_t: honch_init(&client, &cfg), then honch_track(client, …) — NOT the ESP-IDF global-singleton honch_init(&cfg)/honch_err_t form. Read the installed honch.h as the only source of truth.',
     ],
     successMessage: 'Honch C/POSIX SDK integrated.',
     estimatedDurationMinutes: 4,
@@ -244,8 +245,8 @@ export const HONCH_TARGETS: readonly FrameworkConfig[] = [
     projectTypeDetection:
       'A React Native app (react-native in package.json), optionally with @honch/react-native-relay.',
     contextLines: [
-      'Install @honch/react-native-relay and create the relay with createMobileRelay({ projectKey, endpointUrl, durableStore }) pointed at the capture host.',
-      'This package RELAYS events from a paired BLE device — it is not a general app-analytics SDK. Feed received device frames into the relay; it forwards them, preserving device_id/timestamp.',
+      'Install @honch/react-native-relay and create the relay with createMobileRelay({ uploaderConfig: { endpointUrl, projectKey }, durableStore, bleNative, schedulerNative, frameEvents }). Verify the option shape against the installed package types.',
+      'This package RELAYS events from a paired BLE device — it is not a general app-analytics SDK. Feed each received device frame into the relay via receiveFrame(deviceId, frameBytes) (or subscribeNativeFrames()); it forwards them, preserving device_id/timestamp.',
       'Add BLE permissions: iOS NSBluetoothAlwaysUsageDescription + CoreBluetooth; Android 12+ BLUETOOTH_SCAN/BLUETOOTH_CONNECT + ACCESS_FINE_LOCATION.',
     ],
     successMessage: 'Honch React Native relay integrated.',
@@ -260,7 +261,7 @@ export const HONCH_TARGETS: readonly FrameworkConfig[] = [
     projectTypeDetection:
       'An iOS project: Package.swift, a .xcodeproj/.xcworkspace, or a Podfile.',
     contextLines: [
-      'Configure the App SDK with the project capture key + capture host. Mode A: instrument the app with Analytics.shared.track/identify. Mode B: forward paired-device events with Analytics.shared.ingestRelayedEvents(data), preserving device_id/timestamp and stamping $relayed.',
+      'Configure the App SDK with the project capture key + capture host. Mode A: instrument the app with the SDK track/identify calls. Mode B: forward paired-device events with the App SDK relay-ingest method, preserving device_id/timestamp and stamping $relayed. Confirm every symbol (the Analytics entry point and the relay-ingest method name) against the installed SDK header — do not assume names.',
       'Add it via Swift Package Manager or CocoaPods; do not hardcode the key — use an xcconfig/Info.plist value.',
     ],
     successMessage: 'Honch iOS SDK integrated.',
@@ -277,12 +278,11 @@ export const HONCH_TARGETS: readonly FrameworkConfig[] = [
     projectTypeDetection:
       'An Android project: build.gradle(.kts) / settings.gradle and an AndroidManifest.xml.',
     contextLines: [
-      'Configure the App SDK with the project capture key + capture host. Mode A: instrument the app with Analytics.track/identify. Mode B: forward paired-device events with Analytics.ingestRelayedEvents(data), preserving device_id/timestamp and stamping $relayed.',
+      'Configure the App SDK with the project capture key + capture host. Mode A: instrument the app with the SDK track/identify calls. Mode B: forward paired-device events with the App SDK relay-ingest method, preserving device_id/timestamp and stamping $relayed. Confirm every symbol (the Analytics entry point and the relay-ingest method name) against the installed SDK — do not assume names.',
       'Add the Gradle implementation dependency; do not hardcode the key — use a gradle property / BuildConfig. Mode B needs Android 12+ BLUETOOTH_SCAN/BLUETOOTH_CONNECT + ACCESS_FINE_LOCATION.',
     ],
     successMessage: 'Honch Android SDK integrated.',
     estimatedDurationMinutes: 5,
-    packageInstallation:
-      'Use Gradle, not a Node package manager.',
+    packageInstallation: 'Use Gradle, not a Node package manager.',
   }),
 ];
