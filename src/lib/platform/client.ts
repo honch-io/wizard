@@ -16,6 +16,7 @@
  */
 
 export type Fetcher = typeof fetch;
+type FetchInit = NonNullable<Parameters<Fetcher>[1]>;
 
 export type TokenResponse = {
   accessToken: string;
@@ -71,7 +72,7 @@ export class PlatformClient {
     return parseJson<T>(response);
   }
 
-  private async fetch(url: string, init: RequestInit): Promise<Response> {
+  private async fetch(url: string, init: FetchInit): Promise<Response> {
     try {
       return await this.fetcher(url, init);
     } catch (error) {
