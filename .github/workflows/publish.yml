@@ -1,0 +1,63 @@
+name: "Publish"
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  check-package-version:
+    name: Check package version and detect an update
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      committed-version: ${{ steps.check-package-version.outputs.committed-version }}
+      published-version: ${{ steps.check-package-version.outputs.published-version }}
+      is-new-version: ${{ steps.check-package-version.outputs.is-new-version }}
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Check package version and detect an update
+        id: check-package-version
+        uses: PostHog/check-package-version@97f76f610f6c3d259e2eac4f2783adbb84ac8493 # v2.0.1
+
+  release:
+    name: Publish release if new version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    needs: check-package-version
+    if: needs.check-package-version.outputs.is-new-version == 'true'
+    env:
+      COMMITTED_VERSION: ${{ needs.check-package-version.outputs.committed-version }}
+      PUBLISHED_VERSION: ${{ needs.check-package-version.outputs.published-version }}
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.2
+        with:
+          bun-version: 1.3.14
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: 'package.json'
+          registry-url: https://registry.npmjs.org
+
+      - name: Install package.json dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build the package
+        run: bun run build
+
+      - name: Publish the package in the npm registry
+        run: npm publish --access public --provenance
