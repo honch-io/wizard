@@ -120,7 +120,7 @@
     "try": "tsx bin.ts",
     "dev": "bun run build && bun link && bun run build:watch",
     "test:watch": "jest --watch",
-    "prepare": "husky"
+    "prepare": "husky || true"
   },
   "jest": {
     "collectCoverage": true,
