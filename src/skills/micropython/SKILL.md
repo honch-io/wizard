@@ -33,7 +33,7 @@ import honch
 
 honch.init(
     api_key=API_KEY,                 # project key, honch_… (from secret/env)
-    endpoint_url="https://is.honch.io",
+    endpoint_url="https://i.honch.io",
     device_id=DEVICE_ID,             # caller-owned, stable per device
     device_model="esp32-cam",
     firmware_version="0.1.0",
@@ -87,7 +87,7 @@ under someone's home directory (it breaks for everyone else and in CI).
 - **Never** hardcode the raw project API key in frozen source or on-device
   files. Inject it via the wizard's secret-ref env tool, a build-time define, or
   a gitignored on-device secrets file — not committed source.
-- `endpoint_url` must be the HTTPS capture base (`https://is.honch.io`). Do
+- `endpoint_url` must be the HTTPS capture base (`https://i.honch.io`). Do
   not disable TLS verification.
 - Provide a caller-owned `device_id` (stable across reboots), `device_model`,
   `firmware_version`, `api_key`, `endpoint_url`, and an event buffer size

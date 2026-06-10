@@ -37,7 +37,7 @@ That's it. No login flow, no manual project picking.
 |------|-----|---------|
 | `<token>` / `--token` | `HONCH_WIZARD_TOKEN` | — (required) |
 | `--api-base-url` | `HONCH_WIZARD_API_BASE_URL` | `https://app.honch.io` |
-| `--capture-host` | `HONCH_WIZARD_CAPTURE_HOST` | `https://is.honch.io` |
+| `--capture-host` | `HONCH_WIZARD_CAPTURE_HOST` | `https://i.honch.io` |
 | `--project` | `HONCH_WIZARD_PROJECT` | your only / first project |
 | `--device-model` | `HONCH_WIZARD_DEVICE_MODEL` | — |
 | `--firmware-version` | `HONCH_WIZARD_FIRMWARE_VERSION` | — |

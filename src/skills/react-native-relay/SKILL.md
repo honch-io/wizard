@@ -89,7 +89,7 @@ replace them.
   config (`.env` via `react-native-config`, iOS xcconfig, Android
   `gradle.properties` / `BuildConfig`) wired through the wizard's secret-ref env
   tool — not committed JS source.
-- `endpointUrl` must be the HTTPS capture base (`https://is.honch.io`). Do
+- `endpointUrl` must be the HTTPS capture base (`https://i.honch.io`). Do
   not disable TLS.
 
 ## Initialize and feed device frames
@@ -111,7 +111,7 @@ const native = createRelayNativeBindings();
 const relay = createMobileRelay({
   // Upload config is nested under `uploaderConfig` (RelayUploaderConfig).
   uploaderConfig: {
-    endpointUrl: "https://is.honch.io", // the capture host
+    endpointUrl: "https://i.honch.io", // the capture host
     projectKey: PROJECT_KEY,                 // secret ref / native config
   },
   durableStore: createMmkvRelayStore(),      // survives restarts

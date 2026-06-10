@@ -53,7 +53,7 @@ typedef enum {
 
 typedef struct {
     const char *api_key;             // required (project key, honch_…)
-    const char *host;                // required, e.g. "https://is.honch.io"
+    const char *host;                // required, e.g. "https://i.honch.io"
     const char *device_model;        // required
     const char *firmware_version;    // required
     const char *environment;         // optional, defaults to "production"
@@ -144,7 +144,7 @@ idf_component_register(SRCS "app_main.c" INCLUDE_DIRS "." REQUIRES honch)
 - **Never** write the raw project API key into source or `sdkconfig`. Use the
   wizard's secret-ref env tool, or a gitignored `sdkconfig.defaults.local` /
   Kconfig value, and read it via `CONFIG_*`.
-- Set `host` to the capture base (`https://is.honch.io`), plus
+- Set `host` to the capture base (`https://i.honch.io`), plus
   `device_model`, `firmware_version`, and a caller-owned `uint8_t` event buffer
   (`>= 8192` bytes) with its size.
 - Do not point `host` at a non-TLS URL and do not add any
@@ -184,7 +184,7 @@ static void honch_start(const char *api_key)
 {
     const honch_config_t cfg = {
         .api_key           = api_key,                  // from CONFIG_*/secret ref
-        .host              = "https://is.honch.io",
+        .host              = "https://i.honch.io",
         .device_model      = "esp32-s3-devkitc",
         .firmware_version  = "0.1.0",
         .event_buffer      = s_honch_event_buffer,

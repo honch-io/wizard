@@ -44,7 +44,7 @@ import io.honch.analytics.Analytics   // confirm package against the installed l
 Analytics.shared.initialize(
     context = applicationContext,
     projectKey = projectKey,                 // honch_… key, from secret config
-    host = "https://is.honch.io"         // capture host
+    host = "https://i.honch.io"         // capture host
 )
 
 Analytics.shared.track("video_exported", mapOf("duration" to 30))
@@ -117,7 +117,7 @@ The customer's app already owns pairing/bonding and GATT — do not replace it.
   store / build config (`gradle.properties` → `BuildConfig.HONCH_PROJECT_KEY`,
   or a generated resource), wired through the wizard's secret-ref env tool — not
   committed source. Do not check the key into VCS.
-- `host` must be the HTTPS capture base (`https://is.honch.io`). Do not
+- `host` must be the HTTPS capture base (`https://i.honch.io`). Do not
   relax `network_security_config` / cleartext settings for it.
 
 ## Where to initialize
