@@ -42,7 +42,7 @@ export const DEFAULT_API_BASE_URL = IS_DEV
 /** Honch event-ingestion host the device/app SDK uploads to (X-Honch-Project-Key). */
 export const DEFAULT_CAPTURE_HOST = IS_DEV
   ? 'http://localhost:8000'
-  : 'https://capture.honch.io';
+  : 'https://is.honch.io';
 /** Back-compat generic aliases for the two hosts above. */
 export const DEFAULT_URL = DEFAULT_API_BASE_URL;
 export const DEFAULT_HOST_URL = DEFAULT_CAPTURE_HOST;

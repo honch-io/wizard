@@ -1,6 +1,6 @@
 ---
 name: honch-integration
-description: Integrate the Honch analytics SDK into this codebase. Use when asked to add Honch, wire up Honch analytics/telemetry, relay device events to Honch, or send events to capture.honch.io. Auto-detects the right target (firmware vs mobile vs relay) from the project's build files and installs the matching SDK against its real contract.
+description: Integrate the Honch analytics SDK into this codebase. Use when asked to add Honch, wire up Honch analytics/telemetry, relay device events to Honch, or send events to is.honch.io. Auto-detects the right target (firmware vs mobile vs relay) from the project's build files and installs the matching SDK against its real contract.
 ---
 
 # Honch Integration (portable)
@@ -60,11 +60,11 @@ uploading; the paired app (App SDK or RN relay) uploads those bytes.
 All SDKs send here; integrations never call it by hand, but configure it
 correctly:
 
-- **Endpoint:** `POST https://capture.honch.io/capture` (aliases `/e`,
+- **Endpoint:** `POST https://is.honch.io/capture` (aliases `/e`,
   `/chunks`).
 - **Auth header:** `X-Honch-Project-Key: <honch_… project key>`.
 - **Content-Type:** `application/vnd.honch.chunk` (compact binary chunk wire).
-- The capture base host to configure in `init` is `https://capture.honch.io`.
+- The capture base host to configure in `init` is `https://is.honch.io`.
 
 The SDK owns all encoding. **Never hand-build the request body** and never
 emulate the chunk wire.
@@ -140,7 +140,7 @@ own events so cross-device funnels join.
    before writing code.
 3. **Configure safely** — never hardcode the raw key. Use env / Kconfig /
    xcconfig / `gradle.properties` / a secret-ref tool. Set the capture host to
-   `https://capture.honch.io`. Never disable TLS / ATS / cleartext rules.
+   `https://is.honch.io`. Never disable TLS / ATS / cleartext rules.
 4. **Initialize once** in the lifecycle: Device SDK after network/IP is up and
    pump `tick()` from a low-priority task; App SDK in app launch and wire the
    relay's ingest call into the existing BLE receive path — for React Native

@@ -43,7 +43,7 @@ import HonchAnalytics   // confirm the module name against the installed package
 // Once, at app launch:
 Analytics.shared.initialize(
     projectKey: projectKey,                 // honch_… key, from secret config
-    host: "https://capture.honch.io"        // capture host
+    host: "https://is.honch.io"        // capture host
 )
 
 Analytics.shared.track("video_exported", properties: ["duration": 30])
@@ -115,7 +115,7 @@ customer's app, so `Info.plist` must include:
   store / build config (xcconfig `HONCH_PROJECT_KEY`, then surfaced via
   `Info.plist` or a generated config), wired through the wizard's secret-ref env
   tool — not committed source.
-- `host` must be the HTTPS capture base (`https://capture.honch.io`). Do not
+- `host` must be the HTTPS capture base (`https://is.honch.io`). Do not
   disable App Transport Security or TLS validation for it.
 
 ## Where to initialize

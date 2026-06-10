@@ -973,7 +973,7 @@ export async function runAgent(
               // Honch platform, docs, and event ingestion
               'app.honch.io',
               'docs.honch.io',
-              'capture.honch.io',
+              'is.honch.io',
               // ESP-IDF component registry (idf.py add-dependency)
               'components.espressif.com',
             ],

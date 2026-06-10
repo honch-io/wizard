@@ -68,7 +68,7 @@ the verified set is:
 ```c
 typedef struct {
     const char *api_key;            // required (project key, honch_…)
-    const char *endpoint_url;       // required, e.g. "https://capture.honch.io"
+    const char *endpoint_url;       // required, e.g. "https://is.honch.io"
     const char *device_id;          // optional, NULL to derive
     const char *device_model;       // required
     const char *firmware_version;   // required
@@ -113,7 +113,7 @@ For a property-less event call `honch_track(client, "service.start", NULL, 0)`.
 - **Never** hardcode the raw project API key. Read it from the environment
   (`getenv`) wired through the wizard's secret-ref env tool, or from a
   gitignored config file — not from committed source.
-- `endpoint_url` must be the HTTPS capture base (`https://capture.honch.io`).
+- `endpoint_url` must be the HTTPS capture base (`https://is.honch.io`).
   Do not add any insecure / skip-TLS option in production.
 - `queue_directory` must be a writable, persistent path so the queue survives
   restarts. Do not point it at a tmpfs you wipe on boot.
@@ -133,7 +133,7 @@ events are sent.
 int main(void) {
     const honch_config_t cfg = {
         .api_key          = getenv("HONCH_API_KEY"),   // secret ref / env
-        .endpoint_url     = "https://capture.honch.io",
+        .endpoint_url     = "https://is.honch.io",
         .device_model     = "edge-gateway-v1",
         .firmware_version = "0.1.0",
         .queue_directory  = "/var/lib/honch/queue",    // durable
