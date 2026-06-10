@@ -7,7 +7,7 @@
  */
 
 import { Box, Text, useInput } from 'ink';
-import { useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { WizardStore } from '@ui/tui/store';
 import { OutroKind } from '@lib/wizard-session';
 import { Colors } from '@ui/tui/styles';
@@ -22,7 +22,19 @@ export const OutroScreen = ({ store }: OutroScreenProps) => {
     () => store.getSnapshot(),
   );
 
+  // Swallow input that arrives in the instant this screen mounts. The agent
+  // run streams heavily to the terminal and can leave buffered/stray
+  // keystrokes queued; without this guard the first such byte hits the
+  // "any key" handler below and instantly dismisses the screen — making an
+  // error (or success) summary flash past before it can be read.
+  const [acceptsInput, setAcceptsInput] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setAcceptsInput(true), 600);
+    return () => clearTimeout(timer);
+  }, []);
+
   useInput(() => {
+    if (!acceptsInput) return;
     store.setOutroDismissed();
   });
 

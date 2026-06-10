@@ -55,6 +55,13 @@ export class InkUI implements WizardUI {
   }
 
   outroError(data: OutroData): void {
+    // `outroDismissed` is sticky: a prior outro (e.g. an earlier feature pass)
+    // may already have set it. Clear it so this error waits for a fresh,
+    // deliberate keypress instead of resolving waitForOutroDismissed() — and
+    // exiting — the instant it is rendered.
+    if (this.store.session.outroDismissed) {
+      this.store.setOutroDismissed(false);
+    }
     this.store.setOutroData(data);
     // Advance router past the run step so the outro screen renders
     if (this.store.session.runPhase !== RunPhase.Error) {

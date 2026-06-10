@@ -555,8 +555,8 @@ export class WizardStore {
     this.emitChange();
   }
 
-  setOutroDismissed(): void {
-    this.$session.setKey('outroDismissed', true);
+  setOutroDismissed(dismissed = true): void {
+    this.$session.setKey('outroDismissed', dismissed);
     this.emitChange();
   }
 
