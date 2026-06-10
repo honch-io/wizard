@@ -169,7 +169,7 @@ export interface WizardUI {
     todos: Array<{ content: string; status: string; activeForm?: string }>,
   ): void;
 
-  // ── Event plan from .posthog-events.json ────────────────────
+  // ── Event plan from .honch-events.json ────────────────────
   setEventPlan(events: Array<{ name: string; description: string }>): void;
 
   // ── Dashboard URL emitted by the agent via [DASHBOARD_URL] marker ──

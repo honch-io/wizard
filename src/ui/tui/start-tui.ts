@@ -47,7 +47,7 @@ function getExitLine(store: WizardStore): string {
 
 export function startTUI(
   version: string,
-  program: ProgramId = Program.PostHogIntegration,
+  program: ProgramId = Program.HonchIntegration,
 ): {
   unmount: () => void;
   store: WizardStore;

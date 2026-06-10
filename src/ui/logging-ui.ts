@@ -183,17 +183,14 @@ export class LoggingUI implements WizardUI {
       console.log(`│    claude auth logout`);
     } else {
       console.log(
-        `│  The PostHog LLM Gateway rejected the API key. Common causes:`,
+        `│  The Honch platform rejected the bearer token. Common causes:`,
       );
       console.log(
-        `│    - Wrong key type: pass a personal API key (phx_xxx). pha_ is an OAuth access token, phc_ is a project key.`,
+        `│    - Wrong token: pass your Honch dashboard bearer token (as <token>, --token, or HONCH_WIZARD_TOKEN).`,
       );
+      console.log(`│    - Expired or revoked token.`);
       console.log(
-        `│    - Missing scope: the personal API key needs the "llm_gateway:read" scope.`,
-      );
-      console.log(`│    - Expired or revoked key.`);
-      console.log(
-        `│    - Region mismatch: --region must match the region the key was issued in (us vs eu).`,
+        `│    - Wrong platform: --api-base-url must point at the Honch platform that issued the token.`,
       );
     }
     if (detail?.logFilePath) {

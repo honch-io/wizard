@@ -18,7 +18,7 @@ import {
   checkFrameworkVersion,
 } from '@lib/detection/index';
 
-export async function detectPostHogIntegration(
+export async function detectHonchIntegration(
   ctx: ProgramReadyContext,
 ): Promise<void> {
   const session = ctx.session;

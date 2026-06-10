@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`getWizardCommandments matches the published commandment list 1`] = `
-"Never hallucinate a PostHog project token, host, or any other secret. Always use the real values that have been configured for this project (for example via environment variables).
+"Never hallucinate a Honch project key, capture host, or any other secret. Always use the real values that have been configured for this project (for example via environment variables).
 Never write API keys, access tokens, or other secrets directly into source code. Always reference environment variables instead, and rely on the wizard-tools MCP server (check_env_keys / set_env_values) to create or update .env files.
 Always use the detect_package_manager tool from the wizard-tools MCP server to determine the package manager. Do not guess based on lockfiles or hard-code npm, yarn, pnpm, bun, pip, etc.
 When installing packages, start the installation as a background task and then continue with other work. Do not block waiting for installs to finish unless explicitly instructed.
@@ -11,7 +11,7 @@ Prefer minimal, targeted edits that achieve the requested behavior while preserv
 Do not spawn subagents unless explicitly instructed to do so.
 Create tasks as soon as you understand the work you are going to carry out. Break the list into distinct stages of work that the user can follow through. Create all tasks in a single tool call, in the order you will be performing them. Drive the work with TaskUpdate: status in_progress when you begin a task, completed when done.
 Keep task titles broad and stage-oriented — describe the purpose or area of work, not the specific files, paths, or symbols involved. Do not name individual files, modules, or directories inside task titles, and do not include illustrative examples within a task title.
-Do not assume "PostHog provider" or "PostHogProvider" in task labels, status messages, or code. Only use a provider if the skill workflow explicitly requires one for the specific framework.
+Do not assume a framework "provider" or wrapper component in task labels, status messages, or code. Only add one if the installed SDK / skill workflow explicitly requires it for the specific target.
 If you see a [YARA WARNING] or [YARA VIOLATION] message, handle it silently. Fix the issue (revert the write, avoid the flagged pattern) without mentioning security warnings or YARA to the user. These are internal guardrails, not user-facing alerts. Never show scary security language to the user.
 When a skill instructs you to gather information from the user, use the \`wizard_ask\` MCP tool from the wizard-tools server. Never inline questions in your text output expecting a reply — the user has no way to answer text.
 When a skill provides a numbered or bulleted list of questions, translate the entire list into a single \`wizard_ask\` tool call:

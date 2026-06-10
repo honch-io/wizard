@@ -5,17 +5,18 @@
  * - check_env_keys: Check which env var keys exist in a .env file
  * - set_env_values: Create/update env vars in a .env file
  * - detect_package_manager: Detect the project's package manager(s)
- * - load_skill_menu / install_skill: Skill installation
  * - audit_seed_checks / audit_add_checks / audit_resolve_checks: Audit ledger ownership
+ *
+ * Skill installation is NOT here: Honch ships its per-target skills bundled with
+ * the wizard and copies them in locally (see lib/local-skills.ts). There is no
+ * remote skill registry and no load_skill_menu / install_skill tool.
  */
 
 import path from 'path';
 import fs from 'fs';
-import { execFileSync } from 'child_process';
 import { z } from 'zod';
 import { logToFile } from '@utils/debug';
 import { analytics } from '@utils/analytics';
-import { skillTmpPath } from '@utils/paths';
 import type { PackageManagerDetector } from './detection/package-manager';
 import {
   AUDIT_CHECKS_FILE,
@@ -39,133 +40,6 @@ async function getSDKModule(): Promise<any> {
 }
 
 // ---------------------------------------------------------------------------
-// Skill types
-// ---------------------------------------------------------------------------
-
-export type SkillEntry = { id: string; name: string; downloadUrl: string };
-
-export interface SkillMenu {
-  categories: Record<string, SkillEntry[]>;
-}
-
-// ---------------------------------------------------------------------------
-// Standalone skill helpers (usable before the MCP server is created)
-// ---------------------------------------------------------------------------
-
-/**
- * Fetch the skill menu from the skills server.
- * Returns parsed data on success, `null` on failure.
- */
-export async function fetchSkillMenu(
-  skillsBaseUrl: string,
-): Promise<SkillMenu | null> {
-  try {
-    const menuUrl = `${skillsBaseUrl}/skill-menu.json`;
-    logToFile(`fetchSkillMenu: fetching from ${menuUrl}`);
-    const resp = await fetch(menuUrl);
-    if (resp.ok) {
-      const data = (await resp.json()) as SkillMenu;
-      logToFile(
-        `fetchSkillMenu: loaded (${
-          Object.keys(data.categories).length
-        } categories)`,
-      );
-      return data;
-    }
-    logToFile(`fetchSkillMenu: failed with HTTP ${resp.status}`);
-    return null;
-  } catch (err: any) {
-    logToFile(`fetchSkillMenu: error: ${err.message}`);
-    return null;
-  }
-}
-
-/**
- * Download and extract a skill.
- * By default installs to `<installDir>/.claude/skills/<id>/`.
- * Pass `skillsRoot` to override the base directory (e.g. `.posthog/skills`).
- */
-export function downloadSkill(
-  skillEntry: SkillEntry,
-  installDir: string,
-  skillsRoot?: string,
-): { success: boolean; error?: string } {
-  const skillDir = skillsRoot
-    ? path.join(installDir, skillsRoot, skillEntry.id)
-    : path.join(installDir, '.claude', 'skills', skillEntry.id);
-  const tmpFile = skillTmpPath(skillEntry.id);
-
-  try {
-    fs.mkdirSync(skillDir, { recursive: true });
-    execFileSync('curl', ['-sL', skillEntry.downloadUrl, '-o', tmpFile], {
-      timeout: 30000,
-    });
-    execFileSync('unzip', ['-o', tmpFile, '-d', skillDir], {
-      timeout: 30000,
-    });
-    fs.writeFileSync(path.join(skillDir, '.posthog-wizard'), '');
-    try {
-      fs.unlinkSync(tmpFile);
-    } catch {
-      /* ignore cleanup errors */
-    }
-
-    logToFile(
-      `downloadSkill: installed ${skillEntry.id} from ${skillEntry.downloadUrl}`,
-    );
-    return { success: true };
-  } catch (err: any) {
-    logToFile(`downloadSkill: error: ${err.message}`);
-    return { success: false, error: err.message };
-  }
-}
-
-/**
- * Structured result for installSkillById.
- * - `ok`: the skill was fetched and extracted; `path` is where it lives
- *   relative to installDir.
- * - `menu-fetch-failed`: couldn't fetch or parse the skill menu.
- * - `skill-not-found`: the menu didn't contain a skill with this id.
- * - `download-failed`: found the skill but download/extract failed;
- *   `message` has the underlying error.
- */
-export type InstallSkillResult =
-  | { kind: 'ok'; path: string }
-  | { kind: 'menu-fetch-failed' }
-  | { kind: 'skill-not-found'; skillId: string }
-  | { kind: 'download-failed'; message: string };
-
-/**
- * High-level "install a skill by ID" helper. Fetches the skill menu,
- * finds the skill, downloads and extracts it. Programs should use this
- * instead of composing fetchSkillMenu + downloadSkill themselves.
- */
-export async function installSkillById(
-  skillId: string,
-  installDir: string,
-  skillsBaseUrl: string,
-  skillsRoot?: string,
-): Promise<InstallSkillResult> {
-  const menu = await fetchSkillMenu(skillsBaseUrl);
-  if (!menu) return { kind: 'menu-fetch-failed' };
-
-  const skill = Object.values(menu.categories)
-    .flat()
-    .find((s) => s.id === skillId);
-  if (!skill) return { kind: 'skill-not-found', skillId };
-
-  const result = downloadSkill(skill, installDir, skillsRoot);
-  if (!result.success) {
-    return { kind: 'download-failed', message: result.error ?? 'unknown' };
-  }
-
-  const relPath = skillsRoot
-    ? `${skillsRoot}/${skillId}`
-    : `.claude/skills/${skillId}`;
-  return { kind: 'ok', path: relPath };
-}
-
-// ---------------------------------------------------------------------------
 // Options for creating the wizard tools server
 // ---------------------------------------------------------------------------
 
@@ -175,9 +49,6 @@ export interface WizardToolsOptions {
 
   /** Framework-specific package manager detector */
   detectPackageManager: PackageManagerDetector;
-
-  /** Base URL for the skills server (e.g. http://localhost:8765 or GitHub releases URL) */
-  skillsBaseUrl: string;
 
   /**
    * Bridge that drives the `wizard_ask` overlay. When omitted, the
@@ -501,7 +372,6 @@ export async function createWizardToolsServer(options: WizardToolsOptions) {
   const {
     workingDirectory,
     detectPackageManager,
-    skillsBaseUrl,
     askBridge,
     askMaxQuestions = DEFAULT_ASK_MAX_QUESTIONS,
     secretVault = createSecretVault(),
@@ -511,20 +381,6 @@ export async function createWizardToolsServer(options: WizardToolsOptions) {
 
   // Per-server counter for wizard_ask call accounting (adjacency + total cap).
   let askCallCount = 0;
-
-  // Pre-fetch skill menu so category names are available in the tool schema
-  let cachedSkillMenu: Record<string, SkillEntry[]> = {};
-  let categoryNames: [string, ...string[]] = ['integration'];
-
-  const menu = await fetchSkillMenu(skillsBaseUrl);
-  if (menu) {
-    cachedSkillMenu = menu.categories;
-  }
-
-  const keys = Object.keys(cachedSkillMenu);
-  if (keys.length > 0) {
-    categoryNames = keys as [string, ...string[]];
-  }
 
   // -- check_env_keys -------------------------------------------------------
 
@@ -582,7 +438,7 @@ export async function createWizardToolsServer(options: WizardToolsOptions) {
       filePath: string;
       values: Record<string, string | { secretRef: string }>;
     }) => {
-      // Block the wrong key name — the correct key is NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN or similar
+      // Block the old generic PostHog key name; Honch uses target-specific keys.
       const forbidden = Object.keys(args.values).find(
         (k) => k.toUpperCase() === 'POSTHOG_KEY',
       );
@@ -591,7 +447,7 @@ export async function createWizardToolsServer(options: WizardToolsOptions) {
           content: [
             {
               type: 'text' as const,
-              text: `Error: "${forbidden}" is not a valid PostHog env var name. Use the project-specific key name from your framework's integration guide (e.g. NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN).`,
+              text: `Error: "${forbidden}" is not a valid Honch env var name. Use the target-specific key name from the Honch integration guide (for example HONCH_API_KEY or HONCH_PROJECT_KEY).`,
             },
           ],
           isError: true,
@@ -686,104 +542,6 @@ export async function createWizardToolsServer(options: WizardToolsOptions) {
           },
         ],
       };
-    },
-  );
-
-  // -- load_skill_menu ------------------------------------------------------
-
-  const loadSkillMenu = tool(
-    'load_skill_menu',
-    'Load available PostHog skills for a category. Returns skill IDs and names. Call this first, then use install_skill with the chosen ID.',
-    {
-      category: z.enum(categoryNames).describe('Skill category'),
-    },
-    (args: { category: string }) => {
-      const skills = cachedSkillMenu[args.category];
-      if (!skills || skills.length === 0) {
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `No skills found for category "${args.category}".`,
-            },
-          ],
-          isError: true,
-        };
-      }
-
-      const menuText = skills.map((s) => `- ${s.id}: ${s.name}`).join('\n');
-
-      logToFile(
-        `load_skill_menu: returning ${skills.length} skills for "${args.category}"`,
-      );
-
-      return {
-        content: [{ type: 'text' as const, text: menuText }],
-      };
-    },
-  );
-
-  // -- install_skill --------------------------------------------------------
-
-  const installSkill = tool(
-    'install_skill',
-    'Download and install a PostHog skill by ID. Call load_skill_menu first to see available skills. Extracts the skill to .claude/skills/<skillId>/.',
-    {
-      skillId: z
-        .string()
-        .describe(
-          'Skill ID from the skill menu (e.g., "integration-nextjs-app-router")',
-        ),
-    },
-    (args: { skillId: string }) => {
-      if (!/^[a-z0-9][a-z0-9_-]*$/.test(args.skillId)) {
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: 'Error: skillId must be lowercase alphanumeric with hyphens.',
-            },
-          ],
-          isError: true,
-        };
-      }
-
-      // Look up download URL from cached menu
-      const allSkills: SkillEntry[] = Object.values(cachedSkillMenu).flat();
-      const skill = allSkills.find((s) => s.id === args.skillId);
-      if (!skill) {
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `Error: skill "${args.skillId}" not found. Use load_skill_menu to see available skills.`,
-            },
-          ],
-          isError: true,
-        };
-      }
-
-      const result = downloadSkill(skill, workingDirectory);
-      if (result.success) {
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `Skill installed to .claude/skills/${args.skillId}/`,
-            },
-          ],
-        };
-      } else {
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `Error installing skill: ${result.error}`,
-            },
-          ],
-          isError: true,
-        };
-      }
     },
   );
 
@@ -1111,8 +869,6 @@ export async function createWizardToolsServer(options: WizardToolsOptions) {
       checkEnvKeys,
       setEnvValues,
       detectPM,
-      loadSkillMenu,
-      installSkill,
       auditSeedChecks,
       auditAddChecks,
       auditResolveChecks,
@@ -1130,8 +886,6 @@ export const WIZARD_TOOL_NAMES = {
   checkEnvKeys: `mcp__${SERVER_NAME}__check_env_keys`,
   setEnvValues: `mcp__${SERVER_NAME}__set_env_values`,
   detectPackageManager: `mcp__${SERVER_NAME}__detect_package_manager`,
-  loadSkillMenu: `mcp__${SERVER_NAME}__load_skill_menu`,
-  installSkill: `mcp__${SERVER_NAME}__install_skill`,
   auditSeedChecks: `mcp__${SERVER_NAME}__audit_seed_checks`,
   auditAddChecks: `mcp__${SERVER_NAME}__audit_add_checks`,
   auditResolveChecks: `mcp__${SERVER_NAME}__audit_resolve_checks`,

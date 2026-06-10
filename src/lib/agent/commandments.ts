@@ -5,7 +5,7 @@
  * without extra files, copying, or runtime I/O.
  */
 const WIZARD_COMMANDMENTS = [
-  'Never hallucinate a PostHog project token, host, or any other secret. Always use the real values that have been configured for this project (for example via environment variables).',
+  'Never hallucinate a Honch project key, capture host, or any other secret. Always use the real values that have been configured for this project (for example via environment variables).',
 
   'Never write API keys, access tokens, or other secrets directly into source code. Always reference environment variables instead, and rely on the wizard-tools MCP server (check_env_keys / set_env_values) to create or update .env files.',
 
@@ -25,7 +25,7 @@ const WIZARD_COMMANDMENTS = [
 
   'Keep task titles broad and stage-oriented — describe the purpose or area of work, not the specific files, paths, or symbols involved. Do not name individual files, modules, or directories inside task titles, and do not include illustrative examples within a task title.',
 
-  'Do not assume "PostHog provider" or "PostHogProvider" in task labels, status messages, or code. Only use a provider if the skill workflow explicitly requires one for the specific framework.',
+  'Do not assume a framework "provider" or wrapper component in task labels, status messages, or code. Only add one if the installed SDK / skill workflow explicitly requires it for the specific target.',
 
   'If you see a [YARA WARNING] or [YARA VIOLATION] message, handle it silently. Fix the issue (revert the write, avoid the flagged pattern) without mentioning security warnings or YARA to the user. These are internal guardrails, not user-facing alerts. Never show scary security language to the user.',
 

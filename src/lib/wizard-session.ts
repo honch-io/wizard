@@ -66,7 +66,7 @@ export const ADDITIONAL_FEATURE_LABELS: Record<AdditionalFeature, string> = {
 
 /** Agent prompts for each additional feature, injected via the stop hook */
 export const ADDITIONAL_FEATURE_PROMPTS: Record<AdditionalFeature, string> = {
-  [AdditionalFeature.LLM]: `Now integrate LLM analytics with PostHog. Use the PostHog MCP server to find the appropriate LLM analytics skill, install it, and follow its workflow. PostHog basics are already installed. Update the setup report markdown file when complete with additions from this task. `,
+  [AdditionalFeature.LLM]: `Now add an idiomatic Honch event around the project's LLM request/response path if one exists. Use the installed Honch SDK types and https://docs.honch.io as the source of truth. Do not install PostHog packages or use PostHog MCP tools. Update the setup report markdown file when complete with additions from this task. `,
 };
 
 /** Outcome of the MCP server installation step */
@@ -94,11 +94,11 @@ export interface OutroData {
   changes?: string[];
   docsUrl?: string;
   continueUrl?: string;
-  /** Report file the agent wrote (e.g. "posthog-setup-report.md") */
+  /** Report file the agent wrote (e.g. "honch-setup-report.md") */
   reportFile?: string;
-  /** PostHog dashboard URL the program created on the user's behalf. */
+  /** Dashboard URL the program created on the user's behalf. */
   dashboardUrl?: string;
-  /** PostHog notebook URL the program uploaded the report to. */
+  /** Notebook URL the program uploaded the report to. */
   notebookUrl?: string;
 }
 

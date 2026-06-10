@@ -13,11 +13,10 @@ import { useSyncExternalStore } from 'react';
 import { readdir, rm, access } from 'node:fs/promises';
 import { join } from 'node:path';
 
-const WIZARD_MARKER = '.posthog-wizard';
+const WIZARD_MARKER = '.honch-wizard';
 import type { WizardStore } from '@ui/tui/store';
 import { ConfirmationInput } from '@ui/tui/primitives/index';
 import { Colors } from '@ui/tui/styles';
-import { CONTEXT_MILL_URL } from '@lib/constants';
 
 interface KeepSkillsScreenProps {
   store: WizardStore;
@@ -124,7 +123,7 @@ export const KeepSkillsScreen = ({ store }: KeepSkillsScreenProps) => {
           <>
             <Text dimColor>
               The wizard installed open-source skills that help AI coding agents
-              integrate PostHog into your project:
+              integrate Honch into your project:
             </Text>
             <Box marginTop={1} flexDirection="column" marginLeft={2}>
               <Text dimColor>.claude/</Text>
@@ -143,7 +142,7 @@ export const KeepSkillsScreen = ({ store }: KeepSkillsScreenProps) => {
             </Box>
             <Box marginTop={1}>
               <Text dimColor>
-                Source: <Text color="cyan">{CONTEXT_MILL_URL}</Text>
+                Source: <Text color="cyan">bundled with the Honch wizard</Text>
               </Text>
             </Box>
             <Box marginTop={1}>

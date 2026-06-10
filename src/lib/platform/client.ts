@@ -49,7 +49,8 @@ export class PlatformClient {
   }
 
   private async get<T>(path: string, accessToken?: string): Promise<T> {
-    const response = await this.fetcher(`${this.baseUrl}${path}`, {
+    const url = `${this.baseUrl}${path}`;
+    const response = await this.fetch(url, {
       method: 'GET',
       headers: this.headers(accessToken),
     });
@@ -61,12 +62,26 @@ export class PlatformClient {
     body: unknown,
     accessToken?: string,
   ): Promise<T> {
-    const response = await this.fetcher(`${this.baseUrl}${path}`, {
+    const url = `${this.baseUrl}${path}`;
+    const response = await this.fetch(url, {
       method: 'POST',
       headers: this.headers(accessToken),
       body: JSON.stringify(body),
     });
     return parseJson<T>(response);
+  }
+
+  private async fetch(url: string, init: RequestInit): Promise<Response> {
+    try {
+      return await this.fetcher(url, init);
+    } catch (error) {
+      throw new Error(
+        `Could not reach Honch platform at ${url}. Check DNS/network access, or pass --api-base-url=<platform-url>. ${formatFetchCause(
+          error,
+        )}`,
+        { cause: error },
+      );
+    }
   }
 
   private headers(accessToken?: string): Record<string, string> {
@@ -76,6 +91,13 @@ export class PlatformClient {
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
     return headers;
   }
+}
+
+function formatFetchCause(error: unknown): string {
+  if (error instanceof Error && error.message.length > 0) {
+    return `Cause: ${error.message}`;
+  }
+  return '';
 }
 
 async function parseJson<T>(response: Response): Promise<T> {

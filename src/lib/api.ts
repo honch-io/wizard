@@ -77,12 +77,12 @@ export const ApiUserSchema = z
   .passthrough();
 
 /**
- * Single activity log entry the wizard cares about. The PostHog endpoint
+ * Single activity log entry the wizard cares about. The Honch platform endpoint
  * returns much more — schema kept minimal so changes upstream don't break us.
  *
  * @unused — no current caller after the Phase 6 streaming-agent pivot
  * dropped activity_log polling. Deliberately retained: this is a thin,
- * well-typed wrapper around a stable PostHog endpoint, and we're likely
+ * well-typed wrapper around a stable Honch platform endpoint, and we're likely
  * to want it again for a future feature (e.g. "what changed in your
  * project recently"). Re-deriving the schema is more work than letting
  * it sit dormant.

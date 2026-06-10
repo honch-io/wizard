@@ -213,11 +213,11 @@ export interface UIConfig<
  * Generate welcome message from framework name
  */
 export function getWelcomeMessage(frameworkName: string): string {
-  return `PostHog ${frameworkName} wizard (agent-powered)`;
+  return `Honch ${frameworkName} wizard (agent-powered)`;
 }
 
 /**
  * Shared spinner message for all frameworks
  */
 export const SPINNER_MESSAGE =
-  'Writing your PostHog setup with events, error capture and more...';
+  'Writing your Honch SDK setup with events, configuration, and verification...';

@@ -1,5 +1,5 @@
 /**
- * PostHogIntegrationIntroScreen — Intro screen for the core PostHog integration.
+ * HonchIntegrationIntroScreen — Intro screen for the core Honch integration.
  *
  * Composes IntroScreenLayout with framework-detection-specific state:
  *   1. Detecting: spinner while detection runs
@@ -13,10 +13,8 @@ import { spawnSync } from 'node:child_process';
 import type { ReactNode } from 'react';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { WizardStore } from '@ui/tui/store';
-import {
-  Integration,
-  WIZARD_TOOLS_MENU_FLAG_KEY,
-} from '@lib/constants';
+import { Colors } from '@ui/tui/styles';
+import { Integration, WIZARD_TOOLS_MENU_FLAG_KEY } from '@lib/constants';
 import { PickerMenu, LoadingBox } from '@ui/tui/primitives/index';
 import { IntroScreenLayout, type DetectionRow } from './IntroScreenLayout.js';
 import { SkillSourceInfo, useSkillEntry } from './SkillSourceInfo.js';
@@ -60,26 +58,24 @@ const FrameworkPicker = ({
       options={options}
       onSelect={(value) => {
         const integration = Array.isArray(value) ? value[0] : value;
-        void import('@lib/registry').then(
-          ({ FRAMEWORK_REGISTRY }) => {
-            const config = FRAMEWORK_REGISTRY[integration];
-            store.setFrameworkConfig(integration, config);
-            store.setDetectedFramework(config.metadata.name);
-            onComplete?.();
-          },
-        );
+        void import('@lib/registry').then(({ FRAMEWORK_REGISTRY }) => {
+          const config = FRAMEWORK_REGISTRY[integration];
+          store.setFrameworkConfig(integration, config);
+          store.setDetectedFramework(config.metadata.name);
+          onComplete?.();
+        });
       }}
     />
   );
 };
 
-interface PostHogIntegrationIntroScreenProps {
+interface HonchIntegrationIntroScreenProps {
   store: WizardStore;
 }
 
-export const PostHogIntegrationIntroScreen = ({
+export const HonchIntegrationIntroScreen = ({
   store,
-}: PostHogIntegrationIntroScreenProps) => {
+}: HonchIntegrationIntroScreenProps) => {
   useSyncExternalStore(
     (cb) => store.subscribe(cb),
     () => store.getSnapshot(),
@@ -105,10 +101,7 @@ export const PostHogIntegrationIntroScreen = ({
   const config = session.frameworkConfig;
   const frameworkLabel =
     session.detectedFrameworkLabel ?? config?.metadata.name;
-  const { skillEntry, fetchFailed } = useSkillEntry(
-    session.skillId,
-    session.localMcp,
-  );
+  const { skillEntry, fetchFailed } = useSkillEntry(session.skillId);
   const detecting = !session.detectionComplete;
   const needsFrameworkPick =
     session.detectionComplete && !session.frameworkConfig;
@@ -122,7 +115,7 @@ export const PostHogIntegrationIntroScreen = ({
 
   // ── Title ──────────────────────────────────────────────────────────
 
-  const title = detecting ? 'Honch Wizard starting up' : 'Honch Wizard 🦔';
+  const title = detecting ? 'Honch Wizard starting up' : 'Honch Wizard ↑';
 
   // ── Description ────────────────────────────────────────────────────
 
@@ -157,27 +150,25 @@ export const PostHogIntegrationIntroScreen = ({
     body = (
       <Box flexDirection="column" width={56} flexShrink={0}>
         <Text>
-          The wizard is an agent that executes PostHog tasks. Its code is open
-          source: <Text color="cyan">https://github.com/PostHog/wizard</Text>
+          The wizard is an agent that installs the Honch SDK. Its code is open
+          source: <Text color="cyan">https://github.com/honch-io/wizard</Text>
         </Text>
         <Box flexDirection="column" marginTop={1}>
           <Text>
-            The{' '}
-            <Text italic color="cyan">
-              {session.programLabel}
-            </Text>{' '}
-            program installs the PostHog SDKs, instruments event tracking, and
-            integrates the following dev tools for your application:
+            It detects your target, wires the Honch SDK into your project's own
+            build system, writes the capture key to config (never hardcoded),
+            and initializes Honch at the right point in your app/firmware
+            lifecycle:
           </Text>
         </Box>
         <Box flexDirection="column" marginTop={1} paddingLeft={4}>
-          <Text>{`\u2022`} Product Analytics</Text>
-          <Text>{`\u2022`} Web Analytics</Text>
-          <Text>{`\u2022`} Session Replay</Text>
-          <Text>{`\u2022`} Error Tracking</Text>
+          <Text>{`\u2022`} Firmware - ESP-IDF, C/POSIX, MicroPython</Text>
+          <Text>{`\u2022`} Mobile - iOS, Android, React Native relay</Text>
+          <Text>{`\u2022`} Live colored diffs of every change</Text>
+          <Text>{`\u2022`} A honch-setup-report.md when it&apos;s done</Text>
         </Box>
         <Box flexDirection="column" marginTop={1}>
-          <Text>If you prefer your own AI setup, download the skill:</Text>
+          <Text>If you prefer your own AI setup, use the bundled skill:</Text>
           <Box marginTop={1}>
             <SkillSourceInfo
               skillId={session.skillId}
@@ -224,7 +215,7 @@ export const PostHogIntegrationIntroScreen = ({
   if (unsupported) {
     bodyChildren = (
       <Box flexDirection="column" marginTop={1}>
-        <Text color="#DC9300">
+        <Text color={Colors.accent}>
           Version {unsupported.current} is not supported by the wizard. Please
           upgrade to {unsupported.minimum} or later.
         </Text>

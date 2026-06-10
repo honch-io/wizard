@@ -44,6 +44,7 @@ export function groupsFromUser(
 }
 
 /** No-op analytics — every method is a sink; nothing leaves the machine. */
+/* eslint-disable @typescript-eslint/no-empty-function -- intentional no-op telemetry sink */
 class Analytics {
   setDistinctId(_distinctId: string): void {}
   setTag(

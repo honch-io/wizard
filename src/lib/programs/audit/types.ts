@@ -33,6 +33,8 @@ export function coerceAuditChecks(value: unknown): AuditCheck[] {
   if (!Array.isArray(value)) return [];
   return value.filter(
     (v): v is AuditCheck =>
-      typeof v === 'object' && v !== null && typeof (v as AuditCheck).id === 'string',
+      typeof v === 'object' &&
+      v !== null &&
+      typeof (v as AuditCheck).id === 'string',
   );
 }

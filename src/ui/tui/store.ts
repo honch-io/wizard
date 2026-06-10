@@ -117,7 +117,7 @@ export class WizardStore {
   private _resolvePendingQuestion: ((answers: AskAnswers) => void) | null =
     null;
 
-  constructor(program: ProgramId = Program.PostHogIntegration) {
+  constructor(program: ProgramId = Program.HonchIntegration) {
     this.router = new WizardRouter(program);
     this._initFromProgram(program);
   }

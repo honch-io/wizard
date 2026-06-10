@@ -1,5 +1,5 @@
 /**
- * TipsCard — Shows PostHog tips during the agent run.
+ * TipsCard — Shows Honch usage tips during the agent run.
  * Reactively shows/hides tips based on discovered features.
  * Supports toggling additional features via key bindings.
  */
@@ -7,10 +7,7 @@
 import { Box, Text, useInput } from 'ink';
 import type { WizardStore } from '@ui/tui/store';
 import { Colors, Icons } from '@ui/tui/styles';
-import {
-  DiscoveredFeature,
-  AdditionalFeature,
-} from '@lib/wizard-session';
+import { AdditionalFeature } from '@lib/wizard-session';
 
 /** A discrete tip shown in the TipsCard during the agent run. */
 interface Tip {
@@ -41,38 +38,22 @@ interface Tip {
 
 const TIPS: Tip[] = [
   {
-    id: 'persons',
-    title: 'You can also track people and groups with PostHog',
+    id: 'identify',
+    title: 'Identify devices and users with Honch',
     description:
-      "Events can be associated with the humans who generate them, letting you understand a specific user or customer's situation.",
+      'Every event carries a stable device_id. Call identify() to attach a user id so events from the same person line up across sessions and devices.',
   },
   {
     id: 'properties',
     title: 'Get way more detail using properties',
     description:
-      'Events and person records can have any properties you want. Track things like how they found your website, what subscription tier they choose, and much more.',
+      'Attach properties to any event — firmware version, screen, button, battery level — to slice and filter your data in the Honch dashboard.',
   },
   {
-    id: 'stripe',
-    title: 'You can track Stripe revenue with PostHog',
-    description: 'Add Stripe as a data source while you wait:',
-    url: 'https://app.posthog.com/project/data-warehouse/new-source?kind=Stripe',
-    visible: (store) =>
-      store.session.discoveredFeatures.includes(DiscoveredFeature.Stripe),
-  },
-  {
-    id: 'llm',
-    title: 'PostHog can also help you track your LLM costs',
-    description: '',
-    visible: (store) =>
-      store.session.discoveredFeatures.includes(DiscoveredFeature.LLM),
-    toggle: {
-      key: 'l',
-      feature: AdditionalFeature.LLM,
-      enabledLabel: 'LLM analytics setup queued next',
-      prompt: 'We detected LLM dependencies in your project.',
-      isEnabled: (store) => store.session.llmOptIn,
-    },
+    id: 'sessions',
+    title: 'Group activity into sessions',
+    description:
+      'Wrap related events with session_start() / session_end() to analyze a single hardware session end-to-end.',
   },
 ];
 

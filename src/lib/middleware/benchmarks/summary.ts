@@ -118,7 +118,7 @@ export class SummaryPlugin implements Middleware {
     }
 
     getUI().log.info(`${AgentSignals.BENCHMARK} Starting phase: ${toPhase}`);
-    this.spinner.start(`Integrating PostHog (${toPhase})...`);
+    this.spinner.start(`Integrating Honch (${toPhase})...`);
   }
 
   onFinalize(

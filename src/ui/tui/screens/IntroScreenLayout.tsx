@@ -25,7 +25,7 @@ interface IntroScreenLayoutProps {
   /** Absolute path to the project directory */
   installDir: string;
 
-  /** Title text after the colored blocks, e.g. "Honch Wizard 🦔" */
+  /** Title text after the colored blocks, e.g. "Honch Wizard ↑" */
   title?: string;
 
   /** Show the default "We'll use AI…" / ".env*…" subtitle. Default true. */
@@ -61,15 +61,15 @@ interface IntroScreenLayoutProps {
 
 const WizardTitle = ({ title }: { title: string }) => (
   <Text bold>
-    <Text color="#1D4AFF">{'\u2588'}</Text>
-    <Text color="#F54E00">{'\u2588'}</Text>
-    <Text color="#F9BD2B">{'\u2588'}</Text> {title}
+    <Text color="#E85A25">{'\u2588'}</Text>
+    <Text color="#fff8f2">{'\u2588'}</Text>
+    <Text color="#d4dbe6">{'\u2588'}</Text> {title}
   </Text>
 );
 
 export const IntroScreenLayout = ({
   installDir,
-  title = 'Honch Wizard 🦔',
+  title = 'Honch Wizard ↑',
   showSubtitle = true,
   body,
   showDetection = true,

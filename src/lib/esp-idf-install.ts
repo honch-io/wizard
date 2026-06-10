@@ -63,10 +63,7 @@ export function installEspIdfHonchSubmodule(
   if (existsSync(componentDir)) {
     registerExistingHonchCheckout(projectDir, runGit);
   } else {
-    runGit(
-      ['submodule', 'add', HONCH_ESP_IDF_SDK_URL, HONCH_ESP_IDF_COMPONENT_PATH],
-      { cwd: projectDir },
-    );
+    addHonchSubmodule(projectDir, runGit);
   }
 
   runGit(
@@ -114,6 +111,39 @@ function ensureGitWorkTree(projectDir: string, runGit: GitRunner): boolean {
 
   runGit(['init'], { cwd: projectDir });
   return true;
+}
+
+/**
+ * Add the submodule, recovering from a leftover module gitdir. A prior
+ * interrupted run can leave .git/modules/components/honch behind, so a plain
+ * `git submodule add` fails with "a git directory ... is found locally". Git
+ * itself suggests --force to reuse it; since the leftover origin is the Honch
+ * SDK, reuse is safe.
+ */
+function addHonchSubmodule(projectDir: string, runGit: GitRunner): void {
+  try {
+    runGit(
+      ['submodule', 'add', HONCH_ESP_IDF_SDK_URL, HONCH_ESP_IDF_COMPONENT_PATH],
+      { cwd: projectDir },
+    );
+  } catch (error) {
+    if (!isLeftoverModuleDirError(error)) throw error;
+    runGit(
+      [
+        'submodule',
+        'add',
+        '--force',
+        HONCH_ESP_IDF_SDK_URL,
+        HONCH_ESP_IDF_COMPONENT_PATH,
+      ],
+      { cwd: projectDir },
+    );
+  }
+}
+
+function isLeftoverModuleDirError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /is found locally|already exists in the index|--force/.test(message);
 }
 
 function registerExistingHonchCheckout(

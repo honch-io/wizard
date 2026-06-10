@@ -22,7 +22,7 @@ export function isNonInteractiveEnvironment(): boolean {
 }
 
 export function readEnvironment(): Record<string, unknown> {
-  const result = readEnv('POSTHOG_WIZARD');
+  const result = readEnv('HONCH_WIZARD');
 
   return result;
 }

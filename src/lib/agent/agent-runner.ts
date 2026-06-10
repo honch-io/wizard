@@ -47,8 +47,7 @@ import { wizardAbort, WizardError, registerCleanup } from '@utils/wizard-abort';
 import { formatScanReport, writeScanReport } from '@lib/yara-hooks';
 import { detectNodePackageManagers } from '@lib/detection/package-manager';
 import type { PackageManagerDetector } from '@lib/detection/package-manager';
-import { getSkillsBaseUrl } from '@lib/constants';
-import { installSkillById, type InstallSkillResult } from '@lib/wizard-tools';
+import { installLocalSkill, type InstallSkillResult } from '@lib/local-skills';
 import { createWizardAskBridge } from '@lib/wizard-ask-bridge';
 import type { WizardRunOptions } from '@utils/types';
 
@@ -188,8 +187,6 @@ export async function runProgram(
     enableDebugLogs();
   }
 
-  const skillsBaseUrl = getSkillsBaseUrl(session.localMcp);
-
   // 2. Health check (guarded — skip if TUI already ran it)
   if (!session.readinessResult) {
     logToFile('[agent-runner] evaluating wizard readiness');
@@ -255,6 +252,18 @@ export async function runProgram(
 
   // 4. Auth: resolve the wizard token + project capture key from the bearer.
   logToFile('[agent-runner] resolving Honch project data');
+  let projectData: Awaited<ReturnType<typeof getOrAskForProjectData>>;
+  try {
+    projectData = await getOrAskForProjectData({
+      token: session.token,
+      apiBaseUrl: session.apiBaseUrl,
+      captureHost: session.captureHost,
+      project: session.project,
+    });
+  } catch (error) {
+    logToFile('[agent-runner] failed to resolve Honch project data:', error);
+    throw error;
+  }
   const {
     projectApiKey,
     host,
@@ -264,12 +273,10 @@ export async function runProgram(
     cloudRegion,
     roleAtOrganization,
     user,
-  } = await getOrAskForProjectData({
-    token: session.token,
-    apiBaseUrl: session.apiBaseUrl,
-    captureHost: session.captureHost,
-    project: session.project,
-  });
+  } = projectData;
+  logToFile(
+    `[agent-runner] resolved Honch project ${projectId}; capture host ${host}; platform ${apiBaseUrl}`,
+  );
 
   session.credentials = { accessToken, projectApiKey, host, projectId };
   session.roleAtOrganization = roleAtOrganization;
@@ -279,16 +286,15 @@ export async function runProgram(
   getUI().setApiUser(user);
 
   analytics.setGroups(groupsFromUser(user, host));
+  logToFile('[agent-runner] stored Honch credentials in session');
 
-  // 5. Skill install (if skillId provided)
+  // 5. Skill install (if skillId provided). The per-target skill ships bundled
+  // with the wizard (src/skills → dist/skills); we copy it into the project's
+  // .claude/skills/ rather than fetching it from a remote registry.
   let skillPath: string | undefined;
   if (config.skillId) {
-    logToFile(`[agent-runner] installing skill ${config.skillId}`);
-    const installResult = await installSkillById(
-      config.skillId,
-      session.installDir,
-      skillsBaseUrl,
-    );
+    logToFile(`[agent-runner] installing bundled skill ${config.skillId}`);
+    const installResult = installLocalSkill(config.skillId, session.installDir);
     if (installResult.kind !== 'ok') {
       await abortOnInstallFailure(config.integrationLabel, installResult);
       return;
@@ -298,6 +304,7 @@ export async function runProgram(
   }
 
   // 6. Initialize agent
+  logToFile('[agent-runner] initializing Claude agent');
   const spinner = getUI().spinner();
   const wizardFlags = await analytics.getAllFlagsForWizard();
   const wizardMetadata = buildWizardMetadata(wizardFlags);
@@ -336,7 +343,6 @@ export async function runProgram(
       additionalMcpServers: config.additionalMcpServers,
       detectPackageManager:
         config.detectPackageManager ?? detectNodePackageManagers,
-      skillsBaseUrl,
       wizardFlags,
       wizardMetadata,
       integrationLabel: config.integrationLabel,
@@ -413,11 +419,11 @@ export async function runProgram(
   if (agentResult.error === AgentErrorType.MCP_MISSING) {
     await wizardAbort({
       message:
-        'Could not access the PostHog MCP server\n\n' +
-        'The wizard was unable to connect to the PostHog MCP server.\n' +
+        'Could not access the wizard tools\n\n' +
+        'The wizard was unable to connect to its in-process tools.\n' +
         'This could be due to a network issue or a configuration problem.\n\n' +
         `Please try again, or check the documentation:\n${config.docsUrl}`,
-      error: new WizardError('Agent could not access PostHog MCP server', {
+      error: new WizardError('Agent could not access wizard tools', {
         integration: config.integrationLabel,
         error_type: AgentErrorType.MCP_MISSING,
         signal: AgentSignals.ERROR_MCP_MISSING,
@@ -524,12 +530,10 @@ async function abortOnInstallFailure(
 
   const message = (() => {
     switch (result.kind) {
-      case 'menu-fetch-failed':
-        return 'Could not fetch the skill menu from context-mill.\nCheck your network connection and try again.';
       case 'skill-not-found':
-        return `Could not find the "${result.skillId}" skill in the context-mill menu.\nPlease try again later.`;
-      case 'download-failed':
-        return `Failed to install skill: ${result.message}\nPlease try again.`;
+        return `No bundled skill found for "${result.skillId}".\nThis is a wizard packaging bug — please report it to the Honch team.`;
+      case 'copy-failed':
+        return `Failed to install the bundled skill: ${result.message}\nCheck that the install directory is writable and try again.`;
     }
   })();
 

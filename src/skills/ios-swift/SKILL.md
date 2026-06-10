@@ -28,6 +28,13 @@ After adding the package, **read the installed module's public interface**
 https://docs.honch.io. Treat the installed module as the only source of truth
 for names and signatures. Do **not** invent APIs.
 
+> The Analytics entry point and the relay-ingest method name shown in this skill
+> (e.g. `Analytics.shared`, `ingestRelayedEvents`) are **illustrative and not
+> verified against a shipped Swift SDK** — confirm the real type and method
+> names against the installed package before emitting code. (The only relay
+> ingest verified in the Honch SDK is the React Native relay's
+> `receiveFrame(deviceId, frameBytes)`.)
+
 ## The six-function contract (Mode A)
 
 ```swift

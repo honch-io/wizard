@@ -4,15 +4,15 @@ import { join, sep } from 'node:path';
 // /tmp is stable and discoverable on macOS/Linux; Windows needs os.tmpdir()
 const TMP = process.platform === 'win32' ? tmpdir() : '/tmp';
 
-export const WIZARD_LOG_FILE = join(TMP, 'posthog-wizard.log');
-export const WIZARD_BENCHMARK_FILE = join(TMP, 'posthog-wizard-benchmark.json');
+export const WIZARD_LOG_FILE = join(TMP, 'honch-wizard.log');
+export const WIZARD_BENCHMARK_FILE = join(TMP, 'honch-wizard-benchmark.json');
 export const WIZARD_YARA_REPORT_FILE = join(
   TMP,
-  'posthog-wizard-yara-report.json',
+  'honch-wizard-yara-report.json',
 );
 /** Temp path for a skill download zip. */
 export function skillTmpPath(skillId: string): string {
-  return join(TMP, `posthog-skill-${skillId}.zip`);
+  return join(TMP, `honch-skill-${skillId}.zip`);
 }
 
 /**

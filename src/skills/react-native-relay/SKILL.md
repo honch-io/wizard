@@ -6,9 +6,9 @@ description: Install @honch/react-native-relay into a React Native app to forwar
 # Honch React Native Relay Install Skill
 
 The mobile relay turns a React Native app into the uploader for a BLE-only
-Honch **Device SDK**. The firmware drains its queue into a sealed envelope of
-bytes; the app receives those bytes over the customer's **existing** BLE stack
-and hands them to the relay, which uploads them to Honch.
+Honch **Device SDK**. The device's events arrive as Honch relay **frame bytes**
+over the customer's **existing** BLE stack; the app hands each frame to the
+relay, which decodes, queues, and uploads it to Honch.
 
 **This package is a relay, not analytics.** It does not instrument the app's own
 screens/taps. If you also need the app's own analytics (Mode A), use the
@@ -25,17 +25,21 @@ screens/taps. If you also need the app's own analytics (Mode A), use the
 
 ```
 Device (BLE-only)              RN app (this package)            Cloud
-  honch_drain_to_buffer()  ──▶ subscribeNativeFrames()  ──▶  POST /capture
-   produces a sealed         passes raw bytes to the         (the relay owns
-   CBOR envelope:            relay; relay decodes &           the wire encoding)
- [magic|sdk_version|         re-queues, stamping
-  event_count|events|        $relayed=true, preserving
-  crc32]                     device_id + timestamp
+  SDK-produced frame bytes ──▶ receiveFrame(deviceId, bytes) ──▶ POST /capture
+   (obtain via the device      / subscribeNativeFrames();        (the relay owns
+    SDK's own mechanism)       relay decodes & queues,            the wire encoding)
+                               stamping $relayed=true,
+                               preserving device_id + timestamp
 ```
 
+Do **not** assume a device-side `honch_drain_to_buffer()` or a specific envelope
+layout (`magic|sdk_version|…|crc32`) — no such symbol or format is published in
+the C SDK. Obtain the device's frame bytes through whatever the installed device
+SDK actually exposes, and pass them through unchanged.
+
 The customer owns the BLE/GATT transport. The SDK is **a payload, not a
-protocol** — you move the bytes; the relay produces/consumes them. **Never
-hand-decode the envelope or hand-encode the capture wire.**
+protocol** — you move the bytes; the relay decodes/uploads them. **Never
+hand-decode a frame or hand-encode the capture wire.**
 
 ## Ground-truth rule (read this first)
 
@@ -105,17 +109,18 @@ import {
 const native = createRelayNativeBindings();
 
 const relay = createMobileRelay({
-  projectKey: PROJECT_KEY,                 // secret ref / native config
-  endpointUrl: "https://capture.honch.io", // default; the capture host
-  relayId: "rn-relay-1",
-  relaySdkPlatform: "react-native",
-  durableStore: createMmkvRelayStore(),    // survives restarts
+  // Upload config is nested under `uploaderConfig` (RelayUploaderConfig).
+  uploaderConfig: {
+    endpointUrl: "https://capture.honch.io", // the capture host
+    projectKey: PROJECT_KEY,                 // secret ref / native config
+  },
+  durableStore: createMmkvRelayStore(),      // survives restarts
   bleNative: native.ble,
   schedulerNative: native.scheduler,
   frameEvents: new NativeEventEmitter(native.frameEmitter),
 });
 
-// Forward device-produced Honch envelopes arriving over your BLE stack.
+// Forward device-produced Honch frames arriving over your BLE stack.
 // The relay decodes them, stamps $relayed=true, and preserves the device's
 // original device_id and timestamp before uploading.
 const subscription = relay.subscribeNativeFrames();
@@ -125,8 +130,9 @@ const subscription = relay.subscribeNativeFrames();
 ```
 
 If your BLE bytes arrive through your own JS handler instead of the native frame
-emitter, pass each complete envelope to the relay's ingest entry point exactly
-as the installed package documents — do not parse the envelope yourself.
+emitter, pass each complete frame to `relay.receiveFrame(deviceId, frameBytes)`
+— do not parse the frame yourself. (Verify `receiveFrame` and the option shape
+above against the installed package's types before emitting code.)
 
 ## Verify
 

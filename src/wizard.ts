@@ -107,7 +107,7 @@ export class Wizard {
   init(): void {
     // In published builds, `--ci` is undeclared, so yargs would reject it as
     // an unknown argument — accurate but unhelpful, since --help doesn't list
-    // --ci either and the user has no path forward. POSTHOG_WIZARD_CI silently
+    // --ci either and the user has no path forward. HONCH_WIZARD_CI silently
     // no-ops for the same reason (yargs only resolves env vars for declared
     // options). Detect both up front and exit with a message that explains why.
     if (IS_PRODUCTION_BUILD) {

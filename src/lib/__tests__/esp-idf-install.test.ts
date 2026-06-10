@@ -79,6 +79,38 @@ describe('installEspIdfHonchSubmodule', () => {
     ]);
   });
 
+  it('retries with --force when a leftover module gitdir blocks the add', () => {
+    const projectDir = tempProject();
+    const git = fakeGit(projectDir);
+    let plainAddAttempted = false;
+    const runner: GitRunner = (args, options) => {
+      if (
+        args[0] === 'submodule' &&
+        args[1] === 'add' &&
+        !args.includes('--force')
+      ) {
+        plainAddAttempted = true;
+        throw new Error(
+          "git submodule add failed: fatal: A git directory for 'components/honch' is found locally",
+        );
+      }
+      return git.runner(args, options);
+    };
+
+    const result = installEspIdfHonchSubmodule(projectDir, runner);
+
+    expect(plainAddAttempted).toBe(true);
+    expect(result.changed).toBe(true);
+    expect(isHonchSubmoduleRegistered(projectDir)).toBe(true);
+    expect(git.calls).toContainEqual([
+      'submodule',
+      'add',
+      '--force',
+      HONCH_ESP_IDF_SDK_URL,
+      HONCH_ESP_IDF_COMPONENT_PATH,
+    ]);
+  });
+
   it('updates an already-registered submodule without adding it again', () => {
     const projectDir = tempProject();
     mkdirSync(join(projectDir, HONCH_ESP_IDF_COMPONENT_PATH), {

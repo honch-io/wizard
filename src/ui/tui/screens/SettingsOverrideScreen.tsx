@@ -76,7 +76,7 @@ export const SettingsOverrideScreen = ({
       ))}
       <Text dimColor>
         These settings override credentials and prevent the Wizard from reaching
-        the PostHog LLM Gateway. We can back up the file and continue.
+        the Honch LLM proxy. We can back up the file and continue.
       </Text>
     </ModalOverlay>
   );

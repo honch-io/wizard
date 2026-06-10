@@ -39,11 +39,7 @@ export const DiffViewer = ({ diffs }: DiffViewerProps) => {
   return (
     <Box flexDirection="column" paddingX={1}>
       {ordered.map((diff, i) => (
-        <Box
-          key={`${diff.path}-${i}`}
-          flexDirection="column"
-          marginBottom={1}
-        >
+        <Box key={`${diff.path}-${i}`} flexDirection="column" marginBottom={1}>
           <Text>
             <Text color="cyan" bold>
               {diff.tool}{' '}

@@ -1,7 +1,7 @@
 /**
  * Agent-skill learn-deck — the short three-line sequence shown while a
  * skill-based program (audit, revenue-analytics, agent-skill, etc.)
- * runs. Skill programs don't need the full PostHog onboarding narrative.
+ * runs. Skill programs don't need the full Honch onboarding narrative.
  */
 
 import { Text } from 'ink';

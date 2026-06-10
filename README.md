@@ -55,10 +55,10 @@ project's `.claude/skills/` and run them with Claude Code without the wizard.
 ## Development
 
 ```sh
-pnpm install
-pnpm build         # -> dist/bin.js
-pnpm typecheck
-pnpm test
+bun install
+bun run build         # -> dist/bin.js
+bun run typecheck
+bun run test
 node dist/bin.js --help
 ```
 

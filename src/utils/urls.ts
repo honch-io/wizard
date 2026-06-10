@@ -9,7 +9,8 @@ import type { CloudRegion } from './types';
 
 export const getAssetHostFromHost = (host: string): string => host;
 
-export const getUiHostFromHost = (_host: string): string => DEFAULT_API_BASE_URL;
+export const getUiHostFromHost = (_host: string): string =>
+  DEFAULT_API_BASE_URL;
 
 export const getHostFromRegion = (_region: CloudRegion): string =>
   DEFAULT_API_BASE_URL;

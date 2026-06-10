@@ -27,26 +27,38 @@ Known hallucinations to never emit:
 
 - `honch_capture(...)` — does not exist. The call is `honch_track(...)`.
 - `honch_event_t`, `.events`, `.event_count` — do not exist.
-- Honch functions return `honch_err_t` (success `HONCH_OK`), not `int`/`errno`.
+- **The POSIX/core API is client-handle based**, unlike the ESP-IDF port's
+  global singleton. Every call takes a `honch_client_t *client` (and `honch_init`
+  takes `honch_client_t **client`). Do **not** drop the client handle or copy the
+  ESP-IDF `honch_init(&cfg)` / `honch_track("evt", …)` shape.
+- POSIX/core functions return **`honch_status_t`** (success `HONCH_OK`; use
+  `honch_status_string()` for the message), **not** `honch_err_t` / `int` /
+  `errno`.
+- Build properties with `honch_prop()` / `honch_i64()` / `honch_str()` /
+  `honch_bool()` / `honch_f64()` from `honch/core/wire_v2.h`; never hand-init a
+  `honch_property_t`.
 
 ## Verified public API (`honch.h`)
 
-Same six-function contract as every Honch SDK. The C symbols match the ESP-IDF
-port:
+The POSIX port is the **client-handle** form of the contract (confirm against the
+installed `honch/honch.h`):
 
 ```c
-typedef enum { HONCH_OK = 0, HONCH_ERR_INVALID_ARG, /* ... */ } honch_err_t;
+typedef struct honch_client honch_client_t;
+typedef enum { HONCH_OK = 0, HONCH_ERR_INVALID_ARG, /* ... */ } honch_status_t;
 
-honch_err_t honch_init(const honch_config_t *config);
-honch_err_t honch_shutdown(void);
-honch_err_t honch_track(const char *event, const honch_property_t *properties, size_t property_count);
-honch_err_t honch_identify(const char *distinct_id, const honch_property_t *properties, size_t property_count);
-honch_err_t honch_session_start(const char *session_name);
-honch_err_t honch_session_end(void);
-honch_err_t honch_flush(void);
-honch_err_t honch_tick(void);
-honch_err_t honch_reset(void);
-const char *honch_get_device_id(void);
+honch_status_t honch_init(honch_client_t **client, const honch_config_t *config);
+honch_status_t honch_shutdown(honch_client_t *client);
+honch_status_t honch_track(honch_client_t *client, const char *event, const honch_property_t *properties, size_t property_count);
+honch_status_t honch_identify(honch_client_t *client, const char *distinct_id, const honch_property_t *traits, size_t trait_count);
+honch_status_t honch_set_property(honch_client_t *client, const char *key, honch_value_t value);
+honch_status_t honch_session_start(honch_client_t *client, const char *session_name);
+honch_status_t honch_session_end(honch_client_t *client);
+honch_status_t honch_flush(honch_client_t *client);
+honch_status_t honch_tick(honch_client_t *client);
+honch_status_t honch_reset(honch_client_t *client);
+const char *honch_get_device_id(honch_client_t *client);
+const char *honch_status_string(honch_status_t status);
 ```
 
 The POSIX `honch_config_t` includes a **durable queue directory** in addition to
@@ -55,17 +67,22 @@ the verified set is:
 
 ```c
 typedef struct {
-    const char *api_key;          // required (project key, honch_…)
-    const char *endpoint_url;     // required, e.g. "https://capture.honch.io"
-    const char *device_model;     // required
-    const char *firmware_version; // required
-    const char *environment;      // optional, defaults to "production"
-    const char *queue_directory;  // required, writable path for the durable queue
-    /* ...see honch.h for the full struct (flush interval/threshold, callbacks)... */
+    const char *api_key;            // required (project key, honch_…)
+    const char *endpoint_url;       // required, e.g. "https://capture.honch.io"
+    const char *device_id;          // optional, NULL to derive
+    const char *device_model;       // required
+    const char *firmware_version;   // required
+    const char *environment;        // optional, defaults to "production"
+    const char *queue_directory;    // required, writable path for the durable queue
+    uint32_t    batch_size;         // optional
+    uint32_t    max_queued_events;  // optional
+    uint32_t    max_event_bytes;    // optional, recommend >= 8192
+    uint32_t    transport_timeout_ms; // optional
+    /* ...confirm the full struct against the installed honch.h... */
 } honch_config_t;
 ```
 
-For a property-less event call `honch_track("service.start", NULL, 0)`.
+For a property-less event call `honch_track(client, "service.start", NULL, 0)`.
 
 ## Add the SDK dependency (CMake)
 
@@ -79,15 +96,17 @@ For a property-less event call `honch_track("service.start", NULL, 0)`.
    include(FetchContent)
    FetchContent_Declare(
      honch
-     GIT_REPOSITORY https://github.com/honch-io/honch.git
+     GIT_REPOSITORY https://github.com/honch-io/SDK.git
      GIT_TAG        v0.2.0          # pin a real tag; verify against the repo
      SOURCE_SUBDIR  ports/posix
    )
    FetchContent_MakeAvailable(honch)
    target_link_libraries(your_target PRIVATE honch::honch_posix)
    ```
-   If the repo URL/tag is unknown, ask or point at the locally provided SDK
-   checkout's `ports/posix` directory; do not guess a tag that may not exist.
+   This pulls the SDK from git — a source identical on every machine. If the repo
+   URL or tag is unknown, ask the user with `wizard_ask`; **never** hardcode a
+   path to a local SDK checkout (it breaks for everyone else and in CI) and do
+   not guess a tag that may not exist.
 
 ## Configure safely
 
@@ -102,9 +121,10 @@ For a property-less event call `honch_track("service.start", NULL, 0)`.
 ## Where to initialize
 
 Call `honch_init()` once during process startup, after config/secrets are
-loaded and before you emit events. Drive delivery by calling `honch_tick()`
-periodically from a normal worker thread or your main loop (not a signal
-handler). Call `honch_flush()` and `honch_shutdown()` on graceful exit so queued
+loaded and before you emit events. It allocates a `honch_client_t` you pass to
+every other call. Drive delivery by calling `honch_tick(client)` periodically
+from a normal worker thread or your main loop (not a signal handler). Call
+`honch_flush(client)` and `honch_shutdown(client)` on graceful exit so queued
 events are sent.
 
 ```c
@@ -118,12 +138,13 @@ int main(void) {
         .firmware_version = "0.1.0",
         .queue_directory  = "/var/lib/honch/queue",    // durable
     };
-    if (honch_init(&cfg) != HONCH_OK) return 1;
+    honch_client_t *client = NULL;
+    if (honch_init(&client, &cfg) != HONCH_OK) return 1;
 
-    honch_track("service.start", NULL, 0);
-    /* ... periodically: honch_tick(); ... */
-    honch_flush();
-    honch_shutdown();
+    honch_track(client, "service.start", NULL, 0);
+    /* ... periodically: honch_tick(client); ... */
+    honch_flush(client);
+    honch_shutdown(client);
     return 0;
 }
 ```

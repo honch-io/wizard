@@ -4,8 +4,38 @@ import type { ProgramConfig } from '@lib/programs/program-step';
 import type { startTUI as StartTUIFn } from '@ui/tui/start-tui';
 import type { TaskStreamPush as TaskStreamPushClass } from '@lib/task-stream/task-stream-push';
 import { resolveNoTelemetry } from './resolve-no-telemetry';
+import { getLogFilePath, logToFile } from '@utils/debug';
 
 const WIZARD_VERSION = VERSION;
+
+function getPositionalArgs(options: Record<string, unknown>): string[] {
+  return Array.isArray(options._) ? options._.map(String) : [];
+}
+
+function resolveToken(options: Record<string, unknown>): string | undefined {
+  const positional = getPositionalArgs(options);
+  return (
+    (options.token as string | undefined) ??
+    (positional.length > 0 ? positional[0] : undefined)
+  );
+}
+
+function validateCliShape(options: Record<string, unknown>): void {
+  const positional = getPositionalArgs(options);
+  const allowedPositionalCount = options.token ? 0 : 1;
+  if (positional.length <= allowedPositionalCount) return;
+
+  const extra = positional.slice(allowedPositionalCount);
+  const looksLikeBrokenInstallDir =
+    extra.includes('install-dir') || extra.includes('=');
+  const hint = looksLikeBrokenInstallDir
+    ? ' Use --install-dir=/path or --install-dir /path; do not type "-- install-dir = /path".'
+    : '';
+
+  throw new Error(
+    `Unexpected positional arguments: ${extra.join(' ')}.${hint}`,
+  );
+}
 
 /**
  * Run a full wizard program in the TUI. Handles the full lifecycle: start TUI,
@@ -23,15 +53,12 @@ export function runWizard(
 
   void (async () => {
     try {
+      validateCliShape(options);
       const installDir = (options.installDir as string) || process.cwd();
 
       const { startTUI } = await import('@ui/tui/start-tui');
       const { buildSession, RunPhase } = await import('@lib/wizard-session');
       const { TaskStreamPush } = await import('@lib/task-stream/index');
-      const { PostHogDestination } = await import(
-        '@lib/task-stream/destinations/posthog'
-      );
-      const { logToFile } = await import('@utils/debug');
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       tui = startTUI(WIZARD_VERSION, config.id as any);
@@ -43,11 +70,7 @@ export function runWizard(
         installDir,
         // Accept the bearer token as --token, env, OR the first positional arg
         // (so `npx -y @honch/wizard <token>` works as a true one-liner).
-        token:
-          (options.token as string | undefined) ??
-          (Array.isArray(options._) && options._.length > 0
-            ? String(options._[0])
-            : undefined),
+        token: resolveToken(options),
         apiBaseUrl: options.apiBaseUrl as string | undefined,
         captureHost: options.captureHost as string | undefined,
         project: options.project as string | undefined,
@@ -67,18 +90,13 @@ export function runWizard(
 
       activeTui.store.session = session;
 
-      // Honch wizard sends no telemetry — the run-state stream stays disabled.
-      const taskStreamEnabled = false;
+      // Honch wizard sends no telemetry — the run-state stream has no
+      // destinations and stays disabled.
       taskStream = new TaskStreamPush({
         store: activeTui.store,
         programId: config.id,
-        destinations: [
-          new PostHogDestination({
-            getCredentials: () => activeTui.store.session.credentials,
-            onError: (err) => logToFile('[task-stream-push]', err.message),
-          }),
-        ],
-        enabled: taskStreamEnabled,
+        destinations: [],
+        enabled: false,
       });
       const activeStream = taskStream;
       activeStream.attach();
@@ -107,7 +125,6 @@ export function runWizard(
 
       await activeTui.store.runReadyHooks();
       await activeTui.store.getGate('intro');
-      await activeTui.store.getGate('health-check');
 
       const skipAgent = config.run == null;
 
@@ -156,9 +173,16 @@ export function runWizard(
       activeTui.unmount();
       process.exit(0);
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logToFile('[run-wizard] ERROR:', err);
+
+      // eslint-disable-next-line no-console
+      console.error(
+        `\nHonch wizard failed: ${message}\n\nLog: ${getLogFilePath()}\n`,
+      );
       if (runtimeEnv('DEBUG') || runtimeEnv('HONCH_WIZARD_DEBUG')) {
         // eslint-disable-next-line no-console
-        console.error('TUI init failed:', err);
+        console.error(err);
       }
       // The task-stream debounce timer keeps the event loop alive, so
       // we have to drain it before exiting on the error path.

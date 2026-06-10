@@ -8,13 +8,13 @@
 #      non-zero exit. Guards against a future change that re-enables --ci in
 #      published builds without anyone noticing.
 #
-# Runs from the wizard repo root via `pnpm test:smoke` (postbuild hook).
+# Runs from the wizard repo root via `bun run test:smoke` (postbuild hook).
 set -e
 
 DIST_BIN="./dist/bin.js"
 
 # ── 1. Loads ─────────────────────────────────────────────────────────────────
-node --input-type=module -e "import '$DIST_BIN'" 2>&1 | head -5 | grep -q 'PostHog Wizard' || {
+node --input-type=module -e "import '$DIST_BIN'" 2>&1 | head -5 | grep -q 'Honch Wizard' || {
   echo 'Smoke test failed: compiled binary crashed on load' >&2
   exit 1
 }

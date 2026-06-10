@@ -60,7 +60,7 @@ export const ManagedSettingsScreen = ({
     >
       <Text dimColor>
         Your organization&apos;s managed settings contain overrides that prevent
-        the Wizard from reaching the PostHog LLM Gateway.
+        the Wizard from reaching the Honch LLM proxy.
       </Text>
       {readOnlyConflicts.map((conflict) => (
         <Box key={conflict.source} flexDirection="column" marginTop={1}>

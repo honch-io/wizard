@@ -5,7 +5,7 @@ import { basename, isAbsolute, join, relative } from 'node:path';
 import { promisify } from 'node:util';
 
 import { withProgress } from '../telemetry';
-import { debug } from './debug';
+import { debug, logToFile } from './debug';
 import type { PackageJson } from './package-json';
 import {
   type PackageManager,
@@ -21,7 +21,9 @@ import type { ProgramId } from '@lib/programs/program-registry';
 // (now-dead) login/signup helpers below compiling without resurrecting the
 // deleted modules; they are never reached — getOrAskForProjectData uses the
 // bearer-token flow. TODO: delete the dead helpers and these shims.
-const getOAuthScopesForProgram = (_programId?: unknown): readonly string[] => [];
+const getOAuthScopesForProgram = (
+  _programId?: unknown,
+): readonly string[] => [];
 import { analytics } from './analytics';
 import { getUI } from '@ui';
 import { PlatformClient } from '@lib/platform/client';
@@ -389,6 +391,11 @@ export function isUsingTypeScript({
   }
 }
 
+function normalizeHonchBearerToken(token?: string): string | undefined {
+  const normalized = token?.replace(/\s+/g, '');
+  return normalized && normalized.length > 0 ? normalized : undefined;
+}
+
 /**
  * Resolve everything an agent run needs from a single Honch bearer token:
  *   1. mint a short-lived wizard token for the LLM proxy
@@ -413,7 +420,7 @@ export async function getOrAskForProjectData(options: {
   roleAtOrganization: string | null;
   user: ApiUser | null;
 }> {
-  const bearer = options.token?.trim();
+  const bearer = normalizeHonchBearerToken(options.token);
   if (!bearer) {
     getUI().log.error(
       'No Honch token provided. Pass it as the first argument, --token <bearer>, or set HONCH_WIZARD_TOKEN.',
@@ -421,18 +428,35 @@ export async function getOrAskForProjectData(options: {
     await abort();
     throw new Error('unreachable');
   }
+  if (bearer.startsWith('honch_')) {
+    getUI().log.error(
+      'The value passed as <token> looks like a Honch project capture key. The wizard needs your Honch dashboard bearer token; it will resolve the honch_ project key itself.',
+    );
+    await abort(
+      'Pass a Honch dashboard bearer token, not the honch_ project capture key.',
+    );
+    throw new Error('unreachable');
+  }
+  if (options.token !== bearer) {
+    logToFile('[setup-utils] removed whitespace from pasted Honch token');
+  }
 
   const client = new PlatformClient(options.apiBaseUrl);
+  logToFile(
+    `[setup-utils] resolving Honch project data via ${options.apiBaseUrl}`,
+  );
 
   // Mint the short-lived wizard token that authenticates the agent's LLM
   // calls through the proxy. Requires the normal user bearer.
   const { accessToken: wizardToken } = await withProgress('login', () =>
     client.createWizardToken(bearer),
   );
+  logToFile('[setup-utils] minted wizard token');
 
   // List projects to resolve the capture key. The backend rejects the wizard
   // token on this route, so the raw user bearer is required here.
   const projects = await client.listProjects(bearer);
+  logToFile(`[setup-utils] listed ${projects.length} Honch project(s)`);
   if (projects.length === 0) {
     getUI().log.error(
       `No Honch projects found for this account.\nCreate one in the dashboard, then re-run the wizard.\n${ISSUES_URL}`,
@@ -442,6 +466,7 @@ export async function getOrAskForProjectData(options: {
   }
 
   const selected = selectProject(projects, options.project);
+  logToFile(`[setup-utils] selected Honch project ${selected.id}`);
   analytics.setTag('project-id', selected.id);
 
   if (!selected.apiKey) {
@@ -472,7 +497,9 @@ function selectProject(
   override?: string,
 ): import('@lib/platform/client').ProjectResponse {
   if (override) {
-    const match = projects.find((p) => p.id === override || p.name === override);
+    const match = projects.find(
+      (p) => p.id === override || p.name === override,
+    );
     if (match) return match;
     getUI().log.warn(
       `Project "${override}" not found; falling back to "${projects[0].name}".`,
@@ -483,38 +510,6 @@ function selectProject(
     );
   }
   return projects[0];
-}
-
-async function fetchProjectDataWithApiKey(
-  apiKey: string,
-  cloudUrl: string,
-): Promise<{ api_token: string; id: number }> {
-  const userData = await fetchUserData(apiKey, cloudUrl);
-  const projectId = userData.team?.id;
-
-  if (!projectId) {
-    throw new Error(
-      'Could not determine project ID from API key. Please ensure your API key has access to a project in this cloud region.',
-    );
-  }
-
-  const projectData = await fetchProjectData(apiKey, projectId, cloudUrl);
-  return {
-    api_token: projectData.api_token,
-    id: projectId,
-  };
-}
-
-async function fetchProjectDataById(
-  apiKey: string,
-  projectId: number,
-  cloudUrl: string,
-): Promise<{ api_token: string; id: number }> {
-  const projectData = await fetchProjectData(apiKey, projectId, cloudUrl);
-  return {
-    api_token: projectData.api_token,
-    id: projectId,
-  };
 }
 
 async function askForWizardLogin(options: {
@@ -554,7 +549,7 @@ async function askForWizardLogin(options: {
 
   const projectData = await fetchProjectData(
     tokenResponse.access_token,
-    projectId!,
+    projectId,
     cloudUrl,
   );
   const userData = await fetchUserData(tokenResponse.access_token, cloudUrl);
@@ -564,7 +559,7 @@ async function askForWizardLogin(options: {
     projectApiKey: projectData.api_token,
     host,
     distinctId: userData.distinct_id,
-    projectId: projectId!,
+    projectId: projectId,
     cloudRegion,
     roleAtOrganization: userData.role_at_organization ?? null,
     user: userData,
@@ -590,7 +585,7 @@ async function askForProvisioningSignup(
   }
 
   const spinner = getUI().spinner();
-  spinner.start('Creating your PostHog account...');
+  spinner.start('Creating your Honch account...');
 
   try {
     const provisionRegion = (region ?? 'us').toUpperCase() as 'US' | 'EU';
@@ -601,7 +596,7 @@ async function askForProvisioningSignup(
     });
 
     spinner.stop('Account created!');
-    getUI().log.success('Welcome to PostHog!');
+    getUI().log.success('Welcome to Honch!');
 
     const host = result.host;
     const cloudRegion: CloudRegion = host.includes('eu.') ? 'eu' : 'us';
@@ -622,7 +617,7 @@ async function askForProvisioningSignup(
 
     if (message.includes('already associated')) {
       getUI().log.info(
-        'This email already has a PostHog account. Switching to login flow...',
+        'This email already has a Honch account. Switching to login flow...',
       );
       return askForWizardLogin({ signup: false });
     }

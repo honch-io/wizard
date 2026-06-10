@@ -182,8 +182,8 @@ const WIZARD_DOC_BASENAMES = new Set([
   'posthog-events-audit-report.md',
   // doctor (audit)
   'posthog-audit-report.md',
-  // posthog-integration event plan
-  '.posthog-events.json',
+  // honch-integration event plan
+  '.honch-events.json',
 ]);
 
 const WIZARD_DOC_PATTERNS: RegExp[] = [

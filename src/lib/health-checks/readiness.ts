@@ -13,33 +13,23 @@ import {
   checkCloudflareOverallHealth,
   checkCloudflareComponentHealth,
 } from './statuspage';
-import {
-  checkPosthogOverallHealth,
-  checkPosthogComponentHealth,
-} from './incidentio';
-import {
-  checkLlmGatewayHealth,
-  checkMcpHealth,
-  checkGithubReleasesHealth,
-} from './endpoints';
 import { logToFile } from '@utils/debug';
 
 // ---------------------------------------------------------------------------
 // Service labels (used in human-readable reason strings)
+//
+// The Honch wizard's LLM runs through the Honch platform proxy, so the wizard
+// only sanity-checks the generic infra it depends on (Anthropic for the model,
+// GitHub + npm for SDK installs). PostHog-specific checks were removed.
 // ---------------------------------------------------------------------------
 
 export const SERVICE_LABELS: Record<HealthCheckKey, string> = {
   anthropic: 'Anthropic',
-  posthogOverall: 'PostHog',
-  posthogComponents: 'PostHog (components)',
   github: 'GitHub',
   npmOverall: 'npm',
   npmComponents: 'npm (components)',
   cloudflareOverall: 'Cloudflare',
   cloudflareComponents: 'Cloudflare (components)',
-  llmGateway: 'LLM Gateway',
-  mcp: 'MCP',
-  githubReleases: 'GitHub Releases',
 };
 
 // ---------------------------------------------------------------------------
@@ -58,24 +48,20 @@ export interface WizardReadinessConfig {
  * Adjust these arrays to change what blocks a wizard run.
  */
 export const DEFAULT_WIZARD_READINESS_CONFIG: WizardReadinessConfig = {
-  downBlocksRun: [
-    'anthropic',
-    'npmOverall',
-    'llmGateway',
-    'mcp',
-    'githubReleases',
-  ],
-  degradedBlocksRun: ['anthropic'],
+  // Only a hard outage blocks. The LLM is proxied through the Honch platform
+  // (with a Bedrock fallback), so a merely "degraded" Anthropic status — or a
+  // failed/timed-out status-page probe, which also defaults to degraded —
+  // should warn but not stop a local install.
+  downBlocksRun: ['anthropic', 'npmOverall'],
+  degradedBlocksRun: [],
 };
 
 /**
- * Reduced readiness config for --signup provisioning flows.
- *
- * Provisioning only needs PostHog and the LLM Gateway - it doesn't
- * use Anthropic directly, npm, GitHub Releases, or MCP.
+ * Reduced readiness config for non-interactive flows — only the model provider
+ * needs to be up.
  */
 export const SIGNUP_WIZARD_READINESS_CONFIG: WizardReadinessConfig = {
-  downBlocksRun: ['posthogOverall', 'llmGateway'],
+  downBlocksRun: ['anthropic'],
 };
 
 // ---------------------------------------------------------------------------
@@ -85,42 +71,27 @@ export const SIGNUP_WIZARD_READINESS_CONFIG: WizardReadinessConfig = {
 export async function checkAllExternalServices(): Promise<AllServicesHealth> {
   const [
     anthropic,
-    posthogOverall,
-    posthogComponents,
     github,
     npmOverall,
     npmComponents,
     cloudflareOverall,
     cloudflareComponents,
-    llmGateway,
-    mcp,
-    githubReleases,
   ] = await Promise.all([
     checkAnthropicHealth(),
-    checkPosthogOverallHealth(),
-    checkPosthogComponentHealth(),
     checkGithubHealth(),
     checkNpmOverallHealth(),
     checkNpmComponentHealth(),
     checkCloudflareOverallHealth(),
     checkCloudflareComponentHealth(),
-    checkLlmGatewayHealth(),
-    checkMcpHealth(),
-    checkGithubReleasesHealth(),
   ]);
 
   return {
     anthropic,
-    posthogOverall,
-    posthogComponents,
     github,
     npmOverall,
     npmComponents,
     cloudflareOverall,
     cloudflareComponents,
-    llmGateway,
-    mcp,
-    githubReleases,
   };
 }
 
@@ -226,7 +197,6 @@ export async function evaluateWizardReadiness(
 
 /** Keys that are component-level detail, not top-level services. */
 const COMPONENT_KEYS: HealthCheckKey[] = [
-  'posthogComponents',
   'npmComponents',
   'cloudflareComponents',
 ];
@@ -265,15 +235,10 @@ function allUnknown(error: string): AllServicesHealth {
   };
   return {
     anthropic: base,
-    posthogOverall: base,
-    posthogComponents: { ...base },
     github: base,
     npmOverall: base,
     npmComponents: { ...base },
     cloudflareOverall: base,
     cloudflareComponents: { ...base },
-    llmGateway: base,
-    mcp: base,
-    githubReleases: base,
   };
 }

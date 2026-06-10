@@ -17,18 +17,6 @@ export {
 } from './statuspage';
 
 export {
-  checkPosthogOverallHealth,
-  checkPosthogComponentHealth,
-  resetPosthogHealthCache,
-} from './incidentio';
-
-export {
-  checkLlmGatewayHealth,
-  checkMcpHealth,
-  checkGithubReleasesHealth,
-} from './endpoints';
-
-export {
   type WizardReadinessConfig,
   DEFAULT_WIZARD_READINESS_CONFIG,
   checkAllExternalServices,

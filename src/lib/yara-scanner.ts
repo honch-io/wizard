@@ -75,26 +75,35 @@ const PRE_BASH: Array<{ phase: HookPhase; tool: ToolTarget }> = [
   { phase: 'PreToolUse', tool: 'Bash' },
 ];
 
-// ── §1 PostHog API Violations ────────────────────────────────────
+// ── §1 Analytics API Violations ───────────────────────────────────
 
 const pii_in_capture_call: YaraRule = {
   name: 'pii_in_capture_call',
   description:
-    "Detects PII fields passed to posthog.capture() — violates 'NEVER send PII in capture()' commandment",
+    "Detects PII fields passed to analytics event calls — violates the 'no PII in events' commandment",
   severity: 'high',
   category: 'posthog_pii',
   appliesTo: POST_WRITE_EDIT,
   patterns: [
-    // Direct PII field names in capture properties
-    /\.capture\s*\([^)]{0,200}email/i,
-    /\.capture\s*\([^)]{0,200}phone/i,
-    /\.capture\s*\([^)]{0,200}full[_\s]?name/i,
-    /\.capture\s*\([^)]{0,200}first[_\s]?name/i,
-    /\.capture\s*\([^)]{0,200}last[_\s]?name/i,
-    /\.capture\s*\([^)]{0,200}(street|mailing|home|billing)[_\s]?address/i,
-    /\.capture\s*\([^)]{0,200}(ssn|social[_\s]?security)/i,
-    /\.capture\s*\([^)]{0,200}(date[_\s]?of[_\s]?birth|dob|birthday)/i,
-    /\.capture\s*\([^)]{0,200}\$ip/,
+    // Direct PII field names in event properties.
+    /\.(capture|track)\s*\([^)]{0,200}email/i,
+    /honch_track\s*\([^)]{0,200}email/i,
+    /\.(capture|track)\s*\([^)]{0,200}phone/i,
+    /honch_track\s*\([^)]{0,200}phone/i,
+    /\.(capture|track)\s*\([^)]{0,200}full[_\s]?name/i,
+    /honch_track\s*\([^)]{0,200}full[_\s]?name/i,
+    /\.(capture|track)\s*\([^)]{0,200}first[_\s]?name/i,
+    /honch_track\s*\([^)]{0,200}first[_\s]?name/i,
+    /\.(capture|track)\s*\([^)]{0,200}last[_\s]?name/i,
+    /honch_track\s*\([^)]{0,200}last[_\s]?name/i,
+    /\.(capture|track)\s*\([^)]{0,200}(street|mailing|home|billing)[_\s]?address/i,
+    /honch_track\s*\([^)]{0,200}(street|mailing|home|billing)[_\s]?address/i,
+    /\.(capture|track)\s*\([^)]{0,200}(ssn|social[_\s]?security)/i,
+    /honch_track\s*\([^)]{0,200}(ssn|social[_\s]?security)/i,
+    /\.(capture|track)\s*\([^)]{0,200}(date[_\s]?of[_\s]?birth|dob|birthday)/i,
+    /honch_track\s*\([^)]{0,200}(date[_\s]?of[_\s]?birth|dob|birthday)/i,
+    /\.(capture|track)\s*\([^)]{0,200}\$ip/,
+    /honch_track\s*\([^)]{0,200}\$ip/,
     // identify() allows email/phone/name (standard PostHog user properties),
     // but highly sensitive PII is still blocked in identify().
     /\.identify\s*\([^)]{0,200}(ssn|social[_\s]?security)/i,
@@ -110,7 +119,7 @@ const pii_in_capture_call: YaraRule = {
 const hardcoded_posthog_key: YaraRule = {
   name: 'hardcoded_posthog_key',
   description:
-    "Detects hardcoded PostHog API keys in source — violates 'use environment variables' commandment",
+    "Detects hardcoded analytics API keys in source — violates 'use environment variables' commandment",
   severity: 'high',
   category: 'posthog_hardcoded_key',
   appliesTo: POST_WRITE_EDIT,
@@ -119,10 +128,13 @@ const hardcoded_posthog_key: YaraRule = {
     /phc_[a-zA-Z0-9]{20,}/,
     // PostHog personal API key (phx_ prefix)
     /phx_[a-zA-Z0-9]{20,}/,
+    // Honch capture key (honch_ prefix)
+    /honch_[a-zA-Z0-9_]{16,}/,
     // Hardcoded key assignment patterns
     /apiKey\s*[:=]\s*['"][a-zA-Z0-9_]{20,}['"]/,
     /api_key\s*[:=]\s*['"][a-zA-Z0-9_]{20,}['"]/,
     /POSTHOG_PROJECT_TOKEN\s*[:=]\s*['"][a-zA-Z0-9_]{20,}['"]/,
+    /HONCH_(API_KEY|PROJECT_KEY)\s*[:=]\s*['"][a-zA-Z0-9_]{16,}['"]/,
   ],
 };
 
@@ -260,9 +272,11 @@ const secret_exfiltration_via_command: YaraRule = {
     /base64.*\|\s*(curl|wget|nc\s)/i,
     // Reading .env and sending
     /cat\s+.*\.env.*\|\s*(curl|wget)/,
-    // PostHog key exfiltration specifically
+    // Analytics key exfiltration specifically
     /curl.*phc_[a-zA-Z0-9]/,
     /wget.*phc_[a-zA-Z0-9]/,
+    /curl.*honch_[a-zA-Z0-9_]/,
+    /wget.*honch_[a-zA-Z0-9_]/,
   ],
 };
 

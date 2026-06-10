@@ -14,7 +14,7 @@
  */
 
 import type { ProgramConfig } from './program-step.js';
-import { posthogIntegrationConfig } from './posthog-integration/index.js';
+import { honchIntegrationConfig } from './honch-integration/index.js';
 import { AGENT_SKILL_STEPS } from './agent-skill/index.js';
 import { getContentBlocks as agentSkillContentBlocks } from './agent-skill/content/index.js';
 
@@ -30,7 +30,7 @@ const agentSkillConfig: ProgramConfig = {
 };
 
 export const PROGRAM_REGISTRY = [
-  posthogIntegrationConfig,
+  honchIntegrationConfig,
   agentSkillConfig,
 ] as const satisfies readonly ProgramConfig[];
 
@@ -39,7 +39,7 @@ export const PROGRAM_REGISTRY = [
  * parallel string list to keep in sync.
  */
 export const Program = {
-  PostHogIntegration: posthogIntegrationConfig.id,
+  HonchIntegration: honchIntegrationConfig.id,
   AgentSkill: agentSkillConfig.id,
 } as const;
 

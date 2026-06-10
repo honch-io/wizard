@@ -28,7 +28,7 @@ export const AgentSkillIntroScreen = ({
 
   const { session } = store;
   const skillId = session.skillId ?? 'unknown';
-  const { skillEntry, fetchFailed } = useSkillEntry(skillId, session.localMcp);
+  const { skillEntry, fetchFailed } = useSkillEntry(skillId);
 
   let body: ReactNode;
 
@@ -37,8 +37,8 @@ export const AgentSkillIntroScreen = ({
       <Box flexDirection="column" width={56} flexShrink={0}>
         <Box flexDirection="column" marginBottom={1}>
           <Text>
-            The wizard is an agent that executes PostHog tasks. Its code is open
-            source: <Text color="cyan">https://github.com/PostHog/wizard</Text>
+            The wizard is an agent that installs the Honch SDK. Its code is open
+            source: <Text color="cyan">https://github.com/honch-io/wizard</Text>
           </Text>
         </Box>
         <SkillSourceInfo

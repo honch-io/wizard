@@ -22,16 +22,11 @@ export interface ComponentHealthResult extends BaseHealthResult {
 
 export interface AllServicesHealth {
   anthropic: BaseHealthResult;
-  posthogOverall: BaseHealthResult;
-  posthogComponents: ComponentHealthResult;
   github: BaseHealthResult;
   npmOverall: BaseHealthResult;
   npmComponents: ComponentHealthResult;
   cloudflareOverall: BaseHealthResult;
   cloudflareComponents: ComponentHealthResult;
-  llmGateway: BaseHealthResult;
-  mcp: BaseHealthResult;
-  githubReleases: BaseHealthResult;
 }
 
 export type HealthCheckKey = keyof AllServicesHealth;

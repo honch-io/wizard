@@ -47,7 +47,7 @@ export class WizardRouter {
   private programId: ProgramId;
   private overlays: Overlay[] = [];
 
-  constructor(programId: ProgramId = Program.PostHogIntegration) {
+  constructor(programId: ProgramId = Program.HonchIntegration) {
     this.programId = programId;
     this.sequence = PROGRAM_SEQUENCES[programId];
   }

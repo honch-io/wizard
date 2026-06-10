@@ -16,7 +16,7 @@ import { ScreenId, Overlay, type ScreenName } from './router.js';
 import { SettingsOverrideScreen } from './screens/SettingsOverrideScreen.js';
 import { ManagedSettingsScreen } from './screens/ManagedSettingsScreen.js';
 import { PortConflictScreen } from './screens/PortConflictScreen.js';
-import { PostHogIntegrationIntroScreen } from './screens/PostHogIntegrationIntroScreen.js';
+import { HonchIntegrationIntroScreen } from './screens/HonchIntegrationIntroScreen.js';
 import { AgentSkillIntroScreen } from './screens/AgentSkillIntroScreen.js';
 import { SetupScreen } from './screens/SetupScreen.js';
 import { RunScreen } from './screens/RunScreen.js';
@@ -51,7 +51,7 @@ export function createScreens(
     [Overlay.AuthError]: removed,
 
     // Honch wizard flow
-    [ScreenId.Intro]: <PostHogIntegrationIntroScreen store={store} />,
+    [ScreenId.Intro]: <HonchIntegrationIntroScreen store={store} />,
     [ScreenId.AgentSkillIntro]: <AgentSkillIntroScreen store={store} />,
     [ScreenId.Setup]: <SetupScreen store={store} />,
     [ScreenId.Run]: <RunScreen store={store} />,

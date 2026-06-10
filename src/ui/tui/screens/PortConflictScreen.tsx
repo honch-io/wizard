@@ -9,6 +9,7 @@ import { useSyncExternalStore } from 'react';
 import type { WizardStore } from '@ui/tui/store';
 import { OAUTH_PORTS } from '@lib/constants';
 import { ConfirmationInput, ModalOverlay } from '@ui/tui/primitives/index';
+import { Colors } from '@ui/tui/styles';
 
 interface PortConflictScreenProps {
   store: WizardStore;
@@ -26,7 +27,7 @@ export const PortConflictScreen = ({ store }: PortConflictScreenProps) => {
 
   return (
     <ModalOverlay
-      borderColor="#DC9300"
+      borderColor={Colors.accent}
       title="OAuth ports in use"
       width={72}
       footer={

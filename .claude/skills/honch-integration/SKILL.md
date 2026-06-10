@@ -69,25 +69,34 @@ correctly:
 The SDK owns all encoding. **Never hand-build the request body** and never
 emulate the chunk wire.
 
-## Relay topology (drain_to_buffer ↔ ingestRelayedEvents)
+## Relay topology (BLE-only devices)
 
-For BLE-only devices with no internet of their own:
+For BLE-only devices with no internet of their own, a paired phone app uploads
+on the device's behalf.
 
 ```
-Device SDK                         App SDK / RN relay              Cloud
-honch_drain_to_buffer(buf,     ──▶ ingestRelayedEvents(data)  ──▶  /capture
-  cap, &written) produces a       (RN: subscribeNativeFrames /
-  sealed envelope of bytes:        the relay's ingest entry)
-[magic | sdk_version |            decodes, stamps $relayed=true,
- event_count | events(CBOR) |     preserves device_id + timestamp,
- crc32]                           re-queues for the app's upload
+Device SDK                         App / RN relay                 Cloud
+SDK-produced frame bytes       ──▶ receiveFrame(deviceId, bytes) ──▶ /capture
+(read headers for how to           (RN: createMobileRelay; also
+ obtain them — see below)           subscribeNativeFrames())
 ```
 
+The **only verified relay ingest API** is the React Native relay's
+`receiveFrame(deviceId: string, frameBytes: Uint8Array)` (see the
+`react-native-relay` skill); `createMobileRelay()` also exposes
+`subscribeNativeFrames()` to wire a native BLE event source.
+
+- There is **no published device-side "drain to a sealed envelope" function**.
+  Do **not** emit `honch_drain_to_buffer(...)` or hand-encode an envelope / wire
+  frame (`magic | sdk_version | … | crc32`) — none of that is in the SDK. To
+  carry events off a BLE-only device, read the installed headers/docs for the
+  supported mechanism (e.g. the `event_queue_ops` custom-queue hook in
+  `honch_config_t`) and confirm before writing code. If the device→app contract
+  is unclear, ask the user rather than inventing a format or symbol.
 - The customer owns the BLE/GATT transport; Honch is **a payload, not a
   protocol**. Move the bytes however the app already moves device data.
-- The magic bytes let the app's packet router recognize a Honch envelope.
-- **Never** hand-decode the envelope or re-encode events when relaying — the
-  events ride through unchanged.
+- **Never** hand-decode or re-encode events when relaying — pass the SDK's bytes
+  through unchanged and let the relay/app upload them.
 
 ## Identity & timestamp rules
 
@@ -108,28 +117,49 @@ own events so cross-device funnels join.
 
 ## Install, configure, verify (per target)
 
-1. **Add the dependency** with the project's own build system:
-   - esp-idf: `idf.py add-dependency "honch-io/honch^0.2.0"`, else wire the
-     local component via `EXTRA_COMPONENT_DIRS` + `REQUIRES honch`.
+1. **Add the dependency** with the project's own build system, always from a
+   source identical on every machine (registry, package manager, or git) —
+   **never** a local filesystem path baked into committed build files:
+   - esp-idf: `idf.py add-dependency "honch-io/honch^0.2.0"`, else
+     `git submodule add https://github.com/honch-io/SDK.git components/honch`
+     (the SDK repo root is the component; ESP-IDF auto-discovers it) + `REQUIRES
+     honch`.
    - c-posix: CMake `find_package(honch_posix REQUIRED)` → link
-     `honch::honch_posix`, else `FetchContent` with `SOURCE_SUBDIR ports/posix`.
-   - micropython: build with `USER_C_MODULES=.../ports/micropython/usermod/
-     honch/micropython.cmake`; freeze the wrapper via `manifest.py`.
+     `honch::honch_posix`, else `FetchContent` from
+     `https://github.com/honch-io/SDK.git` with `SOURCE_SUBDIR ports/posix`.
+   - micropython: vendor the SDK as a git submodule, then build with
+     `USER_C_MODULES=<repo-relative>/ports/micropython/usermod/honch/
+     micropython.cmake`; freeze the wrapper via `manifest.py`.
    - react-native: add `@honch/react-native-relay` (+ `react-native-mmkv`) with
      the detected package manager; `pod install` on iOS.
    - ios-swift: SwiftPM package or CocoaPods `pod 'HonchAnalytics'`.
    - android-kotlin: Gradle `implementation("io.honch:analytics-android:…")`.
-   Pin real published versions; verify against the installed artifact.
+   Pin real published versions; verify against the installed artifact. If a
+   registry/repo URL is unknown, ask the user — do not point at a local checkout.
 2. **Read the installed `honch.h` / module interface** and confirm every symbol
    before writing code.
 3. **Configure safely** — never hardcode the raw key. Use env / Kconfig /
    xcconfig / `gradle.properties` / a secret-ref tool. Set the capture host to
    `https://capture.honch.io`. Never disable TLS / ATS / cleartext rules.
 4. **Initialize once** in the lifecycle: Device SDK after network/IP is up and
-   pump `tick()` from a low-priority task; App SDK in app launch and wire
-   `ingestRelayedEvents` into the existing BLE receive path.
-5. **Verify**: build only if the toolchain is present and resolve every error
+   pump `tick()` from a low-priority task; App SDK in app launch and wire the
+   relay's ingest call into the existing BLE receive path — for React Native
+   that is `receiveFrame(deviceId, frameBytes)`. Confirm the exact ingest method
+   against the installed SDK before using it (do not assume `ingestRelayedEvents`).
+5. **Instrument real interactions**. Do not stop after dependency/config/report
+   changes. Wire `track` calls into executable app/firmware code at real
+   behavior points: boot/reset, button presses, screen/view changes, command
+   handling, sensor readings, connectivity transitions, relay receive/send
+   points, error paths, state changes, or low-rate health/heartbeat signals.
+   If the repo is only a skeleton/mock target, create or extend the minimal
+   runnable code needed to demonstrate the product interaction flow and
+   instrument that code.
+6. **Verify**: build only if the toolchain is present and resolve every error
    against the header; otherwise print the exact build command for the user.
+
+Completion rule: a successful install must modify executable source/build files
+and add real SDK init + event tracking. Markdown, reports, assistant skill
+files, dependency metadata, or env/config files alone are not enough.
 
 ## Anti-hallucination (firmware C, verified)
 

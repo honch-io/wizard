@@ -69,7 +69,7 @@ export function loadBenchmarkConfig(installDir: string): BenchmarkConfig {
     }
     const logDir = runtimeEnv('HONCH_WIZARD_LOG_DIR');
     if (logDir) {
-      config.output.logPath = path.join(logDir, 'posthog-wizard.log');
+      config.output.logPath = path.join(logDir, 'honch-wizard.log');
     }
 
     // If benchmark output is disabled, disable the jsonWriter plugin
@@ -90,7 +90,7 @@ export function loadBenchmarkConfig(installDir: string): BenchmarkConfig {
     }
     const logDir2 = runtimeEnv('HONCH_WIZARD_LOG_DIR');
     if (logDir2) {
-      config.output.logPath = path.join(logDir2, 'posthog-wizard.log');
+      config.output.logPath = path.join(logDir2, 'honch-wizard.log');
     }
 
     return config;

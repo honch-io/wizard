@@ -51,21 +51,33 @@ emitting code.
 
 ## Add the SDK to the firmware build
 
-`_honch_core` is a **user C module**. It is compiled in via `USER_C_MODULES`;
-the wrapper `.py` is frozen via the build's `manifest.py`.
+`_honch_core` is a **user C module**: the module source must be present at
+firmware-build time. Get it from a source identical on every machine — vendor
+the SDK into the project, **never** reference an absolute path to a checkout
+under someone's home directory (it breaks for everyone else and in CI).
 
-1. Point `USER_C_MODULES` at the module's cmake fragment when building:
+0. **Vendor the SDK into the repo** as a git submodule, then reference it by a
+   path **relative to the project**:
    ```bash
-   make USER_C_MODULES=<path-to>/honch/SDK/ports/micropython/usermod/honch/micropython.cmake
+   git submodule add https://github.com/honch-io/SDK.git third_party/honch
+   git submodule update --init --recursive
+   ```
+   (If the canonical SDK repo URL is unknown or private and unresolvable, ask the
+   user with `wizard_ask` — do not hardcode a local checkout path.)
+1. Point `USER_C_MODULES` at the vendored module's cmake fragment, using the
+   project-relative submodule path:
+   ```bash
+   make USER_C_MODULES=$(pwd)/third_party/honch/ports/micropython/usermod/honch/micropython.cmake
    ```
    (For make-based ports without cmake, point at the module's `*.mk` per the
-   port's convention; check the SDK's `ports/micropython/usermod/honch`
-   directory for what is provided.)
-2. Freeze the Python wrapper into the firmware via `manifest.py` when
-   appropriate:
+   port's convention; check the vendored
+   `third_party/honch/ports/micropython/usermod/honch` directory for what is
+   provided.)
+2. Freeze the Python wrapper into the firmware via `manifest.py`, again using the
+   in-repo submodule path:
    ```python
    # in the board/port manifest.py
-   freeze("<path-to>/honch/SDK/ports/micropython/wrapper", "honch.py")
+   freeze("$(MPY_DIR)/../third_party/honch/ports/micropython/wrapper", "honch.py")
    ```
 3. **Do not** also copy duplicate `/lib/honch` files onto the device filesystem
    when the wrapper is already frozen — that creates two competing copies.

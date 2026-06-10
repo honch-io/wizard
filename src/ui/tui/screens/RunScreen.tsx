@@ -25,7 +25,7 @@ import { LearnCard } from '@ui/tui/components/LearnCard';
 import { TipsCard } from '@ui/tui/components/TipsCard';
 import { useStdoutDimensions } from '@ui/tui/hooks/useStdoutDimensions';
 import { useFileWatcher } from '@ui/tui/hooks/file-watcher';
-import { EVENT_PLAN_FILE } from '@lib/programs/posthog-integration/index';
+import { EVENT_PLAN_FILE } from '@lib/programs/honch-integration/index';
 import { getProgramConfig } from '@lib/programs/program-registry';
 import { getContentBlocks as getSkillContentBlocks } from '@lib/programs/agent-skill/content/index';
 
@@ -41,7 +41,7 @@ export const RunScreen = ({ store }: RunScreenProps) => {
     () => store.getSnapshot(),
   );
 
-  // Mirror the agent's `.posthog-events.json` plan into the store so the
+  // Mirror the agent's `.honch-events.json` plan into the store so the
   // Event plan tab appears as soon as the agent emits the file.
   useFileWatcher(join(store.session.installDir, EVENT_PLAN_FILE), (parsed) => {
     if (!Array.isArray(parsed)) return;
@@ -117,7 +117,9 @@ export const RunScreen = ({ store }: RunScreenProps) => {
       {base}
       {store.fileDiffs.length > 0 ? (
         <Box flexDirection="column" marginTop={1}>
-          <Text color="gray">Latest changes — full list in the “Changes” tab:</Text>
+          <Text color="gray">
+            Latest changes — full list in the “Changes” tab:
+          </Text>
           <DiffViewer diffs={store.fileDiffs.slice(-2)} />
         </Box>
       ) : null}

@@ -1,52 +1,46 @@
 /**
- * Shared "Skill: <id> / URL: <downloadUrl>" block for intro screens.
+ * Shared "Skill: <id> / Docs: <url>" block for intro screens.
  *
- * `useSkillEntry` fetches the entry from the skill menu and re-runs when
- * `skillId` or `local` change. The previous fetch is cancelled (its result
- * is ignored) so a session that flips `local=false → true` mid-mount picks
- * up the right base URL.
- *
- * `<SkillSourceInfo>` renders the block, taking the entry as a prop so the
- * caller can reuse the same hook result for additional UI (e.g. showing
+ * Honch ships its per-target skills bundled with the wizard (no remote
+ * registry), so `useSkillEntry` resolves the entry from the local bundle on
+ * disk. `<SkillSourceInfo>` renders the block, taking the entry as a prop so
+ * the caller can reuse the same hook result for additional UI (e.g. showing
  * `skillEntry.name`) without invoking the hook twice.
  */
 
 import { Box, Text } from 'ink';
 import { useEffect, useState } from 'react';
-import { fetchSkillMenu, type SkillEntry } from '@lib/wizard-tools';
-import { getSkillsBaseUrl } from '@lib/constants';
+import { readLocalSkill } from '@lib/local-skills';
+import { HONCH_DOCS_URL } from '@lib/constants';
 
-export function useSkillEntry(
-  skillId: string | null,
-  local: boolean,
-): { skillEntry: SkillEntry | null; fetchFailed: boolean } {
+export type SkillEntry = { id: string; name: string; docsUrl: string };
+
+export function useSkillEntry(skillId: string | null): {
+  skillEntry: SkillEntry | null;
+  fetchFailed: boolean;
+} {
   const [skillEntry, setSkillEntry] = useState<SkillEntry | null>(null);
   const [fetchFailed, setFetchFailed] = useState(false);
 
   useEffect(() => {
     if (!skillId) {
+      setSkillEntry(null);
       setFetchFailed(true);
       return;
     }
-    let cancelled = false;
-    setSkillEntry(null);
-    setFetchFailed(false);
-    void fetchSkillMenu(getSkillsBaseUrl(local)).then((menu) => {
-      if (cancelled) return;
-      if (!menu) {
-        setFetchFailed(true);
-        return;
-      }
-      const match = Object.values(menu.categories)
-        .flat()
-        .find((s) => s.id === skillId);
-      if (match) setSkillEntry(match);
-      else setFetchFailed(true);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [skillId, local]);
+    const local = readLocalSkill(skillId);
+    if (local) {
+      setSkillEntry({
+        id: local.id,
+        name: local.name,
+        docsUrl: `${HONCH_DOCS_URL}/sdks/${local.id}`,
+      });
+      setFetchFailed(false);
+    } else {
+      setSkillEntry(null);
+      setFetchFailed(true);
+    }
+  }, [skillId]);
 
   return { skillEntry, fetchFailed };
 }
@@ -70,11 +64,19 @@ export const SkillSourceInfo = ({
       </Text>
     </Text>
     <Text>
-      URL:{' '}
+      Source:{' '}
       <Text color="cyan">
-        {skillEntry?.downloadUrl ??
-          (fetchFailed ? 'unavailable' : 'Loading...')}
+        {skillEntry
+          ? 'bundled with the wizard'
+          : fetchFailed
+          ? 'unavailable'
+          : 'Loading...'}
       </Text>
     </Text>
+    {skillEntry ? (
+      <Text>
+        Docs: <Text color="cyan">{skillEntry.docsUrl}</Text>
+      </Text>
+    ) : null}
   </Box>
 );

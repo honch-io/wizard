@@ -245,8 +245,6 @@ export type AgentConfig = {
   apiBaseUrl: string;
   additionalMcpServers?: Record<string, { url: string }>;
   detectPackageManager: PackageManagerDetector;
-  /** Base URL for the skills server (context-mill dev or GitHub releases) */
-  skillsBaseUrl: string;
   /** Feature flag key -> variant (evaluated at start of run). */
   wizardFlags?: Record<string, string>;
   wizardMetadata?: Record<string, string>;
@@ -685,11 +683,10 @@ export async function initializeAgent(
       ),
     };
 
-    // Add in-process wizard tools (env files, package manager detection, skill loading)
+    // Add in-process wizard tools (env files, package manager detection).
     const wizardToolsServer = await createWizardToolsServer({
       workingDirectory: config.workingDirectory,
       detectPackageManager: config.detectPackageManager,
-      skillsBaseUrl: config.skillsBaseUrl,
       askBridge: config.askBridge,
       askMaxQuestions: config.askMaxQuestions,
     });
@@ -783,8 +780,8 @@ export async function runAgent(
   },
 ): Promise<{ error?: AgentErrorType; message?: string }> {
   const {
-    spinnerMessage = 'Customizing your PostHog setup...',
-    successMessage = 'PostHog integration complete',
+    spinnerMessage = 'Customizing your Honch SDK setup...',
+    successMessage = 'Honch integration complete',
     errorMessage = 'Integration failed',
     abortCases = [],
   } = config ?? {};
@@ -1432,14 +1429,20 @@ function buildFileDiff(toolName: string, input: unknown): FileDiff | null {
     if (typeof rec.content !== 'string') return null;
     pairs.push(['', rec.content]); // new file / overwrite → all additions
   } else if (toolName === 'Edit') {
-    if (typeof rec.old_string !== 'string' || typeof rec.new_string !== 'string')
+    if (
+      typeof rec.old_string !== 'string' ||
+      typeof rec.new_string !== 'string'
+    )
       return null;
     pairs.push([rec.old_string, rec.new_string]);
   } else {
     const edits = Array.isArray(rec.edits) ? rec.edits : [];
     for (const e of edits) {
       const er = (e ?? {}) as Record<string, unknown>;
-      if (typeof er.old_string === 'string' && typeof er.new_string === 'string') {
+      if (
+        typeof er.old_string === 'string' &&
+        typeof er.new_string === 'string'
+      ) {
         pairs.push([er.old_string, er.new_string]);
       }
     }
@@ -1456,8 +1459,8 @@ function buildFileDiff(toolName: string, input: unknown): FileDiff | null {
       const kind: FileDiffLine['kind'] = change.added
         ? 'add'
         : change.removed
-          ? 'del'
-          : 'ctx';
+        ? 'del'
+        : 'ctx';
       const chunk = change.value.split('\n');
       if (chunk.length > 0 && chunk[chunk.length - 1] === '') chunk.pop();
       for (const text of chunk) {
