@@ -1,7 +1,7 @@
 import * as childProcess from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
-import { basename, isAbsolute, join, relative } from 'node:path';
+import { isAbsolute, join, relative } from 'node:path';
 import { promisify } from 'node:util';
 
 import { withProgress } from '../telemetry';
@@ -15,55 +15,12 @@ import {
 import type { CloudRegion, WizardRunOptions } from './types';
 import { getDeclaredVersion } from './package-json';
 import { DUMMY_PROJECT_API_KEY, ISSUES_URL } from '@lib/constants';
-import type { ProgramId } from '@lib/programs/program-registry';
-
-// OAuth/provisioning were removed in the Honch fork. These shims keep the
-// (now-dead) login/signup helpers below compiling without resurrecting the
-// deleted modules; they are never reached — getOrAskForProjectData uses the
-// bearer-token flow. TODO: delete the dead helpers and these shims.
-const getOAuthScopesForProgram = (
-  _programId?: unknown,
-): readonly string[] => [];
 import { analytics } from './analytics';
 import { getUI } from '@ui';
 import { PlatformClient } from '@lib/platform/client';
-import {
-  getCloudUrlFromRegion,
-  getHostFromRegion,
-  detectRegionFromToken,
-} from './urls';
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const performOAuthFlow = (_opts?: any): Promise<any> => {
-  throw new Error('OAuth was removed in the Honch wizard fork.');
-};
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const provisionNewAccount = (..._args: any[]): Promise<any> => {
-  throw new Error('Signup provisioning was removed in the Honch wizard fork.');
-};
-import { fetchUserData, fetchProjectData, type ApiUser } from '@lib/api';
+import type { ApiUser } from '@lib/api';
 import { versionSatisfiesRange } from './semver';
 import { wizardAbort } from './wizard-abort';
-
-interface ProjectData {
-  projectApiKey: string;
-  accessToken: string;
-  host: string;
-  distinctId: string;
-  projectId: number;
-  /**
-   * Optional `role_at_organization` from `/api/users/@me/`. Drives the
-   * role-tailored prompt suggestions on the McpSuggestedPromptsScreen. Null
-   * for signup flows (no role picked yet) and older accounts.
-   */
-  roleAtOrganization?: string | null;
-  /**
-   * Full user payload from `/api/users/@me/`. Carried through so
-   * `getOrAskForProjectData` can forward it to the session as
-   * `session.apiUser`. Null when the request failed or the CI key
-   * lacked permissions.
-   */
-  user?: ApiUser | null;
-}
 
 export interface CliSetupConfig {
   filename: string;
@@ -101,65 +58,6 @@ export function isInGitRepo(): boolean {
     return false;
   }
   return true;
-}
-
-const FREEMAIL_DOMAINS = new Set([
-  'gmail.com',
-  'googlemail.com',
-  'hotmail.com',
-  'outlook.com',
-  'yahoo.com',
-  'icloud.com',
-  'me.com',
-  'mail.com',
-  'protonmail.com',
-  'proton.me',
-  'live.com',
-  'aol.com',
-  'yandex.com',
-  'zoho.com',
-  'gmx.com',
-  'fastmail.com',
-]);
-
-function parseGitRemote(): { org: string; repo: string } | null {
-  try {
-    const url = childProcess
-      .execSync('git remote get-url origin', {
-        stdio: ['ignore', 'pipe', 'ignore'],
-      })
-      .toString()
-      .trim();
-    // git@github.com:acme-corp/my-app.git or https://github.com/acme-corp/my-app.git
-    const match = url.match(/[/:]([\w.-]+)\/([\w.-]+?)(?:\.git)?$/);
-    if (match) return { org: match[1], repo: match[2] };
-  } catch {
-    // not in a git repo or no remote
-  }
-  return null;
-}
-
-export function detectOrgAndProject(email: string): {
-  orgName: string | undefined;
-  projectName: string | undefined;
-} {
-  const remote = parseGitRemote();
-
-  // Project name: git repo name > directory name
-  const projectName = remote?.repo || basename(process.cwd()) || undefined;
-
-  // Org name: git remote org > email domain (skip freemail)
-  let orgName: string | undefined;
-  if (remote?.org) {
-    orgName = remote.org;
-  } else {
-    const domain = email.split('@')[1]?.toLowerCase();
-    if (domain && !FREEMAIL_DOMAINS.has(domain)) {
-      orgName = domain.split('.')[0];
-    }
-  }
-
-  return { orgName, projectName };
 }
 
 export function getUncommittedOrUntrackedFiles(): string[] {
@@ -423,7 +321,7 @@ export async function getOrAskForProjectData(options: {
   const bearer = normalizeHonchBearerToken(options.token);
   if (!bearer) {
     getUI().log.error(
-      'No Honch token provided. Pass it as the first argument, --token <bearer>, or set HONCH_WIZARD_TOKEN.',
+      'No Honch token found. Run `honcho-wizard login` to sign in (it saves your token for future runs), or pass it as the first argument, --token <bearer>, or HONCH_WIZARD_TOKEN.',
     );
     await abort();
     throw new Error('unreachable');
@@ -448,9 +346,24 @@ export async function getOrAskForProjectData(options: {
 
   // Mint the short-lived wizard token that authenticates the agent's LLM
   // calls through the proxy. Requires the normal user bearer.
-  const { accessToken: wizardToken } = await withProgress('login', () =>
-    client.createWizardToken(bearer),
-  );
+  let wizardToken: string;
+  try {
+    ({ accessToken: wizardToken } = await withProgress('login', () =>
+      client.createWizardToken(bearer),
+    ));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    // A rejected bearer (commonly an expired saved login) — point the user at
+    // `honcho-wizard login` rather than surfacing a raw HTTP 401/403.
+    if (/HTTP 401|HTTP 403/.test(message)) {
+      getUI().log.error(
+        'Your Honch login was rejected (it may have expired). Run `honcho-wizard login` to sign in again.',
+      );
+      await abort();
+      throw new Error('unreachable');
+    }
+    throw error;
+  }
   logToFile('[setup-utils] minted wizard token');
 
   // List projects to resolve the capture key. The backend rejects the wizard
@@ -510,126 +423,6 @@ function selectProject(
     );
   }
   return projects[0];
-}
-
-async function askForWizardLogin(options: {
-  signup: boolean;
-  email?: string;
-  region?: CloudRegion;
-  /** Used to pick the right scope set via `getOAuthScopesForProgram`.
-   *  Omitted → default `WIZARD_OAUTH_SCOPES`. */
-  programId?: ProgramId | null;
-}): Promise<ProjectData & { cloudRegion: CloudRegion }> {
-  if (options.signup) {
-    return askForProvisioningSignup(options.email, options.region);
-  }
-
-  const tokenResponse = await performOAuthFlow({
-    scopes: [...getOAuthScopesForProgram(options.programId)],
-    signup: false,
-  });
-
-  const projectId = tokenResponse.scoped_teams?.[0];
-
-  if (projectId === undefined) {
-    const error = new Error(
-      'No project access granted. Please authorize with project-level access.',
-    );
-    analytics.captureException(error, {
-      step: 'wizard_login',
-      has_scoped_teams: !!tokenResponse.scoped_teams,
-    });
-    getUI().log.error(error.message);
-    await abort();
-  }
-
-  const cloudRegion = await detectRegionFromToken(tokenResponse.access_token);
-  const cloudUrl = getCloudUrlFromRegion(cloudRegion);
-  const host = getHostFromRegion(cloudRegion);
-
-  const projectData = await fetchProjectData(
-    tokenResponse.access_token,
-    projectId,
-    cloudUrl,
-  );
-  const userData = await fetchUserData(tokenResponse.access_token, cloudUrl);
-
-  const data = {
-    accessToken: tokenResponse.access_token,
-    projectApiKey: projectData.api_token,
-    host,
-    distinctId: userData.distinct_id,
-    projectId: projectId,
-    cloudRegion,
-    roleAtOrganization: userData.role_at_organization ?? null,
-    user: userData,
-  };
-
-  getUI().log.success('Login complete.');
-  analytics.setTag('opened-wizard-link', true);
-  analytics.setDistinctId(data.distinctId);
-
-  return data;
-}
-
-async function askForProvisioningSignup(
-  email?: string,
-  region?: CloudRegion,
-): Promise<ProjectData & { cloudRegion: CloudRegion }> {
-  if (!email || !email.includes('@')) {
-    getUI().log.error(
-      'Email is required for signup. Use --email your@email.com with --signup.',
-    );
-    await abort();
-    throw new Error('unreachable');
-  }
-
-  const spinner = getUI().spinner();
-  spinner.start('Creating your Honch account...');
-
-  try {
-    const provisionRegion = (region ?? 'us').toUpperCase() as 'US' | 'EU';
-    const { orgName, projectName } = detectOrgAndProject(email);
-    const result = await provisionNewAccount(email, '', provisionRegion, {
-      orgName,
-      projectName,
-    });
-
-    spinner.stop('Account created!');
-    getUI().log.success('Welcome to Honch!');
-
-    const host = result.host;
-    const cloudRegion: CloudRegion = host.includes('eu.') ? 'eu' : 'us';
-
-    analytics.setTag('provisioning-signup', true);
-
-    return {
-      accessToken: result.accessToken,
-      projectApiKey: result.projectApiKey,
-      host,
-      distinctId: email,
-      projectId: parseInt(result.projectId, 10) || 0,
-      cloudRegion,
-    };
-  } catch (error) {
-    spinner.stop('Account creation failed.');
-    const message = error instanceof Error ? error.message : 'Unknown error';
-
-    if (message.includes('already associated')) {
-      getUI().log.info(
-        'This email already has a Honch account. Switching to login flow...',
-      );
-      return askForWizardLogin({ signup: false });
-    }
-
-    getUI().log.error(`Failed to create account: ${message}`);
-    analytics.captureException(
-      error instanceof Error ? error : new Error(message),
-      { step: 'provisioning_signup' },
-    );
-    await abort();
-    throw error;
-  }
 }
 
 /**

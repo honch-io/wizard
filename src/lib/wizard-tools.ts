@@ -26,6 +26,10 @@ import {
 } from './programs/audit/types';
 import type { WizardAskBridge } from './wizard-ask-bridge';
 import { createSecretVault, type SecretVault } from './secret-vault';
+import {
+  createStarterDashboard,
+  type CreateStarterDashboardResult,
+} from './dashboards/create-starter-dashboard';
 
 // ---------------------------------------------------------------------------
 // SDK dynamic import (ESM module loaded once, cached)
@@ -73,6 +77,30 @@ export interface WizardToolsOptions {
    * (e.g. in unit tests), a fresh vault is created internally.
    */
   secretVault?: SecretVault;
+
+  /**
+   * Enables the `create_starter_dashboard` tool. When omitted, the tool is
+   * still registered but returns an actionable error (e.g. no credentials in a
+   * CI/dev host) — keeping the tool surface stable. Carries the user bearer
+   * token, which stays local to this process and never reaches the LLM.
+   */
+  dashboards?: DashboardToolDeps;
+}
+
+/** Credentials + callbacks the `create_starter_dashboard` tool needs. */
+export interface DashboardToolDeps {
+  /** User bearer token (NOT the wizard JWT). Used only for local API calls. */
+  userBearer: string;
+  /** Honch project UUID. */
+  projectId: string;
+  /** Platform base URL the API calls go to, e.g. https://app.honch.io. */
+  apiBaseUrl: string;
+  /** App URL used to build the dashboard link. Defaults to apiBaseUrl. */
+  frontendUrl?: string;
+  /** Invoked with the created dashboard URL so the host can surface it. */
+  onCreated?: (url: string) => void;
+  /** Injectable creator for tests; defaults to the real orchestrator. */
+  create?: typeof createStarterDashboard;
 }
 
 /** Default per-run cap on wizard_ask calls when no override is provided. */
@@ -375,6 +403,7 @@ export async function createWizardToolsServer(options: WizardToolsOptions) {
     askBridge,
     askMaxQuestions = DEFAULT_ASK_MAX_QUESTIONS,
     secretVault = createSecretVault(),
+    dashboards,
   } = options;
   const sdk = await getSDKModule();
   const { tool, createSdkMcpServer } = sdk;
@@ -542,6 +571,94 @@ export async function createWizardToolsServer(options: WizardToolsOptions) {
           },
         ],
       };
+    },
+  );
+
+  // -- create_starter_dashboard ---------------------------------------------
+
+  const createDashboard = tool(
+    'create_starter_dashboard',
+    'Create a starter analytics dashboard for the user on the Honch platform, once Honch is wired up and the build verifies. Pass the event names you instrumented (the exact strings passed to the SDK track call); baseline charts (total events, active devices) are added automatically — do NOT include those. Returns the dashboard URL. Call this AT MOST ONCE. Runs locally; you never see the credentials. Never fabricate the URL — use what this tool returns.',
+    {
+      dashboardName: z
+        .string()
+        .optional()
+        .describe('Optional dashboard title. Defaults to "Honch Overview".'),
+      events: z
+        .array(
+          z.object({
+            name: z
+              .string()
+              .describe('Exact instrumented event name, e.g. "button_press".'),
+            label: z
+              .string()
+              .optional()
+              .describe('Optional human-friendly chart title for this event.'),
+          }),
+        )
+        .optional()
+        .describe(
+          'Custom events you instrumented. Baseline tiles are added on top.',
+        ),
+    },
+    async (args: {
+      dashboardName?: string;
+      events?: { name: string; label?: string }[];
+    }) => {
+      if (!dashboards) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: 'Error: dashboard creation is not available in this run (no project credentials). Skip this step and note it in the report.',
+            },
+          ],
+          isError: true,
+        };
+      }
+      const create = dashboards.create ?? createStarterDashboard;
+      try {
+        const result: CreateStarterDashboardResult = await create({
+          userBearer: dashboards.userBearer,
+          projectId: dashboards.projectId,
+          apiBaseUrl: dashboards.apiBaseUrl,
+          frontendUrl: dashboards.frontendUrl,
+          dashboardName: args.dashboardName?.trim() || 'Honch Overview',
+          events: args.events ?? [],
+        });
+        dashboards.onCreated?.(result.dashboardUrl);
+        logToFile(
+          `create_starter_dashboard: created ${result.dashboardId} with ${result.insightNames.length} tiles`,
+        );
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(
+                {
+                  dashboardUrl: result.dashboardUrl,
+                  insights: result.insightNames,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      } catch (err: any) {
+        logToFile(`create_starter_dashboard: error: ${err?.message ?? err}`);
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Error: could not create the dashboard: ${
+                err?.message ?? String(err)
+              }. Continue and note this in the report.`,
+            },
+          ],
+          isError: true,
+        };
+      }
     },
   );
 
@@ -869,6 +986,7 @@ export async function createWizardToolsServer(options: WizardToolsOptions) {
       checkEnvKeys,
       setEnvValues,
       detectPM,
+      createDashboard,
       auditSeedChecks,
       auditAddChecks,
       auditResolveChecks,
@@ -886,6 +1004,7 @@ export const WIZARD_TOOL_NAMES = {
   checkEnvKeys: `mcp__${SERVER_NAME}__check_env_keys`,
   setEnvValues: `mcp__${SERVER_NAME}__set_env_values`,
   detectPackageManager: `mcp__${SERVER_NAME}__detect_package_manager`,
+  createStarterDashboard: `mcp__${SERVER_NAME}__create_starter_dashboard`,
   auditSeedChecks: `mcp__${SERVER_NAME}__audit_seed_checks`,
   auditAddChecks: `mcp__${SERVER_NAME}__audit_add_checks`,
   auditResolveChecks: `mcp__${SERVER_NAME}__audit_resolve_checks`,

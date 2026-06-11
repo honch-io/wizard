@@ -77,7 +77,7 @@ export const WIZARD_VARIANTS: Record<string, Record<string, string>> = {
   subagents: { VARIANT: 'subagents' },
 };
 /** User-Agent for wizard HTTP requests and MCP server identification. */
-export const WIZARD_USER_AGENT = `honch/wizard; version: ${VERSION}`;
+export const WIZARD_USER_AGENT = `honcho-wizard; version: ${VERSION}`;
 
 // ── HTTP headers ─────────────────────────────────────────────────────
 

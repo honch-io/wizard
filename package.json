@@ -1,5 +1,5 @@
 {
-  "name": "@honch/wizard",
+  "name": "honcho-wizard",
   "version": "0.1.0",
   "homepage": "https://github.com/honch-io/wizard",
   "repository": "https://github.com/honch-io/wizard",
@@ -15,7 +15,7 @@
     "install"
   ],
   "bin": {
-    "honch": "dist/bin.js"
+    "honcho-wizard": "dist/bin.js"
   },
   "publishConfig": {
     "access": "public"
@@ -45,7 +45,6 @@
     "lodash": "^4.17.21",
     "magicast": "^0.2.10",
     "nanostores": "^1.1.1",
-    "opn": "^5.4.0",
     "react": "^19.2.4",
     "read-env": "^1.3.0",
     "recast": "^0.23.3",
@@ -69,7 +68,6 @@
     "@types/jest": "^29.5.14",
     "@types/lodash": "^4.17.15",
     "@types/node": "^18.19.76",
-    "@types/opn": "5.1.0",
     "@types/react": "^19.2.14",
     "@types/rimraf": "^3.0.2",
     "@types/semver": "^7.3.7",
@@ -105,7 +103,7 @@
     "build": "tsdown",
     "build:ci": "WIZARD_BUILD_NODE_ENV=ci bun run build",
     "typecheck": "tsc --noEmit",
-    "postbuild": "chmod +x ./dist/bin.js && cp -r scripts/** dist && cp -r src/skills dist/skills && bun run test:smoke",
+    "postbuild": "chmod +x ./dist/bin.js && cp -r src/skills dist/skills && bun run test:smoke",
     "test:smoke": "bash ./scripts/smoke-test.sh",
     "lint": "bun run lint:prettier && bun run lint:eslint",
     "lint:prettier": "prettier --check \"{lib,src,test}/**/*.ts\"",
@@ -118,9 +116,11 @@
     "test:e2e": "bun run build && ./e2e-tests/run.sh",
     "test:e2e-record": "export RECORD_FIXTURES=true && bun run build && ./e2e-tests/run.sh",
     "try": "tsx bin.ts",
+    "try:dashboard": "tsx scripts/try-dashboard.ts",
     "dev": "bun run build && bun link && bun run build:watch",
     "test:watch": "jest --watch",
-    "prepare": "husky || true"
+    "prepare": "husky || true",
+    "prepublishOnly": "bun run build"
   },
   "jest": {
     "collectCoverage": true,

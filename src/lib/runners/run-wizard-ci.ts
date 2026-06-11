@@ -79,6 +79,9 @@ export function runWizardCI(
       apiBaseUrl:
         (options.apiBaseUrl as string | undefined) ??
         (env.apiBaseUrl as string | undefined),
+      frontendUrl:
+        (options.frontendUrl as string | undefined) ??
+        (env.frontendUrl as string | undefined),
       captureHost:
         (options.captureHost as string | undefined) ??
         (env.captureHost as string | undefined),

@@ -29,6 +29,11 @@ export const GLOBAL_OPTIONS = {
       'Honch event-ingestion host the installed SDK uploads to\nenv: HONCH_WIZARD_CAPTURE_HOST',
     type: 'string' as const,
   },
+  'frontend-url': {
+    describe:
+      'Honch app URL used to build the dashboard link (defaults to the API base URL; set this only for split-host/self-hosted deployments)\nenv: HONCH_WIZARD_FRONTEND_URL',
+    type: 'string' as const,
+  },
   project: {
     describe:
       'Project id or name to install into (defaults to your only/first project)\nenv: HONCH_WIZARD_PROJECT',
@@ -58,6 +63,7 @@ export class Wizard {
 
   private constructor() {
     let cli = yargs(hideBin(process.argv))
+      .scriptName('honcho-wizard')
       .env('HONCH_WIZARD')
       .options(GLOBAL_OPTIONS);
 

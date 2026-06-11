@@ -5,6 +5,8 @@ import type { startTUI as StartTUIFn } from '@ui/tui/start-tui';
 import type { TaskStreamPush as TaskStreamPushClass } from '@lib/task-stream/task-stream-push';
 import { resolveNoTelemetry } from './resolve-no-telemetry';
 import { getLogFilePath, logToFile } from '@utils/debug';
+import { DEFAULT_API_BASE_URL } from '@lib/constants';
+import { readSavedToken } from '@lib/auth/credentials-store';
 
 const WIZARD_VERSION = VERSION;
 
@@ -12,12 +14,50 @@ function getPositionalArgs(options: Record<string, unknown>): string[] {
   return Array.isArray(options._) ? options._.map(String) : [];
 }
 
-function resolveToken(options: Record<string, unknown>): string | undefined {
+/**
+ * Resolve the bearer token. Precedence:
+ *   1. --token flag / HONCH_WIZARD_TOKEN env (folded into `options.token`)
+ *   2. first positional arg  (`npx -y honcho-wizard <token>`)
+ *   3. token saved by `honcho-wizard login` (~/.honch/config.json, keyed by platform)
+ * Falls through to undefined so getOrAskForProjectData can show the
+ * "run honcho-wizard login" guidance.
+ */
+function resolveToken(
+  options: Record<string, unknown>,
+  apiBaseUrl: string,
+): string | undefined {
   const positional = getPositionalArgs(options);
-  return (
+  const explicit =
     (options.token as string | undefined) ??
-    (positional.length > 0 ? positional[0] : undefined)
-  );
+    (positional.length > 0 ? positional[0] : undefined);
+  if (explicit) return explicit;
+
+  const saved = readSavedToken(apiBaseUrl);
+  if (saved) {
+    logToFile('[run-wizard] using saved Honch login (~/.honch/config.json)');
+    return saved;
+  }
+  return undefined;
+}
+
+/**
+ * Resolve the bearer for the interactive run. If none is provided or saved,
+ * auto-start the browser login (PostHog-style) so a bare `npx honcho-wizard`
+ * opens the browser, signs the user in, and continues — no separate
+ * `honcho-wizard login` step. This runs before the TUI mounts, so login progress
+ * prints to plain stdout. Reached only from the interactive runner (the
+ * command handler routes non-interactive/CI elsewhere), so a TTY is assumed.
+ */
+async function resolveTokenOrLogin(
+  options: Record<string, unknown>,
+  apiBaseUrl: string,
+): Promise<string | undefined> {
+  const existing = resolveToken(options, apiBaseUrl);
+  if (existing) return existing;
+
+  logToFile('[run-wizard] no token found; starting browser login');
+  const { performBrowserLogin } = await import('@lib/auth/login-flow');
+  return performBrowserLogin(apiBaseUrl);
 }
 
 function validateCliShape(options: Record<string, unknown>): void {
@@ -55,6 +95,12 @@ export function runWizard(
     try {
       validateCliShape(options);
       const installDir = (options.installDir as string) || process.cwd();
+      const apiBaseUrl =
+        (options.apiBaseUrl as string | undefined) ?? DEFAULT_API_BASE_URL;
+
+      // Resolve the bearer before mounting the TUI. With no token provided or
+      // saved, this opens the browser and signs the user in, then continues.
+      const resolvedToken = await resolveTokenOrLogin(options, apiBaseUrl);
 
       const { startTUI } = await import('@ui/tui/start-tui');
       const { buildSession, RunPhase } = await import('@lib/wizard-session');
@@ -68,10 +114,11 @@ export function runWizard(
         debug: options.debug as boolean | undefined,
         localMcp: options.localMcp as boolean | undefined,
         installDir,
-        // Accept the bearer token as --token, env, OR the first positional arg
-        // (so `npx -y @honch/wizard <token>` works as a true one-liner).
-        token: resolveToken(options),
+        // Bearer resolved above: --token / env / positional arg / saved login,
+        // or freshly obtained via the browser login that just ran.
+        token: resolvedToken,
         apiBaseUrl: options.apiBaseUrl as string | undefined,
+        frontendUrl: options.frontendUrl as string | undefined,
         captureHost: options.captureHost as string | undefined,
         project: options.project as string | undefined,
         deviceModel: options.deviceModel as string | undefined,

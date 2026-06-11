@@ -1,8 +1,9 @@
 /**
  * Minimal client for the Honch platform backend (prado).
  *
- * The wizard uses exactly two endpoints, both authenticated with the user's
- * NORMAL bearer token (the backend rejects the minted wizard token here):
+ * Every endpoint here is authenticated with the user's NORMAL bearer token —
+ * the backend's project API rejects the minted wizard token (aud
+ * "honcho-wizard"), which is scoped only to the LLM proxy:
  *
  *   POST /api/wizard/token  → mint a short-lived wizard JWT (aud "honcho-wizard")
  *                             used ONLY to authenticate the agent's LLM calls
@@ -10,9 +11,14 @@
  *   GET  /api/projects      → list the user's projects; each carries its
  *                             `apiKey` (the honch_… capture key the device
  *                             SDK sends as X-Honch-Project-Key).
+ *   POST /api/projects/{id}/saved-insights        → create a chart definition.
+ *   POST /api/projects/{id}/dashboards            → create a dashboard.
+ *   POST /api/projects/{id}/dashboards/{d}/tiles  → attach an insight as a tile.
  *
  * The raw user bearer never leaves this module except to mint the wizard
- * token; only the minted token is handed to the agent SDK.
+ * token; only the minted token is handed to the agent SDK. The starter
+ * dashboard is created locally by the wizard process so the bearer never
+ * reaches the LLM.
  */
 
 export type Fetcher = typeof fetch;
@@ -28,6 +34,36 @@ export type ProjectResponse = {
   name: string;
   apiKey: string;
   organizationId?: string;
+};
+
+/** Body for `POST /api/projects/{projectId}/saved-insights`. */
+export type SavedInsightCreate = {
+  name: string;
+  description?: string;
+  query: unknown;
+};
+
+export type SavedInsightResponse = {
+  id: string;
+  name: string;
+};
+
+/** Body for `POST /api/projects/{projectId}/dashboards`. */
+export type DashboardCreate = {
+  name: string;
+  description?: string;
+};
+
+export type DashboardResponse = {
+  id: string;
+  name: string;
+};
+
+/** Body for `POST /api/projects/{projectId}/dashboards/{id}/tiles`. */
+export type TileCreate = {
+  insightId: string;
+  layouts?: unknown;
+  color?: string | null;
 };
 
 export class PlatformClient {
@@ -47,6 +83,46 @@ export class PlatformClient {
   /** List the user's projects; each includes its honch_ capture apiKey. */
   async listProjects(userBearer: string): Promise<ProjectResponse[]> {
     return this.get<ProjectResponse[]>('/api/projects', userBearer);
+  }
+
+  /** Create a saved insight (chart). Needs the user bearer + manage-data. */
+  async createSavedInsight(
+    userBearer: string,
+    projectId: string,
+    body: SavedInsightCreate,
+  ): Promise<SavedInsightResponse> {
+    return this.post<SavedInsightResponse>(
+      `/api/projects/${projectId}/saved-insights`,
+      body,
+      userBearer,
+    );
+  }
+
+  /** Create a dashboard. Needs the user bearer + manage-data. */
+  async createDashboard(
+    userBearer: string,
+    projectId: string,
+    body: DashboardCreate,
+  ): Promise<DashboardResponse> {
+    return this.post<DashboardResponse>(
+      `/api/projects/${projectId}/dashboards`,
+      body,
+      userBearer,
+    );
+  }
+
+  /** Attach a saved insight to a dashboard as a tile. */
+  async addDashboardTile(
+    userBearer: string,
+    projectId: string,
+    dashboardId: string,
+    body: TileCreate,
+  ): Promise<unknown> {
+    return this.post<unknown>(
+      `/api/projects/${projectId}/dashboards/${dashboardId}/tiles`,
+      body,
+      userBearer,
+    );
   }
 
   private async get<T>(path: string, accessToken?: string): Promise<T> {
