@@ -1,6 +1,6 @@
 # Honch Wizard
 
-The Honch wizard (`npx -y @honch/wizard <token>`) installs Honch SDKs into
+The Honch wizard (`npx -y honcho-wizard`) installs Honch SDKs into
 client projects with an AI-assisted terminal flow. It is an installer and
 orchestrator, not an SDK implementation.
 

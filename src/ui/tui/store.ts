@@ -401,8 +401,8 @@ export class WizardStore {
 
   /**
    * Return a promise that resolves when the user submits a manually-entered
-   * OAuth code via the paste modal. The OAuth flow races this against the
-   * local callback server — see `performOAuthFlow`.
+   * auth code via the paste modal, used as a fallback when the local
+   * callback server can't receive the browser redirect.
    */
   waitForManualAuthCode(): Promise<string> {
     return new Promise<string>((resolve) => {

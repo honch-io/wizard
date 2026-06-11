@@ -1,5 +1,5 @@
 /**
- * Shared browser-login routine used by both `honch login` and the default run
+ * Shared browser-login routine used by both `honcho-wizard login` and the default run
  * (when it finds no token). Runs the loopback flow, validates the returned
  * bearer against the platform, persists it, and returns it.
  *

@@ -63,6 +63,7 @@ export class Wizard {
 
   private constructor() {
     let cli = yargs(hideBin(process.argv))
+      .scriptName('honcho-wizard')
       .env('HONCH_WIZARD')
       .options(GLOBAL_OPTIONS);
 

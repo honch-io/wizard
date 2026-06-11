@@ -48,7 +48,7 @@ const SENTINEL_SKILL = path.join('esp-idf', 'SKILL.md');
 /**
  * Anchor directories the skills dir may sit under, most-reliable first:
  *  - the entry script's dir: the published build's `dist/` (argv[1] is
- *    `…/@honch/wizard/dist/bin.js`), or `<repo>` under `tsx bin.ts`.
+ *    `…/honcho-wizard/dist/bin.js`), or `<repo>` under `tsx bin.ts`.
  *  - `__dirname`, and one/two levels up: defined under jest (ts-jest →
  *    CommonJS) and tsx as this module's dir (`src/lib`). Undefined in the Node
  *    ESM bundle — `typeof` guards that.

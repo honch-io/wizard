@@ -1,22 +1,25 @@
 <h1>Honch wizard ✨</h1>
 
 The Honch wizard installs the [Honch](https://honch.io) analytics SDK into your
-project. Paste one bearer token and it does the rest — detect the target,
-resolve your project + capture key, read the live docs, and wire the SDK in
-with an AI agent, showing you every code change live.
+project. Run it, sign in through your browser once, and it does the rest —
+detect the target, resolve your project + capture key, read the live docs, and
+wire the SDK in with an AI agent, showing you every code change live.
 
 ```sh
-npx -y @honch/wizard <your-honch-token>
+npx -y honcho-wizard
 ```
 
-That's it. No login flow, no manual project picking.
+That's it. It opens your browser to sign in (and remembers you next time), then
+handles everything else — no manual project picking.
 
 ## What it does
 
-1. **One token in.** The bearer token (from your Honch dashboard) is exchanged
-   for a short-lived wizard token (for the agent's LLM, proxied through the Honch
-   platform) and used to look up your project and its `honch_…` capture key.
-   Nothing else is asked unless it has to be.
+1. **Sign in once.** On first run it opens your browser to authenticate, then
+   saves the login to `~/.honch/config.json` so future runs are zero-friction.
+   It mints a short-lived wizard token (for the agent's LLM, proxied through the
+   Honch platform) and looks up your project and its `honch_…` capture key.
+   Already have a token? Pass it as `--token`/`HONCH_WIZARD_TOKEN` to skip the
+   browser step.
 2. **Auto-detects the target** from your build files:
    - **ESP-IDF** · **C/POSIX** · **MicroPython** (firmware / Device SDK)
    - **React Native relay** · **iOS (Swift)** · **Android (Kotlin)** (App SDK / relay)
@@ -33,9 +36,12 @@ That's it. No login flow, no manual project picking.
 
 ## Flags
 
+Run `honcho-wizard login` to sign in ahead of time (or refresh an expired
+login); the default run does this automatically when it finds no saved login.
+
 | Flag | Env | Default |
 |------|-----|---------|
-| `<token>` / `--token` | `HONCH_WIZARD_TOKEN` | — (required) |
+| `<token>` / `--token` | `HONCH_WIZARD_TOKEN` | — (optional; browser login if unset) |
 | `--api-base-url` | `HONCH_WIZARD_API_BASE_URL` | `https://app.honch.io` |
 | `--capture-host` | `HONCH_WIZARD_CAPTURE_HOST` | `https://i.honch.io` |
 | `--project` | `HONCH_WIZARD_PROJECT` | your only / first project |

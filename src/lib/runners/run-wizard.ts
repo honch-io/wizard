@@ -17,10 +17,10 @@ function getPositionalArgs(options: Record<string, unknown>): string[] {
 /**
  * Resolve the bearer token. Precedence:
  *   1. --token flag / HONCH_WIZARD_TOKEN env (folded into `options.token`)
- *   2. first positional arg  (`npx -y @honch/wizard <token>`)
- *   3. token saved by `honch login` (~/.honch/config.json, keyed by platform)
+ *   2. first positional arg  (`npx -y honcho-wizard <token>`)
+ *   3. token saved by `honcho-wizard login` (~/.honch/config.json, keyed by platform)
  * Falls through to undefined so getOrAskForProjectData can show the
- * "run honch login" guidance.
+ * "run honcho-wizard login" guidance.
  */
 function resolveToken(
   options: Record<string, unknown>,
@@ -42,9 +42,9 @@ function resolveToken(
 
 /**
  * Resolve the bearer for the interactive run. If none is provided or saved,
- * auto-start the browser login (PostHog-style) so a bare `npx @honch/wizard`
+ * auto-start the browser login (PostHog-style) so a bare `npx honcho-wizard`
  * opens the browser, signs the user in, and continues — no separate
- * `honch login` step. This runs before the TUI mounts, so login progress
+ * `honcho-wizard login` step. This runs before the TUI mounts, so login progress
  * prints to plain stdout. Reached only from the interactive runner (the
  * command handler routes non-interactive/CI elsewhere), so a TTY is assumed.
  */

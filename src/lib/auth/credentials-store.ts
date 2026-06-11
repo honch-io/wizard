@@ -1,7 +1,7 @@
 /**
  * On-disk store for the user's Honch login token.
  *
- * `honch login` performs a browser OAuth flow and saves the resulting user
+ * `honcho-wizard login` performs a browser OAuth flow and saves the resulting user
  * bearer here so subsequent `honch` runs are zero-friction (no paste). The
  * file lives at `~/.honch/config.json` (dir 0700, file 0600) and is keyed by
  * platform base URL so a dev token (localhost) never clobbers a prod token.
@@ -20,7 +20,7 @@ import { runtimeEnv } from '@env';
 const CONFIG_VERSION = 1 as const;
 
 export interface SavedAccount {
-  /** The user bearer obtained via `honch login`. */
+  /** The user bearer obtained via `honcho-wizard login`. */
   token: string;
   /** ISO timestamp of when it was saved (informational only). */
   savedAt: string;
