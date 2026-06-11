@@ -6,35 +6,82 @@ import { join } from 'node:path';
 import { performBrowserLogin } from './login-flow';
 import { readSavedToken } from './credentials-store';
 
-/** A mock platform: cli/login redirects to the loopback; wizard/token validates. */
-function startMockPlatform(validBearer: string): Promise<{
-  apiBaseUrl: string;
-  close: () => void;
-}> {
+/**
+ * A mock platform implementing the real PKCE flow:
+ *  - GET  /api/auth/cli/login  → 302 to the loopback with `?code&state`
+ *  - POST /api/auth/cli/exchange → trades the code for `issued` bearer
+ *  - POST /api/wizard/token    → validates the bearer (accepts `accepts`)
+ *
+ * `issued` is what the exchange hands back; `accepts` is the bearer the
+ * token-mint route honors. Make them differ to simulate a rejected token.
+ */
+function startMockPlatform(opts: {
+  issued: string;
+  accepts?: string;
+}): Promise<{ apiBaseUrl: string; close: () => void }> {
+  const accepts = opts.accepts ?? opts.issued;
+  const AUTH_CODE = 'auth_code_xyz';
+
+  const readBody = (req: http.IncomingMessage): Promise<string> =>
+    new Promise((resolve) => {
+      let data = '';
+      req.on('data', (c) => (data += c));
+      req.on('end', () => resolve(data));
+    });
+
   const server = http.createServer((req, res) => {
-    const u = new URL(req.url ?? '/', 'http://127.0.0.1');
-    if (u.pathname === '/api/auth/cli/login') {
-      const redirect = u.searchParams.get('redirect_uri') as string;
-      const state = u.searchParams.get('state') as string;
-      res.writeHead(302, {
-        Location: `${redirect}?token=${validBearer}&state=${state}`,
-      });
-      res.end();
-      return;
-    }
-    if (u.pathname === '/api/wizard/token' && req.method === 'POST') {
-      if (req.headers.authorization === `Bearer ${validBearer}`) {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ accessToken: 'wiz', tokenType: 'bearer' }));
-      } else {
-        res.writeHead(401);
-        res.end('unauthorized');
+    void (async () => {
+      const u = new URL(req.url ?? '/', 'http://127.0.0.1');
+
+      if (u.pathname === '/api/auth/cli/login') {
+        const redirect = u.searchParams.get('redirect_uri') as string;
+        const state = u.searchParams.get('state') as string;
+        // Real backend requires a PKCE challenge here.
+        if (!u.searchParams.get('code_challenge')) {
+          res.writeHead(400);
+          res.end('missing code_challenge');
+          return;
+        }
+        res.writeHead(302, {
+          Location: `${redirect}?code=${AUTH_CODE}&state=${state}`,
+        });
+        res.end();
+        return;
       }
-      return;
-    }
-    res.writeHead(404);
-    res.end();
+
+      if (u.pathname === '/api/auth/cli/exchange' && req.method === 'POST') {
+        const body = JSON.parse((await readBody(req)) || '{}') as {
+          code?: string;
+          codeVerifier?: string;
+        };
+        if (body.code === AUTH_CODE && body.codeVerifier) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(
+            JSON.stringify({ accessToken: opts.issued, tokenType: 'bearer' }),
+          );
+        } else {
+          res.writeHead(400);
+          res.end('bad code');
+        }
+        return;
+      }
+
+      if (u.pathname === '/api/wizard/token' && req.method === 'POST') {
+        if (req.headers.authorization === `Bearer ${accepts}`) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ accessToken: 'wiz', tokenType: 'bearer' }));
+        } else {
+          res.writeHead(401);
+          res.end('unauthorized');
+        }
+        return;
+      }
+
+      res.writeHead(404);
+      res.end();
+    })();
   });
+
   return new Promise((resolve) => {
     server.listen(0, '127.0.0.1', () => {
       const port = (server.address() as { port: number }).port;
@@ -71,8 +118,8 @@ describe('performBrowserLogin', () => {
     fs.rmSync(tmp, { recursive: true, force: true });
   });
 
-  it('signs in, validates, and persists the token', async () => {
-    const platform = await startMockPlatform('user_jwt_42');
+  it('signs in via PKCE, validates, and persists the token', async () => {
+    const platform = await startMockPlatform({ issued: 'user_jwt_42' });
     try {
       const token = await performBrowserLogin(platform.apiBaseUrl, {
         io: silentIO,
@@ -86,18 +133,16 @@ describe('performBrowserLogin', () => {
   });
 
   it('does not persist a token the platform rejects', async () => {
-    // Platform accepts only "good"; drive the callback with "bad" → 401.
-    const platform = await startMockPlatform('good');
+    // Exchange issues "bad", but the token-mint route only accepts "good".
+    const platform = await startMockPlatform({
+      issued: 'bad',
+      accepts: 'good',
+    });
     try {
       await expect(
         performBrowserLogin(platform.apiBaseUrl, {
           io: silentIO,
-          open: (loginUrl) => {
-            const u = new URL(loginUrl);
-            const redirect = u.searchParams.get('redirect_uri') as string;
-            const state = u.searchParams.get('state') as string;
-            void fetch(`${redirect}?token=bad&state=${state}`);
-          },
+          open: followRedirect,
         }),
       ).rejects.toThrow(/HTTP 401/);
       expect(readSavedToken(platform.apiBaseUrl)).toBeNull();
