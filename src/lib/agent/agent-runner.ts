@@ -33,7 +33,6 @@ import {
   backupAndFixClaudeSettings,
   restoreClaudeSettings,
 } from './agent-interface';
-import { getCloudUrlFromRegion } from '@utils/urls';
 import {
   evaluateWizardReadiness,
   WizardReadiness,
@@ -519,7 +518,7 @@ export async function runProgram(
         reportFile: config.reportFile,
         docsUrl: config.docsUrl,
         continueUrl: session.signup
-          ? `${getCloudUrlFromRegion(cloudRegion)}/products?source=wizard`
+          ? `${session.frontendUrl.replace(/\/+$/, '')}/products?source=wizard`
           : undefined,
       };
   if (outroData) {

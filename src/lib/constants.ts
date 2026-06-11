@@ -35,15 +35,30 @@ export const DEBUG = false;
 
 // ── URLs ─────────────────────────────────────────────────────────────
 
-/** Honch platform API base — mints wizard tokens, lists projects, hosts the LLM proxy. */
+/**
+ * Honch platform API base — the BACKEND service that mints wizard tokens, lists
+ * projects, handles CLI login, creates dashboards, and hosts the LLM proxy.
+ * This is NOT the app/frontend host: on hosted Honch the frontend SPA
+ * (app.honch.io) has no `/api/*` routes — it serves index.html for everything,
+ * so pointing API calls there returns the SPA, not JSON. All `/api/*` traffic
+ * must go to the backend (api.honch.io).
+ */
 export const DEFAULT_API_BASE_URL = IS_DEV
+  ? 'http://localhost:3001'
+  : 'https://api.honch.io';
+/**
+ * Honch app/frontend base — the human-facing SPA. Used only to build links the
+ * user opens in a browser (the dashboard link, the CLI-login page the backend
+ * redirects to). Never used for `/api/*` calls.
+ */
+export const DEFAULT_FRONTEND_URL = IS_DEV
   ? 'http://localhost:3000'
   : 'https://app.honch.io';
 /** Honch event-ingestion host the device/app SDK uploads to (X-Honch-Project-Key). */
 export const DEFAULT_CAPTURE_HOST = IS_DEV
   ? 'http://localhost:8000'
   : 'https://i.honch.io';
-/** Back-compat generic aliases for the two hosts above. */
+/** Back-compat generic aliases. */
 export const DEFAULT_URL = DEFAULT_API_BASE_URL;
 export const DEFAULT_HOST_URL = DEFAULT_CAPTURE_HOST;
 export const ISSUES_URL = 'https://github.com/honch-io/wizard/issues';

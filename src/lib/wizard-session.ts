@@ -11,7 +11,11 @@
  */
 
 import type { Integration } from './constants';
-import { DEFAULT_API_BASE_URL, DEFAULT_CAPTURE_HOST } from './constants';
+import {
+  DEFAULT_API_BASE_URL,
+  DEFAULT_FRONTEND_URL,
+  DEFAULT_CAPTURE_HOST,
+} from './constants';
 import type { FrameworkConfig } from './framework-config';
 import type { WizardReadinessResult } from './health-checks/readiness';
 import type { SettingsConflict } from './agent/agent-interface';
@@ -322,7 +326,7 @@ export function buildSession(args: {
     installDir: args.installDir ?? process.cwd(),
     token: args.token,
     apiBaseUrl: args.apiBaseUrl ?? DEFAULT_API_BASE_URL,
-    frontendUrl: args.frontendUrl ?? args.apiBaseUrl ?? DEFAULT_API_BASE_URL,
+    frontendUrl: args.frontendUrl ?? args.apiBaseUrl ?? DEFAULT_FRONTEND_URL,
     captureHost: args.captureHost ?? DEFAULT_CAPTURE_HOST,
     project: args.project,
     deviceModel: args.deviceModel,
