@@ -42,7 +42,8 @@ login); the default run does this automatically when it finds no saved login.
 | Flag | Env | Default |
 |------|-----|---------|
 | `<token>` / `--token` | `HONCH_WIZARD_TOKEN` | — (optional; browser login if unset) |
-| `--api-base-url` | `HONCH_WIZARD_API_BASE_URL` | `https://app.honch.io` |
+| `--api-base-url` | `HONCH_WIZARD_API_BASE_URL` | `https://api.honch.io` (backend) |
+| `--frontend-url` | `HONCH_WIZARD_FRONTEND_URL` | `https://app.honch.io` (app links) |
 | `--capture-host` | `HONCH_WIZARD_CAPTURE_HOST` | `https://i.honch.io` |
 | `--project` | `HONCH_WIZARD_PROJECT` | your only / first project |
 | `--device-model` | `HONCH_WIZARD_DEVICE_MODEL` | — |

@@ -994,7 +994,8 @@ export async function runAgent(
               'raw.githubusercontent.com',
               'release-assets.githubusercontent.com',
               'objects.githubusercontent.com',
-              // Honch platform, docs, and event ingestion
+              // Honch platform (backend API + LLM proxy), app, docs, ingestion
+              'api.honch.io',
               'app.honch.io',
               'docs.honch.io',
               'i.honch.io',

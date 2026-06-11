@@ -47,7 +47,7 @@ export function getConfigPath(): string {
   return join(getConfigDir(), 'config.json');
 }
 
-/** Strip a trailing slash so `https://app.honch.io` and `.../` share a key. */
+/** Strip a trailing slash so `https://api.honch.io` and `.../` share a key. */
 function normalizeKey(apiBaseUrl: string): string {
   return apiBaseUrl.replace(/\/+$/, '');
 }

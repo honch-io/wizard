@@ -25,7 +25,7 @@ import { openBrowser } from './open-browser';
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
 
 export interface BrowserLoginOptions {
-  /** Platform base URL, e.g. https://app.honch.io. */
+  /** Platform API base URL (backend), e.g. https://api.honch.io. */
   apiBaseUrl: string;
   /** Overall timeout; defaults to 5 minutes. */
   timeoutMs?: number;

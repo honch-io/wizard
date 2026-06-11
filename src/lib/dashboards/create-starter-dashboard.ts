@@ -19,7 +19,7 @@ export interface CreateStarterDashboardOptions {
   userBearer: string;
   /** Honch project UUID. */
   projectId: string;
-  /** Platform base URL the API calls go to, e.g. https://app.honch.io. */
+  /** Platform API base URL the API calls go to, e.g. https://api.honch.io. */
   apiBaseUrl: string;
   /**
    * App URL used to build the dashboard link. Defaults to {@link apiBaseUrl}
