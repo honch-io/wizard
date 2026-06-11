@@ -212,6 +212,111 @@ export function mergeEnvValues(
 }
 
 // ---------------------------------------------------------------------------
+// ESP-IDF sdkconfig reconciliation
+//
+// ESP-IDF has a subtle, dangerous default: a value already present in the
+// build-time `sdkconfig` ALWAYS wins over anything in the `sdkconfig.defaults*`
+// files, and bare ESP-IDF does not even read `sdkconfig.defaults.local` unless
+// CMakeLists lists it in SDKCONFIG_DEFAULTS. So writing a project key into
+// `sdkconfig.defaults.local` is silently ineffective when (a) a stale
+// `sdkconfig` already pins that key, or (b) the defaults file is not wired into
+// the build. Either way the firmware is flashed with the wrong/old key and
+// capture returns 401 — with no error at config or build time. These helpers
+// make a defaults-file write actually take effect.
+// ---------------------------------------------------------------------------
+
+/** True if `filePath` is an ESP-IDF Kconfig defaults file (sdkconfig.defaults[.local|.<target>]). */
+export function isEspIdfSdkconfigDefaults(filePath: string): boolean {
+  return /^sdkconfig\.defaults(\.[A-Za-z0-9_.-]+)?$/.test(
+    path.basename(filePath),
+  );
+}
+
+/**
+ * Remove the given CONFIG_* keys from an existing `sdkconfig` body so they no
+ * longer shadow the values supplied by the defaults files. Returns the new
+ * content and the list of keys actually stripped (in first-seen order).
+ */
+export function stripSdkconfigKeys(
+  content: string,
+  keys: readonly string[],
+): { content: string; stripped: string[] } {
+  const keySet = new Set(keys);
+  const stripped: string[] = [];
+  const kept = content.split('\n').filter((line) => {
+    const match = line.match(/^\s*(CONFIG_[A-Za-z0-9_]+)\s*=/);
+    if (match && keySet.has(match[1])) {
+      if (!stripped.includes(match[1])) stripped.push(match[1]);
+      return false;
+    }
+    return true;
+  });
+  return { content: kept.join('\n'), stripped };
+}
+
+/**
+ * Ensure the ESP-IDF root CMakeLists wires `defaultsFileName` into
+ * SDKCONFIG_DEFAULTS (it is NOT read otherwise). SDKCONFIG_DEFAULTS must be set
+ * before `project()`, so a freshly-created entry is inserted just above the
+ * `include(... project.cmake)` line. Idempotent and conservative — it never
+ * edits a SDKCONFIG_DEFAULTS it can't safely parse, and never inserts a second
+ * one. The returned `status` lets the caller decide whether to warn:
+ *  - `already`     — the file is already referenced; nothing to do.
+ *  - `wired`       — appended to / created a SDKCONFIG_DEFAULTS (content changed).
+ *  - `unparseable` — a SDKCONFIG_DEFAULTS exists in a form we won't rewrite; the
+ *                    caller must tell the user to add the file manually.
+ *  - `no-include`  — no `project.cmake` include found; not a standard root file.
+ */
+export function ensureSdkconfigDefaultsWired(
+  content: string,
+  defaultsFileName: string,
+): {
+  content: string;
+  changed: boolean;
+  status: 'already' | 'wired' | 'unparseable' | 'no-include';
+} {
+  const hasDefaultsVar = /SDKCONFIG_DEFAULTS/i.test(content);
+
+  // Already references this defaults file anywhere — assume it is wired in and
+  // leave the file untouched (covers quoted, unquoted, and multi-line lists).
+  if (hasDefaultsVar && content.includes(defaultsFileName)) {
+    return { content, changed: false, status: 'already' };
+  }
+
+  // Append to a single-line quoted list, the only form we rewrite safely.
+  const quoted = content.match(
+    /set\s*\(\s*SDKCONFIG_DEFAULTS\s+"([^"]*)"\s*\)/i,
+  );
+  if (quoted) {
+    return {
+      content: content.replace(
+        quoted[0],
+        `set(SDKCONFIG_DEFAULTS "${quoted[1]};${defaultsFileName}")`,
+      ),
+      changed: true,
+      status: 'wired',
+    };
+  }
+
+  // A SDKCONFIG_DEFAULTS exists but not in a form we can safely edit — do not
+  // risk a conflicting second declaration; let the caller warn instead.
+  if (hasDefaultsVar) {
+    return { content, changed: false, status: 'unparseable' };
+  }
+
+  const includeMatch = content.match(
+    /^[^\n]*include\([^\n]*project\.cmake[^\n]*\)[^\n]*$/m,
+  );
+  if (!includeMatch) return { content, changed: false, status: 'no-include' };
+  const line = `set(SDKCONFIG_DEFAULTS "sdkconfig.defaults;${defaultsFileName}")\n`;
+  return {
+    content: content.replace(includeMatch[0], `${line}${includeMatch[0]}`),
+    changed: true,
+    status: 'wired',
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Audit ledger helpers
 // ---------------------------------------------------------------------------
 
@@ -506,13 +611,82 @@ export async function createWizardToolsServer(options: WizardToolsOptions) {
       const envFileName = path.basename(resolved);
       ensureGitignoreCoverage(workingDirectory, envFileName);
 
+      // ESP-IDF: a defaults file is silently ineffective unless (a) no stale
+      // `sdkconfig` shadows the keys, and (b) CMakeLists wires the file into
+      // SDKCONFIG_DEFAULTS. Reconcile both deterministically so the provisioned
+      // key actually compiles into the firmware instead of an old/leftover one.
+      const notes: string[] = [];
+      if (isEspIdfSdkconfigDefaults(resolved)) {
+        const keys = Object.keys(resolvedValues);
+
+        // ESP-IDF writes `sdkconfig` next to the top-level CMakeLists (the
+        // project root = workingDirectory), regardless of where the defaults
+        // file lives.
+        const sdkconfigPath = path.join(workingDirectory, 'sdkconfig');
+        if (fs.existsSync(sdkconfigPath)) {
+          const { content: reconciled, stripped } = stripSdkconfigKeys(
+            fs.readFileSync(sdkconfigPath, 'utf8'),
+            keys,
+          );
+          if (stripped.length > 0) {
+            fs.writeFileSync(sdkconfigPath, reconciled, 'utf8');
+            logToFile(
+              `set_env_values: stripped ${stripped.join(
+                ', ',
+              )} from ${sdkconfigPath} to clear stale shadow`,
+            );
+            notes.push(
+              `Removed ${stripped.join(
+                ', ',
+              )} from existing sdkconfig so the new value is not shadowed (ESP-IDF: sdkconfig overrides defaults).`,
+            );
+          }
+        }
+
+        const cmakePath = path.join(workingDirectory, 'CMakeLists.txt');
+        if (fs.existsSync(cmakePath)) {
+          const before = fs.readFileSync(cmakePath, 'utf8');
+          const {
+            content: after,
+            changed,
+            status,
+          } = ensureSdkconfigDefaultsWired(before, envFileName);
+          if (changed) {
+            fs.writeFileSync(cmakePath, after, 'utf8');
+            notes.push(
+              `Wired ${envFileName} into SDKCONFIG_DEFAULTS in CMakeLists.txt (bare ESP-IDF does not read it otherwise).`,
+            );
+          } else if (status === 'unparseable') {
+            notes.push(
+              `WARNING: CMakeLists.txt sets SDKCONFIG_DEFAULTS in a form the wizard will not edit — confirm it includes "${envFileName}", or ESP-IDF will not read this file.`,
+            );
+          } else if (status === 'no-include') {
+            notes.push(
+              `WARNING: could not locate the project.cmake include in CMakeLists.txt — add "${envFileName}" to SDKCONFIG_DEFAULTS before project(), or ESP-IDF will not read this file.`,
+            );
+          }
+        } else {
+          notes.push(
+            `WARNING: no root CMakeLists.txt found — ensure ${envFileName} is listed in SDKCONFIG_DEFAULTS, or ESP-IDF will not read it.`,
+          );
+        }
+
+        notes.push(
+          'Before flashing, run `idf.py reconfigure` and confirm CONFIG_HONCH_API_KEY in the generated sdkconfig matches the provisioned key.',
+        );
+      }
+
       return {
         content: [
           {
             type: 'text' as const,
-            text: `Updated ${Object.keys(args.values).length} key(s) in ${
-              args.filePath
-            }`,
+            text:
+              `Updated ${Object.keys(args.values).length} key(s) in ${
+                args.filePath
+              }` +
+              (notes.length > 0
+                ? `\n${notes.map((note) => `- ${note}`).join('\n')}`
+                : ''),
           },
         ],
       };
@@ -552,7 +726,7 @@ export async function createWizardToolsServer(options: WizardToolsOptions) {
 
   const auditSeedChecks = tool(
     'audit_seed_checks',
-    'Seed the audit ledger at .posthog-audit-checks.json with the full set of pending checks. Call this once at the start of the audit. Atomically replaces any existing ledger.',
+    'Seed the audit ledger at .honch-audit-checks.json with the full set of pending checks. Call this once at the start of the audit. Atomically replaces any existing ledger.',
     {
       checks: z
         .array(auditCheckSchema)
@@ -578,7 +752,7 @@ export async function createWizardToolsServer(options: WizardToolsOptions) {
 
   const auditAddChecks = tool(
     'audit_add_checks',
-    'Append one or more pending checks to the existing audit ledger at .posthog-audit-checks.json. Call audit_seed_checks first. Atomically rejects duplicate ids without changing the ledger.',
+    'Append one or more pending checks to the existing audit ledger at .honch-audit-checks.json. Call audit_seed_checks first. Atomically rejects duplicate ids without changing the ledger.',
     {
       checks: z
         .array(auditCheckSchema)

@@ -67,6 +67,46 @@ describe('verifyFirmwareInstall — esp-idf', () => {
     );
     expect(keyCheck?.status).toBe('passed');
   });
+
+  it('fails when a non-empty sdkconfig key does not match the provisioned key', () => {
+    const dir = tempProject();
+    writeFileSync(
+      join(dir, 'sdkconfig'),
+      'CONFIG_HONCH_API_KEY="honch_stale_local_key"\n',
+    );
+    const { run } = makeRunner(() => fail('no idf'));
+
+    const keyCheck = verifyFirmwareInstall(
+      'esp-idf',
+      dir,
+      run,
+      'honch_provisioned_prod_key',
+    ).find((o) => o.label === 'ESP-IDF Honch key');
+
+    expect(keyCheck?.status).toBe('failed');
+    expect(keyCheck?.detail).toContain('does not match the provisioned');
+    // the full secret is never dumped into the report
+    expect(keyCheck?.detail).not.toContain('honch_stale_local_key');
+  });
+
+  it('passes when the sdkconfig key matches the provisioned key', () => {
+    const dir = tempProject();
+    writeFileSync(
+      join(dir, 'sdkconfig'),
+      'CONFIG_HONCH_API_KEY="honch_match"\n',
+    );
+    const { run } = makeRunner(() => ok());
+
+    const keyCheck = verifyFirmwareInstall(
+      'esp-idf',
+      dir,
+      run,
+      'honch_match',
+    ).find((o) => o.label === 'ESP-IDF Honch key');
+
+    expect(keyCheck?.status).toBe('passed');
+    expect(keyCheck?.detail).toContain('matches the provisioned');
+  });
 });
 
 describe('verifyFirmwareInstall — c-posix', () => {

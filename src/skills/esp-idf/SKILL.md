@@ -142,8 +142,31 @@ idf_component_register(SRCS "app_main.c" INCLUDE_DIRS "." REQUIRES honch)
 ## Configure safely
 
 - **Never** write the raw project API key into source or `sdkconfig`. Use the
-  wizard's secret-ref env tool, or a gitignored `sdkconfig.defaults.local` /
-  Kconfig value, and read it via `CONFIG_*`.
+  wizard's `set_env_values` tool to write `CONFIG_HONCH_API_KEY` /
+  `CONFIG_HONCH_HOST` into the gitignored `sdkconfig.defaults.local`, and read
+  them via `CONFIG_*`.
+- **Make the key actually take effect — this is the #1 silent failure on
+  ESP-IDF.** A value in `sdkconfig.defaults*` is ineffective unless BOTH hold:
+  1. **No stale `sdkconfig` shadows it.** ESP-IDF: a value already in the
+     build-time `sdkconfig` always overrides the defaults files. A leftover
+     `sdkconfig` (from a prior build, a previous wizard run, or local dev) will
+     keep an OLD `CONFIG_HONCH_API_KEY`, and the firmware flashes with the wrong
+     key → capture returns `401` with no build-time error.
+  2. **CMakeLists wires the file in.** Bare ESP-IDF does NOT read
+     `sdkconfig.defaults.local` — it must appear in `SDKCONFIG_DEFAULTS`
+     (set before `project()`), e.g.
+     `set(SDKCONFIG_DEFAULTS "sdkconfig.defaults;sdkconfig.defaults.local")`.
+
+  `set_env_values` now reconciles both automatically when you write to
+  `sdkconfig.defaults.local` (it strips any shadowing `CONFIG_HONCH_*` from an
+  existing `sdkconfig` and wires `SDKCONFIG_DEFAULTS`). **Read its output** — if
+  it prints a `WARNING:` about wiring, fix CMakeLists yourself before continuing.
+- **Verify the effective key before reporting success.** If the toolchain is
+  present, run `idf.py reconfigure` and confirm the generated `sdkconfig`'s
+  `CONFIG_HONCH_API_KEY` matches the provisioned key
+  (`grep CONFIG_HONCH_API_KEY sdkconfig`). If no toolchain is available, tell the
+  user the exact command and that a stale `sdkconfig` (if any) was reconciled, so
+  a plain `idf.py build` will now pick up the provisioned key.
 - Set `host` to the capture base (`https://i.honch.io`), plus
   `device_model`, `firmware_version`, and a caller-owned `uint8_t` event buffer
   (`>= 8192` bytes) with its size.
