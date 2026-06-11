@@ -31,8 +31,11 @@ if (process.env.NODE_ENV === 'test') {
 
 import { Wizard } from './src/wizard';
 import { basicIntegrationCommand } from './src/commands/basic-integration';
+import { loginCommand } from './src/commands/login';
 
-// The Honch wizard has a single entry point: paste a bearer token and it
-// installs the Honch SDK. (PostHog's audit / revenue / migration / doctor /
-// mcp / sourcemap subcommands were removed in the fork.)
-Wizard.use(basicIntegrationCommand).init();
+// The Honch wizard has two entry points: the default command installs the
+// Honch SDK (paste a bearer token, or use a token saved by `honch login`), and
+// `honch login` performs a browser sign-in that saves that token for reuse.
+// (PostHog's audit / revenue / migration / doctor / mcp / sourcemap
+// subcommands were removed in the fork.)
+Wizard.use(basicIntegrationCommand, loginCommand).init();

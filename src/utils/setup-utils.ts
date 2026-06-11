@@ -423,7 +423,7 @@ export async function getOrAskForProjectData(options: {
   const bearer = normalizeHonchBearerToken(options.token);
   if (!bearer) {
     getUI().log.error(
-      'No Honch token provided. Pass it as the first argument, --token <bearer>, or set HONCH_WIZARD_TOKEN.',
+      'No Honch token found. Run `honch login` to sign in (it saves your token for future runs), or pass it as the first argument, --token <bearer>, or HONCH_WIZARD_TOKEN.',
     );
     await abort();
     throw new Error('unreachable');
@@ -448,9 +448,24 @@ export async function getOrAskForProjectData(options: {
 
   // Mint the short-lived wizard token that authenticates the agent's LLM
   // calls through the proxy. Requires the normal user bearer.
-  const { accessToken: wizardToken } = await withProgress('login', () =>
-    client.createWizardToken(bearer),
-  );
+  let wizardToken: string;
+  try {
+    ({ accessToken: wizardToken } = await withProgress('login', () =>
+      client.createWizardToken(bearer),
+    ));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    // A rejected bearer (commonly an expired saved login) — point the user at
+    // `honch login` rather than surfacing a raw HTTP 401/403.
+    if (/HTTP 401|HTTP 403/.test(message)) {
+      getUI().log.error(
+        'Your Honch login was rejected (it may have expired). Run `honch login` to sign in again.',
+      );
+      await abort();
+      throw new Error('unreachable');
+    }
+    throw error;
+  }
   logToFile('[setup-utils] minted wizard token');
 
   // List projects to resolve the capture key. The backend rejects the wizard

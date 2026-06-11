@@ -43,6 +43,7 @@ type RuntimeEnvKey =
   | 'HONCH_WIZARD_BENCHMARK_CONFIG'
   | 'HONCH_WIZARD_BENCHMARK_FILE'
   | 'HONCH_WIZARD_LOG_DIR'
+  | 'HONCH_WIZARD_CONFIG_DIR'
   | 'HONCH_WIZARD_DEBUG'
   | 'DEBUG'
   // Agent / MCP + platform bearer token
