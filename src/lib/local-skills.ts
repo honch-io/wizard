@@ -57,7 +57,21 @@ const SENTINEL_SKILL = path.join('esp-idf', 'SKILL.md');
  */
 function searchAnchors(): string[] {
   const anchors: string[] = [];
-  if (process.argv[1]) anchors.push(path.dirname(process.argv[1]));
+  const entry = process.argv[1];
+  if (entry) {
+    anchors.push(path.dirname(entry));
+    // Under npx / global / `bun link` installs the entry is a `.bin/<name>`
+    // SYMLINK into the package (`…/.bin/honcho-wizard` → `…/honcho-wizard/dist/
+    // bin.js`). Its dirname (`.bin`) has no skills, and the ESM bundle has no
+    // `__dirname`, so follow the symlink to the real `…/dist/bin.js` whose
+    // dirname holds `skills/`. This is the path npx actually runs through.
+    try {
+      const real = fs.realpathSync(entry);
+      if (real !== entry) anchors.push(path.dirname(real));
+    } catch {
+      // entry may not exist on disk (some harnesses) — ignore.
+    }
+  }
   if (typeof __dirname !== 'undefined') {
     anchors.push(__dirname, path.join(__dirname, '..'));
   }

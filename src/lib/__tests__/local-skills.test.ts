@@ -34,6 +34,36 @@ describe('local-skills', () => {
     }
   });
 
+  it('resolves skills through the .bin symlink (npx / global install layout)', () => {
+    // Reproduce an npx install:
+    //   <root>/node_modules/honcho-wizard/dist/{bin.js,skills/esp-idf/SKILL.md}
+    //   <root>/node_modules/.bin/honcho-wizard  ->  ../honcho-wizard/dist/bin.js
+    // npx runs the .bin SYMLINK, so process.argv[1] points at `.bin/<name>`
+    // whose dirname has no skills — resolution must follow the symlink.
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'honch-npx-'));
+    const pkgDist = path.join(root, 'node_modules', 'honcho-wizard', 'dist');
+    const skillDir = path.join(pkgDist, 'skills', 'esp-idf');
+    fs.mkdirSync(skillDir, { recursive: true });
+    fs.writeFileSync(path.join(skillDir, 'SKILL.md'), '---\nname: x\n---\n');
+    fs.writeFileSync(path.join(pkgDist, 'bin.js'), '');
+    const binDir = path.join(root, 'node_modules', '.bin');
+    fs.mkdirSync(binDir, { recursive: true });
+    const symlink = path.join(binDir, 'honcho-wizard');
+    fs.symlinkSync(path.join(pkgDist, 'bin.js'), symlink);
+
+    const prevArgv1 = process.argv[1];
+    process.argv[1] = symlink;
+    try {
+      // realpath both sides: macOS tmpdir lives under /var -> /private/var.
+      expect(fs.realpathSync(localSkillsDir())).toBe(
+        fs.realpathSync(path.join(pkgDist, 'skills')),
+      );
+    } finally {
+      process.argv[1] = prevArgv1;
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('reads the skill name from SKILL.md frontmatter', () => {
     expect(readLocalSkill('esp-idf')).toEqual({
       id: 'esp-idf',
