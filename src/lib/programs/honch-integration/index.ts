@@ -5,8 +5,11 @@ import { basename, extname } from 'node:path';
 
 import type { ProgramConfig } from '@lib/programs/program-step';
 import type { ProgramRun } from '@lib/agent/agent-runner';
-import type { WizardSession } from '@lib/wizard-session';
+import type { Credentials, WizardSession } from '@lib/wizard-session';
 import { OutroKind } from '@lib/wizard-session';
+import type { FrameworkConfig } from '@lib/framework-config';
+import { logToFile } from '@utils/debug';
+import { createStarterDashboard } from '@lib/dashboards/create-starter-dashboard';
 import {
   DEFAULT_PACKAGE_INSTALLATION,
   SPINNER_MESSAGE,
@@ -177,6 +180,41 @@ function runFirmwareVerification(installDir: string, targetId: string): void {
 }
 
 /**
+ * Guarantee the user lands on a starter dashboard. The agent normally creates
+ * one via the create_starter_dashboard tool (tailored to the events it
+ * instrumented), which sets `session.dashboardUrl`. If it didn't — it aborted
+ * early, or skipped the step — fall back to a baseline-only dashboard created
+ * here. Uses the user bearer (`session.token`); the project API rejects the
+ * wizard JWT. Best-effort: a failure never fails the install.
+ */
+async function ensureStarterDashboard(
+  session: WizardSession,
+  credentials: Credentials,
+  config: FrameworkConfig,
+): Promise<void> {
+  if (session.dashboardUrl) return; // agent already made one
+  if (!session.token) return; // no bearer → cannot create
+  try {
+    const result = await createStarterDashboard({
+      userBearer: session.token,
+      projectId: credentials.projectId,
+      apiBaseUrl: session.apiBaseUrl,
+      frontendUrl: session.frontendUrl,
+      dashboardName: `${config.metadata.name} Overview`,
+      events: [],
+    });
+    getUI().setDashboardUrl(result.dashboardUrl);
+    getUI().log.success(`Created a starter dashboard: ${result.dashboardUrl}`);
+  } catch (error) {
+    logToFile(
+      `[honch-integration] baseline dashboard fallback failed: ${
+        (error as Error).message
+      }`,
+    );
+  }
+}
+
+/**
  * Register the Honch SDK as a git submodule at components/honch before the
  * agent runs. The agent cannot do this itself (its Bash allowlist blocks git /
  * idf.py), so the wizard owns the component install; the agent only wires
@@ -322,7 +360,7 @@ export const honchIntegrationConfig: ProgramConfig = {
       errorMessage: 'Honch integration failed',
       additionalFeatureQueue: session.additionalFeatureQueue,
       maxQuestions: 4,
-      postRun: async (postRunSession) => {
+      postRun: async (postRunSession, credentials) => {
         await ensureExecutableIntegrationChange(
           postRunSession,
           preRunChangeState,
@@ -330,6 +368,11 @@ export const honchIntegrationConfig: ProgramConfig = {
         if (isFirmware) {
           runFirmwareVerification(postRunSession.installDir, targetId);
         }
+        // Baseline dashboard fallback: if the agent didn't create one (e.g. it
+        // aborted before STEP 7), make a baseline-only dashboard so the user
+        // always lands on something. The agent's tool would have set
+        // dashboardUrl already, so this never double-creates.
+        await ensureStarterDashboard(postRunSession, credentials, config);
       },
 
       customPrompt: (ctx) => {
@@ -389,7 +432,11 @@ STEP 4a — Instrument real interactions. Inspect the existing app/firmware beha
 ${topologyStep}
 STEP 5 — Verify. Run only build/test commands already available locally. If a required toolchain is missing, do NOT install it — report the exact command for the user to run.
 
-STEP 6 — Before reporting success, inspect the diff/status and confirm executable code was changed, SDK init is wired, and real interaction events are tracked. Then write a concise markdown report to ./${SETUP_REPORT_FILE} (target, files changed, dependency/config changes, init location, interaction events added, verification run + result, manual follow-up).
+STEP 6 — Before reporting success, inspect the diff/status and confirm executable code was changed, SDK init is wired, and real interaction events are tracked.
+
+STEP 7 — Create a starter dashboard. After the build verifies, call the create_starter_dashboard tool (wizard-tools MCP) EXACTLY ONCE, passing the events you instrumented in STEP 4a as { name: "<exact event name passed to track()>" }. Use only the real event-name strings from the code you wrote; do not include baseline charts (total events, active devices) — the tool adds those automatically. The tool runs locally and returns the dashboard URL; never fabricate that URL. If it returns an error, note it in the report and continue. Skip this step only if you instrumented no events and the install failed.
+
+STEP 8 — Write a concise markdown report to ./${SETUP_REPORT_FILE} (target, files changed, dependency/config changes, init location, interaction events added, verification run + result, the dashboard URL from STEP 7 if created, manual follow-up).
 
 Hard rules: treat the installed headers + ${
           config.metadata.docsUrl
@@ -397,7 +444,7 @@ Hard rules: treat the installed headers + ${
 `;
       },
 
-      buildOutroData: (_sess, credentials) => {
+      buildOutroData: (sess, credentials) => {
         const envVars = config.environment.getEnvVars(
           credentials.projectApiKey,
           credentials.host,
@@ -407,6 +454,7 @@ Hard rules: treat the installed headers + ${
           Object.keys(envVars).length > 0
             ? 'Wrote the Honch capture key + host to the project config'
             : '',
+          sess.dashboardUrl ? 'Created a starter dashboard + insights' : '',
         ].filter(Boolean);
 
         return {
@@ -415,6 +463,7 @@ Hard rules: treat the installed headers + ${
           reportFile: SETUP_REPORT_FILE,
           changes,
           docsUrl: config.metadata.docsUrl,
+          dashboardUrl: sess.dashboardUrl ?? undefined,
         };
       },
     };

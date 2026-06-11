@@ -170,6 +170,12 @@ export interface WizardSession {
   token?: string;
   /** Honch platform base URL (LLM proxy + projects API). */
   apiBaseUrl: string;
+  /**
+   * Honch app URL used to build the dashboard link. Same host as the API in
+   * the hosted product; differs only for split-host/self-hosted deployments.
+   * Falls back to {@link apiBaseUrl} when unset.
+   */
+  frontendUrl: string;
   /** Honch event-ingestion host the installed SDK uploads to. */
   captureHost: string;
   /** `--project` override: install into this project id or name. */
@@ -293,6 +299,7 @@ export function buildSession(args: {
   installDir?: string;
   token?: string;
   apiBaseUrl?: string;
+  frontendUrl?: string;
   captureHost?: string;
   project?: string;
   deviceModel?: string;
@@ -315,6 +322,7 @@ export function buildSession(args: {
     installDir: args.installDir ?? process.cwd(),
     token: args.token,
     apiBaseUrl: args.apiBaseUrl ?? DEFAULT_API_BASE_URL,
+    frontendUrl: args.frontendUrl ?? args.apiBaseUrl ?? DEFAULT_API_BASE_URL,
     captureHost: args.captureHost ?? DEFAULT_CAPTURE_HOST,
     project: args.project,
     deviceModel: args.deviceModel,

@@ -5,6 +5,7 @@
 
 import path from 'path';
 import * as fs from 'fs';
+import { createRequire } from 'node:module';
 import { getUI, type SpinnerHandle } from '@ui';
 import { debug, logToFile, initLogFile, getLogFilePath } from '@utils/debug';
 import type { WizardRunOptions } from '@utils/types';
@@ -52,12 +53,29 @@ async function getSDKModule(): Promise<any> {
 }
 
 /**
+ * A `require` usable for resolving installed package paths in every context we
+ * run in:
+ *   - ts-jest (CommonJS) and the bundled dist (rolldown shims `require`):
+ *     the `require` global is present, so use it directly.
+ *   - `tsx`/ESM dev (`bun run try`): `require` is undefined, so synthesize one
+ *     from the CLI entry path (same package as this module).
+ * We deliberately avoid `import.meta` so the file still compiles under
+ * ts-jest's CommonJS target (TS1343).
+ */
+const requireFromHere =
+  typeof require !== 'undefined'
+    ? require
+    : createRequire(process.argv[1] || process.cwd());
+
+/**
  * Get the path to the bundled Claude Code CLI from the SDK package.
  * This ensures we use the SDK's bundled version rather than the user's installed Claude Code.
  */
 function getClaudeCodeExecutablePath(): string {
   // require.resolve finds the package's main entry, then we get cli.js from same dir
-  const sdkPackagePath = require.resolve('@anthropic-ai/claude-agent-sdk');
+  const sdkPackagePath = requireFromHere.resolve(
+    '@anthropic-ai/claude-agent-sdk',
+  );
   return path.join(path.dirname(sdkPackagePath), 'cli.js');
 }
 
@@ -254,6 +272,11 @@ export type AgentConfig = {
   askBridge?: import('@lib/wizard-ask-bridge').WizardAskBridge;
   /** Per-run cap on `wizard_ask` invocations. Defaults to 10. */
   askMaxQuestions?: number;
+  /**
+   * Enables the `create_starter_dashboard` wizard-tool. Carries the user
+   * bearer token, which stays local to this process and never reaches the LLM.
+   */
+  dashboards?: import('@lib/wizard-tools').DashboardToolDeps;
   /** Extra tools added on top of BASE_ALLOWED_TOOLS for this run. */
   allowedTools?: readonly string[];
   /** Tools removed from BASE_ALLOWED_TOOLS for this run. */
@@ -689,6 +712,7 @@ export async function initializeAgent(
       detectPackageManager: config.detectPackageManager,
       askBridge: config.askBridge,
       askMaxQuestions: config.askMaxQuestions,
+      dashboards: config.dashboards,
     });
     mcpServers['wizard-tools'] = wizardToolsServer;
 

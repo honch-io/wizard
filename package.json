@@ -118,6 +118,7 @@
     "test:e2e": "bun run build && ./e2e-tests/run.sh",
     "test:e2e-record": "export RECORD_FIXTURES=true && bun run build && ./e2e-tests/run.sh",
     "try": "tsx bin.ts",
+  "try:dashboard": "tsx scripts/try-dashboard.ts",
     "dev": "bun run build && bun link && bun run build:watch",
     "test:watch": "jest --watch",
     "prepare": "husky || true"

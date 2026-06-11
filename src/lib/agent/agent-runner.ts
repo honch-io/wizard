@@ -348,6 +348,18 @@ export async function runProgram(
       integrationLabel: config.integrationLabel,
       askBridge,
       askMaxQuestions: config.maxQuestions,
+      // Enables the create_starter_dashboard tool. Uses the user bearer
+      // (session.token) — the project API rejects the wizard JWT — and keeps
+      // it local to this process; only the dashboard URL flows to the UI.
+      dashboards: session.token
+        ? {
+            userBearer: session.token,
+            projectId,
+            apiBaseUrl,
+            frontendUrl: session.frontendUrl,
+            onCreated: (url) => getUI().setDashboardUrl(url),
+          }
+        : undefined,
       allowedTools: programConfig.allowedTools,
       disallowedTools: programConfig.disallowedTools,
       getPendingQuestion: () => session.pendingQuestion,

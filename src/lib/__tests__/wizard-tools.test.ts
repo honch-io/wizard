@@ -307,6 +307,12 @@ describe('WIZARD_TOOL_NAMES', () => {
   it('exposes wizard_ask so skills can collect structured input from the user', () => {
     expect(WIZARD_TOOL_NAMES.wizardAsk).toBe('mcp__wizard-tools__wizard_ask');
   });
+
+  it('exposes create_starter_dashboard so the agent can build a dashboard post-install', () => {
+    expect(WIZARD_TOOL_NAMES.createStarterDashboard).toBe(
+      'mcp__wizard-tools__create_starter_dashboard',
+    );
+  });
 });
 
 describe('evaluateAskCap', () => {
