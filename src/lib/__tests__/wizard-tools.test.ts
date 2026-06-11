@@ -9,6 +9,7 @@ import {
   ensureGitignoreCoverage,
   ensureSdkconfigDefaultsWired,
   evaluateAskCap,
+  formatSdkconfigValue,
   isEspIdfSdkconfigDefaults,
   mergeEnvValues,
   parseEnvKeys,
@@ -121,6 +122,35 @@ describe('isEspIdfSdkconfigDefaults', () => {
     expect(isEspIdfSdkconfigDefaults('sdkconfig')).toBe(false);
     expect(isEspIdfSdkconfigDefaults('.env.local')).toBe(false);
     expect(isEspIdfSdkconfigDefaults('my.sdkconfig.defaults')).toBe(false);
+  });
+});
+
+describe('formatSdkconfigValue', () => {
+  it('quotes bare string values so ESP-IDF does not drop them', () => {
+    expect(formatSdkconfigValue('honch_6iWAvVXxN7DC')).toBe(
+      '"honch_6iWAvVXxN7DC"',
+    );
+    expect(formatSdkconfigValue('https://i.honch.io')).toBe(
+      '"https://i.honch.io"',
+    );
+    expect(formatSdkconfigValue('')).toBe('""');
+  });
+
+  it('leaves an already-quoted value untouched (no double-quoting)', () => {
+    expect(formatSdkconfigValue('"honch_abc"')).toBe('"honch_abc"');
+  });
+
+  it('leaves bare bool/int/hex scalars untouched', () => {
+    expect(formatSdkconfigValue('y')).toBe('y');
+    expect(formatSdkconfigValue('n')).toBe('n');
+    expect(formatSdkconfigValue('4096')).toBe('4096');
+    expect(formatSdkconfigValue('-1')).toBe('-1');
+    expect(formatSdkconfigValue('0x1F')).toBe('0x1F');
+  });
+
+  it('escapes embedded quotes and backslashes (Wi-Fi creds survive)', () => {
+    expect(formatSdkconfigValue('pa"ss')).toBe('"pa\\"ss"');
+    expect(formatSdkconfigValue('home\\net')).toBe('"home\\\\net"');
   });
 });
 

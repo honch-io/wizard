@@ -261,6 +261,24 @@ export function isEspIdfSdkconfigDefaults(filePath: string): boolean {
 }
 
 /**
+ * Format a value for an ESP-IDF `sdkconfig.defaults*` file. Kconfig *string*
+ * symbols require the value to be double-quoted (`CONFIG_X="value"`): an
+ * unquoted value is parsed as a malformed string literal and silently dropped,
+ * so the symbol keeps its Kconfig `default` (often `""`) and the wizard's key
+ * never reaches the firmware. We therefore quote anything that isn't already
+ * quoted, leaving the bare scalars that bool/int/hex symbols use (`y`, `n`,
+ * integers, `0x..`) untouched. Backslashes and quotes are escaped so SSIDs /
+ * passwords survive verbatim.
+ */
+export function formatSdkconfigValue(value: string): string {
+  if (/^".*"$/s.test(value)) return value; // already quoted by the agent
+  if (value === 'y' || value === 'n') return value; // bool
+  if (/^-?\d+$/.test(value) || /^0x[0-9a-fA-F]+$/.test(value)) return value; // int / hex
+  const escaped = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  return `"${escaped}"`;
+}
+
+/**
  * Remove the given CONFIG_* keys from an existing `sdkconfig` body so they no
  * longer shadow the values supplied by the defaults files. Returns the new
  * content and the list of keys actually stripped (in first-seen order).
@@ -626,7 +644,18 @@ export async function createWizardToolsServer(options: WizardToolsOptions) {
       const existing = fs.existsSync(resolved)
         ? fs.readFileSync(resolved, 'utf8')
         : '';
-      const content = mergeEnvValues(existing, resolvedValues);
+      // ESP-IDF Kconfig string symbols need quoted values, or the line is
+      // silently dropped and the symbol falls back to its (often empty)
+      // default. Quote when writing a defaults file; leave .env untouched.
+      const valuesToWrite = isEspIdfSdkconfigDefaults(resolved)
+        ? Object.fromEntries(
+            Object.entries(resolvedValues).map(([k, v]) => [
+              k,
+              formatSdkconfigValue(v),
+            ]),
+          )
+        : resolvedValues;
+      const content = mergeEnvValues(existing, valuesToWrite);
 
       // Ensure parent directory exists
       const dir = path.dirname(resolved);
