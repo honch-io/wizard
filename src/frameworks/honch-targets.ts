@@ -7,9 +7,8 @@
  * agent-prompt hints. The deep install knowledge lives in the bundled
  * per-target skill (src/skills/<id>/SKILL.md), which the agent reads.
  *
- * Firmware targets (esp-idf, c-posix, micropython) run the Device SDK on
- * hardware; mobile targets (react-native-relay, ios-swift, android-kotlin)
- * run the App SDK / relay in a companion app.
+ * Firmware targets (esp-idf, arduino, c-posix, micropython) run the Device SDK
+ * on hardware; the react-native-relay target runs the relay in a companion app.
  */
 
 import * as fs from 'node:fs';
@@ -72,6 +71,38 @@ function detectEspIdf(installDir: string): boolean {
   ]);
 }
 
+/** True if the directory (root or one level deep) holds an Arduino `.ino` sketch. */
+function hasInoSketch(installDir: string): boolean {
+  try {
+    for (const entry of fs.readdirSync(installDir, { withFileTypes: true })) {
+      if (entry.isFile() && entry.name.endsWith('.ino')) return true;
+      if (entry.isDirectory()) {
+        try {
+          if (
+            fs
+              .readdirSync(join(installDir, entry.name))
+              .some((f) => f.endsWith('.ino'))
+          )
+            return true;
+        } catch {
+          // unreadable subdir — ignore
+        }
+      }
+    }
+  } catch {
+    // unreadable project root — ignore
+  }
+  return false;
+}
+
+function detectArduino(installDir: string): boolean {
+  // arduino-cli sketch profile, or an Arduino-framework PlatformIO project.
+  if (fileExists(installDir, 'sketch.yaml')) return true;
+  const pio = readText(installDir, 'platformio.ini');
+  if (pio && /framework\s*=\s*[^\n]*\barduino\b/i.test(pio)) return true;
+  return hasInoSketch(installDir);
+}
+
 function detectCPosix(installDir: string): boolean {
   const t = readText(installDir, 'CMakeLists.txt') ?? '';
   return (
@@ -101,29 +132,6 @@ function detectReactNativeRelay(installDir: string): boolean {
   );
 }
 
-function detectIosSwift(installDir: string): boolean {
-  if (anyExists(installDir, ['Package.swift', 'Podfile'])) return true;
-  try {
-    return fs
-      .readdirSync(installDir)
-      .some((f) => f.endsWith('.xcodeproj') || f.endsWith('.xcworkspace'));
-  } catch {
-    return false;
-  }
-}
-
-function detectAndroidKotlin(installDir: string): boolean {
-  return anyExists(installDir, [
-    'build.gradle',
-    'build.gradle.kts',
-    'settings.gradle',
-    'settings.gradle.kts',
-    'app/build.gradle',
-    'app/build.gradle.kts',
-    'app/src/main/AndroidManifest.xml',
-  ]);
-}
-
 // ── config factory ──
 
 type Kind = 'firmware' | 'mobile';
@@ -139,8 +147,22 @@ function honchTarget(opts: {
   successMessage: string;
   estimatedDurationMinutes: number;
   packageInstallation?: string;
+  /**
+   * The config-symbol names the wizard writes the capture key + host under, so
+   * the outro reflects what was actually written. ESP-IDF reads these through
+   * Kconfig, so its symbols carry the `CONFIG_` prefix (`CONFIG_HONCH_API_KEY` /
+   * `CONFIG_HONCH_HOST`) — the same names firmware-verify and the skill use;
+   * every other target reads bare env / build-flag names. Keep these in sync
+   * with the skill + firmware-verify if getEnvVars ever drives a real write.
+   */
+  envVarNames?: { key: string; host: string };
 }): FrameworkConfig {
   const firmware = opts.kind === 'firmware';
+  const envVarNames =
+    opts.envVarNames ??
+    (firmware
+      ? { key: 'HONCH_API_KEY', host: 'HONCH_HOST' }
+      : { key: 'HONCH_PROJECT_KEY', host: 'HONCH_CAPTURE_HOST' });
   return {
     metadata: {
       name: opts.name,
@@ -157,10 +179,10 @@ function honchTarget(opts: {
     },
     environment: {
       uploadToHosting: false,
-      getEnvVars: (apiKey, host): Record<string, string> =>
-        firmware
-          ? { HONCH_API_KEY: apiKey, HONCH_HOST: host }
-          : { HONCH_PROJECT_KEY: apiKey, HONCH_CAPTURE_HOST: host },
+      getEnvVars: (apiKey, host): Record<string, string> => ({
+        [envVarNames.key]: apiKey,
+        [envVarNames.host]: host,
+      }),
     },
     analytics: { getTags: () => ({ target: opts.id }) },
     prompts: {
@@ -180,7 +202,7 @@ function honchTarget(opts: {
   };
 }
 
-// ── the six targets (detection order: most specific first) ──
+// ── the targets (detection order: most specific first) ──
 
 export const HONCH_TARGETS: readonly FrameworkConfig[] = [
   honchTarget({
@@ -188,6 +210,9 @@ export const HONCH_TARGETS: readonly FrameworkConfig[] = [
     name: 'ESP-IDF',
     kind: 'firmware',
     packageName: 'honch',
+    // ESP-IDF reads the key/host as Kconfig symbols; the wizard writes (and
+    // firmware-verify checks) the CONFIG_-prefixed names, not bare HONCH_*.
+    envVarNames: { key: 'CONFIG_HONCH_API_KEY', host: 'CONFIG_HONCH_HOST' },
     detect: detectEspIdf,
     projectTypeDetection:
       'ESP-IDF firmware: a top-level and main/ CMakeLists.txt using idf_component_register, plus idf_component.yml / sdkconfig.',
@@ -195,11 +220,31 @@ export const HONCH_TARGETS: readonly FrameworkConfig[] = [
       'The wizard has ALREADY registered the Honch SDK as a git submodule at components/honch — do NOT re-add it, replace it with the ESP component manager, vendor a copy, or point at a local path. Just add `REQUIRES honch` to the relevant idf_component_register(...) so the build links it (the SDK repo root is itself the component, so no EXTRA_COMPONENT_DIRS).',
       'honch_init() needs an active IP — call it after Wi-Fi/IP is up, never directly from app_main(); drive honch_tick() from a low-priority task, never an ISR.',
       'Honch calls return honch_err_t (success HONCH_OK), not esp_err_t. Record events with honch_track(event, props, count); honch_capture() does not exist. Read the installed honch.h as the only source of truth.',
+      'The SDK component ships NO Kconfig — CONFIG_HONCH_API_KEY/CONFIG_HONCH_HOST do not exist until you declare them in your app component (main/Kconfig.projbuild). Declare both string symbols there before reading them in C, or set_env_values writes keys that reconfigure silently discards.',
     ],
     successMessage: 'Honch ESP-IDF SDK integrated.',
     estimatedDurationMinutes: 4,
     packageInstallation:
       'Use idf.py / the ESP-IDF component manager, not a Node package manager.',
+  }),
+  honchTarget({
+    id: Integration.arduino,
+    name: 'Arduino ESP32',
+    kind: 'firmware',
+    packageName: 'honch',
+    detect: detectArduino,
+    projectTypeDetection:
+      'An Arduino ESP32 sketch (a .ino file, sketch.yaml, or a PlatformIO project with framework = arduino). ESP32 only — not bare ESP-IDF and not non-ESP32 Arduino boards.',
+    contextLines: [
+      'Preview SDK. Include <Honch.h> and use the wrapper singleton: honch::defaultClient().begin(config) (returns bool), then .track(name, props, count) / .identify / .tick / .flush. Methods return bool — check honch::defaultClient().lastError() on false; there is no honch_err_t/HONCH_OK here. Read the installed Honch.h as the only source of truth.',
+      'Config is a HonchConfig struct (C++ designated initializers): apiKey, host, rootCaPem, deviceModel, firmwareVersion, eventBuffer (caller-owned uint8_t[], >= 8192) + eventBufferSize. Build event properties with honch_prop()/honch_str()/honch_i64() from honch/core (same helpers as the C ports).',
+      'Requires the ESP32 Arduino core plus WiFi, HTTPClient, WiFiClientSecure. Bring up Wi-Fi BEFORE begin(); set rootCaPem for TLS and keep insecureSkipTlsVerify=false in production. Drive .tick() from a dedicated low-priority FreeRTOS pump task (>= 8192-byte stack) — it runs a synchronous HTTPS POST and must never run on an ISR, control loop, or latency-sensitive loop().',
+      'Secrets are compile-time on Arduino: never commit the raw key. For PlatformIO, write the key via set_env_values and inject it with build_flags using ${sysenv.HONCH_API_KEY}; for a plain .ino, keep it in a gitignored secrets header. Read the skill for the exact pattern.',
+    ],
+    successMessage: 'Honch Arduino ESP32 SDK integrated.',
+    estimatedDurationMinutes: 5,
+    packageInstallation:
+      'Use the Arduino Library Manager / arduino-cli lib install, or PlatformIO lib_deps — not a Node package manager.',
   }),
   honchTarget({
     id: Integration.cPosix,
@@ -245,44 +290,12 @@ export const HONCH_TARGETS: readonly FrameworkConfig[] = [
     projectTypeDetection:
       'A React Native app (react-native in package.json), optionally with @honch/react-native-relay.',
     contextLines: [
-      'Install @honch/react-native-relay and create the relay with createMobileRelay({ uploaderConfig: { endpointUrl, projectKey }, durableStore, bleNative, schedulerNative, frameEvents }). Verify the option shape against the installed package types.',
-      'This package RELAYS events from a paired BLE device — it is not a general app-analytics SDK. Feed each received device frame into the relay via receiveFrame(deviceId, frameBytes) (or subscribeNativeFrames()); it forwards them, preserving device_id/timestamp.',
+      'Install @honch/react-native-relay and create the relay with createMobileRelay({ durableStore, uploaderConfig, schedulerNative }) — exactly those three keys. durableStore = createMmkvRelayStore(createMMKV({ id })); schedulerNative = createRelayNativeBindings(NativeModules.HonchReactNativeRelay).schedulerNative. Verify the option shape against the installed package types.',
+      'uploaderConfig (RelayUploaderConfig) needs ALL of: endpointUrl, projectKey, relayId, relaySdkPlatform, relaySdkVersion, streamId(message), messageId(message) — not just endpointUrl/projectKey.',
+      'This package RELAYS events from a paired BLE device — it is not a general app-analytics SDK. Feed each device frame your BLE stack receives into the relay via relay.receiveFrame(deviceId, frameBytes, { acknowledge }), and write the returned ackBytes back to the device over your ACK characteristic. There is no bleNative/frameEvents option and no subscribeNativeFrames(); the host app owns BLE.',
       'Add BLE permissions: iOS NSBluetoothAlwaysUsageDescription + CoreBluetooth; Android 12+ BLUETOOTH_SCAN/BLUETOOTH_CONNECT + ACCESS_FINE_LOCATION.',
     ],
     successMessage: 'Honch React Native relay integrated.',
     estimatedDurationMinutes: 5,
-  }),
-  honchTarget({
-    id: Integration.iosSwift,
-    name: 'iOS (Swift)',
-    kind: 'mobile',
-    packageName: 'Honch',
-    detect: detectIosSwift,
-    projectTypeDetection:
-      'An iOS project: Package.swift, a .xcodeproj/.xcworkspace, or a Podfile.',
-    contextLines: [
-      'Configure the App SDK with the project capture key + capture host. Mode A: instrument the app with the SDK track/identify calls. Mode B: forward paired-device events with the App SDK relay-ingest method, preserving device_id/timestamp and stamping $relayed. Confirm every symbol (the Analytics entry point and the relay-ingest method name) against the installed SDK header — do not assume names.',
-      'Add it via Swift Package Manager or CocoaPods; do not hardcode the key — use an xcconfig/Info.plist value.',
-    ],
-    successMessage: 'Honch iOS SDK integrated.',
-    estimatedDurationMinutes: 5,
-    packageInstallation:
-      'Use Swift Package Manager or CocoaPods, not a Node package manager.',
-  }),
-  honchTarget({
-    id: Integration.androidKotlin,
-    name: 'Android (Kotlin)',
-    kind: 'mobile',
-    packageName: 'io.honch:honch-android',
-    detect: detectAndroidKotlin,
-    projectTypeDetection:
-      'An Android project: build.gradle(.kts) / settings.gradle and an AndroidManifest.xml.',
-    contextLines: [
-      'Configure the App SDK with the project capture key + capture host. Mode A: instrument the app with the SDK track/identify calls. Mode B: forward paired-device events with the App SDK relay-ingest method, preserving device_id/timestamp and stamping $relayed. Confirm every symbol (the Analytics entry point and the relay-ingest method name) against the installed SDK — do not assume names.',
-      'Add the Gradle implementation dependency; do not hardcode the key — use a gradle property / BuildConfig. Mode B needs Android 12+ BLUETOOTH_SCAN/BLUETOOTH_CONNECT + ACCESS_FINE_LOCATION.',
-    ],
-    successMessage: 'Honch Android SDK integrated.',
-    estimatedDurationMinutes: 5,
-    packageInstallation: 'Use Gradle, not a Node package manager.',
   }),
 ];

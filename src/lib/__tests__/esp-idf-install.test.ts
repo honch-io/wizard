@@ -187,8 +187,12 @@ describe('installEspIdfHonchSubmodule', () => {
     const result = installEspIdfHonchSubmodule(projectDir, git.runner);
 
     expect(result.changed).toBe(true);
-    expect(existsSync(join(projectDir, 'components/honch.pre-wizard'))).toBe(
+    // Backed up outside components/ so ESP-IDF doesn't discover it as a component.
+    expect(existsSync(join(projectDir, '.honch-backup/honch.pre-wizard'))).toBe(
       true,
+    );
+    expect(existsSync(join(projectDir, 'components/honch.pre-wizard'))).toBe(
+      false,
     );
     expect(isHonchSubmoduleRegistered(projectDir)).toBe(true);
   });

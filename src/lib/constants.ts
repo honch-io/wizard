@@ -8,18 +8,18 @@ import { VERSION } from './version';
 
 /**
  * Honch SDK targets. Detection order matters: most specific first (esp-idf
- * before c-posix, since both are CMake). Mobile targets follow firmware.
+ * before arduino before c-posix — all are C/CMake-adjacent ESP32 ports). The
+ * mobile relay follows firmware.
  */
 export enum Integration {
   // Firmware (Device SDK)
   espIdf = 'esp-idf',
+  arduino = 'arduino',
   cPosix = 'c-posix',
   micropython = 'micropython',
 
-  // Mobile (App SDK / relay)
+  // Mobile (relay)
   reactNativeRelay = 'react-native-relay',
-  iosSwift = 'ios-swift',
-  androidKotlin = 'android-kotlin',
 }
 
 export interface Args {
@@ -54,7 +54,7 @@ export const DEFAULT_API_BASE_URL = IS_DEV
 export const DEFAULT_FRONTEND_URL = IS_DEV
   ? 'http://localhost:3000'
   : 'https://app.honch.io';
-/** Honch event-ingestion host the device/app SDK uploads to (X-Honch-Project-Key). */
+/** Honch event-ingestion host the device SDK / mobile relay uploads to (X-Honch-Project-Key). */
 export const DEFAULT_CAPTURE_HOST = IS_DEV
   ? 'http://localhost:8000'
   : 'https://i.honch.io';

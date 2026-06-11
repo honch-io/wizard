@@ -2,7 +2,7 @@
  * Cross-ecosystem package manager detection.
  *
  * Provides a common interface (PackageManagerDetector) that each FrameworkConfig
- * implements, plus shared helpers for Node.js, Python, PHP, and Swift ecosystems.
+ * implements, plus shared helpers for Node.js, Python, and PHP ecosystems.
  * The MCP tool in wizard-tools.ts delegates to whatever detector the
  * current framework supplies.
  */
@@ -194,25 +194,6 @@ export function composerPackageManager(): Promise<PackageManagerInfo> {
 }
 
 // ---------------------------------------------------------------------------
-// Swift (SPM) helper
-// ---------------------------------------------------------------------------
-
-const SPM: DetectedPackageManager = {
-  name: 'spm',
-  label: 'Swift Package Manager',
-  installCommand: 'swift package add-dependency',
-};
-
-export function swiftPackageManager(): Promise<PackageManagerInfo> {
-  return Promise.resolve({
-    detected: [SPM],
-    primary: SPM,
-    recommendation:
-      'Use Swift Package Manager. Add the dependency to Package.swift or via Xcode.',
-  });
-}
-
-// ---------------------------------------------------------------------------
 // Ruby (Bundler) helper
 // ---------------------------------------------------------------------------
 
@@ -228,24 +209,5 @@ export function bundlerPackageManager(): Promise<PackageManagerInfo> {
     detected: [BUNDLER],
     primary: BUNDLER,
     recommendation: 'Use Bundler (bundle add). Run commands with bundle exec.',
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Android (Gradle) helper
-// ---------------------------------------------------------------------------
-
-const GRADLE: DetectedPackageManager = {
-  name: 'gradle',
-  label: 'Gradle',
-  installCommand: 'implementation',
-};
-
-export function gradlePackageManager(): Promise<PackageManagerInfo> {
-  return Promise.resolve({
-    detected: [GRADLE],
-    primary: GRADLE,
-    recommendation:
-      'Add dependencies to build.gradle(.kts) using implementation().',
   });
 }

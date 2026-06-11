@@ -21,8 +21,8 @@ handles everything else — no manual project picking.
    Already have a token? Pass it as `--token`/`HONCH_WIZARD_TOKEN` to skip the
    browser step.
 2. **Auto-detects the target** from your build files:
-   - **ESP-IDF** · **C/POSIX** · **MicroPython** (firmware / Device SDK)
-   - **React Native relay** · **iOS (Swift)** · **Android (Kotlin)** (App SDK / relay)
+   - **ESP-IDF** · **Arduino ESP32** (preview) · **C/POSIX** · **MicroPython** (firmware / Device SDK)
+   - **React Native relay** (forwards a paired BLE device's events to the cloud)
 3. **Reads `https://docs.honch.io` every run** and treats the installed SDK
    headers as the only source of truth — it never invents APIs or hand-encodes
    the wire format.

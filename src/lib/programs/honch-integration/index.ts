@@ -32,7 +32,13 @@ import { getContentBlocks } from './content/index.js';
 export const SETUP_REPORT_FILE = 'honch-setup-report.md';
 export const EVENT_PLAN_FILE = '.honch-events.json';
 
-const FIRMWARE_TARGETS = new Set(['esp-idf', 'c-posix', 'micropython']);
+const FIRMWARE_TARGETS = new Set([
+  'esp-idf',
+  'arduino',
+  'c-posix',
+  'micropython',
+]);
+
 const SOURCE_CHANGE_EXTENSIONS = new Set([
   '.c',
   '.cc',
@@ -375,10 +381,14 @@ export const honchIntegrationConfig: ProgramConfig = {
           preRunChangeState,
         );
         if (isFirmware) {
+          // Use the guaranteed-present `credentials` param, not the nullable
+          // `session.credentials` copy: an undefined expectedApiKey silently
+          // downgrades the ESP-IDF stale-key guard to a no-op (firmware-verify
+          // only runs the mismatch check when expectedApiKey is truthy).
           runFirmwareVerification(
             postRunSession.installDir,
             targetId,
-            postRunSession.credentials?.projectApiKey,
+            credentials.projectApiKey,
           );
         }
         // Baseline dashboard fallback: if the agent didn't create one (e.g. it
@@ -405,7 +415,7 @@ export const honchIntegrationConfig: ProgramConfig = {
           : '';
 
         const topologyStep = isFirmware
-          ? `\nSTEP 4b — Companion app / relay (BLE-only devices): some devices have no direct internet and rely on a companion mobile app to relay events. Use the wizard_ask tool to ask: "Does this device have a companion mobile app that relays its events to Honch?" If yes, ask whether that app lives in this same repo (and where). When a relay is used: on the DEVICE side, do NOT invent a drain/envelope API (there is no honch_drain_to_buffer and no hand-rolled wire frame) — read the installed SDK headers for the supported way to obtain frame bytes (e.g. the event_queue_ops hook in honch_config_t) and let the customer's existing BLE/transport carry them unchanged; if the companion app is in this repo, also integrate the app side (install @honch/react-native-relay or the platform App SDK) and feed each received frame to the relay's verified ingest call (React Native: receiveFrame(deviceId, frameBytes)), preserving device_id/timestamp. Confirm every symbol against the installed SDK; never hand-encode a frame.\n`
+          ? `\nSTEP 4b — Companion app / relay (BLE-only devices): some devices have no direct internet and rely on a companion mobile app to relay events. Use the wizard_ask tool to ask: "Does this device have a companion mobile app that relays its events to Honch?" If yes, ask whether that app lives in this same repo (and where). When a relay is used: on the DEVICE side, do NOT invent a drain/envelope API (there is no honch_drain_to_buffer and no hand-rolled wire frame) — read the installed SDK headers for the supported way to obtain frame bytes (e.g. the event_queue_ops hook in honch_config_t) and let the customer's existing BLE/transport carry them unchanged; if the companion app is in this repo AND it is a React Native app, also integrate the app side (install @honch/react-native-relay) and feed each received frame to the relay's verified ingest call (receiveFrame(deviceId, frameBytes, { acknowledge })), preserving device_id/timestamp and writing the returned ackBytes back over BLE. There is no native iOS/Android Honch app SDK — for non-React-Native companion apps, the host app forwards the raw frame bytes to the relay endpoint itself; do not invent a native App SDK. Confirm every symbol against the installed SDK; never hand-encode a frame.\n`
           : '';
 
         return `You are integrating the Honch ${

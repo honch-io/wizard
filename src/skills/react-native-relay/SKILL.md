@@ -11,8 +11,8 @@ over the customer's **existing** BLE stack; the app hands each frame to the
 relay, which decodes, queues, and uploads it to Honch.
 
 **This package is a relay, not analytics.** It does not instrument the app's own
-screens/taps. If you also need the app's own analytics (Mode A), use the
-`ios-swift` / `android-kotlin` App SDK instead/alongside.
+screens/taps — there is no separate Honch app-analytics SDK to pair it with. Its
+only job is to forward the paired device's events to the capture cloud.
 
 ## When this target applies
 
@@ -26,16 +26,29 @@ screens/taps. If you also need the app's own analytics (Mode A), use the
 ```
 Device (BLE-only)              RN app (this package)            Cloud
   SDK-produced frame bytes ──▶ receiveFrame(deviceId, bytes) ──▶ POST /capture
-   (obtain via the device      / subscribeNativeFrames();        (the relay owns
-    SDK's own mechanism)       relay decodes & queues,            the wire encoding)
-                               stamping $relayed=true,
-                               preserving device_id + timestamp
+   (obtain via your own BLE     relay decodes & queues,           (the relay owns
+    stack — the host app        stamping $relayed=true,            the wire encoding)
+    owns the BLE transport)     preserving device_id + timestamp
 ```
 
-Do **not** assume a device-side `honch_drain_to_buffer()` or a specific envelope
-layout (`magic|sdk_version|…|crc32`) — no such symbol or format is published in
-the C SDK. Obtain the device's frame bytes through whatever the installed device
-SDK actually exposes, and pass them through unchanged.
+The device emits **Honch relay frames** over BLE — a published, fixed binary
+format (`spec/relay-chunks.md` / `spec/wire-format-v2.md`: a 20-byte header —
+version, source_type, flags, sequence, offset, payload_length, CRC-16 — then the
+payload). The relay implements it via `decodeRelayFrame`; **you never decode or
+build frames yourself.** The relay also defines fixed GATT UUIDs:
+
+```text
+Service:              484f4e43-482d-5245-4c41-592d53445631
+Frame Notify (notify) 484f4e43-482d-5245-4c41-592d4652414d
+ACK Write   (write)   484f4e43-482d-5245-4c41-592d41434b31
+```
+
+Subscribe to the **Frame Notify** characteristic, hand each raw notification
+buffer to `relay.receiveFrame(deviceId, frameBytes)` **unchanged**, and write the
+`ackBytes` the relay returns back to the device's **ACK Write** characteristic.
+Do **not** assume a device-side `honch_drain_to_buffer()` symbol — the device
+produces frames through the SDK's own queue/chunker; your job is only to carry
+the bytes.
 
 The customer owns the BLE/GATT transport. The SDK is **a payload, not a
 protocol** — you move the bytes; the relay decodes/uploads them. **Never
@@ -94,45 +107,64 @@ replace them.
 
 ## Initialize and feed device frames
 
-Create the relay once at app startup, then subscribe to native BLE frames and
-pass each Honch envelope to the relay. Names below are from the package docs —
-verify against the installed types.
+Create the relay once at app startup with **exactly three** options —
+`durableStore`, `uploaderConfig`, `schedulerNative` — then pass each frame your
+own BLE stack receives to `relay.receiveFrame(...)`. Verify every name against
+the installed types.
 
 ```ts
-import { NativeEventEmitter } from "react-native";
+import { NativeModules } from "react-native";
+import { createMMKV } from "react-native-mmkv";
 import {
   createMobileRelay,
   createRelayNativeBindings,
   createMmkvRelayStore,
+  type StoredRelayMessage,
 } from "@honch/react-native-relay";
 
-const native = createRelayNativeBindings();
+// uploaderConfig is RelayUploaderConfig — ALL of these fields are required.
+const uploaderConfig = {
+  endpointUrl: "https://i.honch.io",        // capture host (secret/native config)
+  projectKey: PROJECT_KEY,                  // honch_… key, from secret ref
+  relayId: "my-app-relay",                  // stable id for this relay app
+  relaySdkPlatform: "react-native",
+  relaySdkVersion: "0.1.0",                 // your relay package version
+  streamId: (m: StoredRelayMessage) => `relay-${m.deviceId}`,
+  messageId: (m: StoredRelayMessage) => Number(m.sequence),
+};
+
+// createRelayNativeBindings takes the native module and returns { schedulerNative }.
+const bindings = createRelayNativeBindings(NativeModules.HonchReactNativeRelay);
 
 const relay = createMobileRelay({
-  // Upload config is nested under `uploaderConfig` (RelayUploaderConfig).
-  uploaderConfig: {
-    endpointUrl: "https://i.honch.io", // the capture host
-    projectKey: PROJECT_KEY,                 // secret ref / native config
-  },
-  durableStore: createMmkvRelayStore(),      // survives restarts
-  bleNative: native.ble,
-  schedulerNative: native.scheduler,
-  frameEvents: new NativeEventEmitter(native.frameEmitter),
+  durableStore: createMmkvRelayStore(createMMKV({ id: "honch-relay" })), // survives restarts
+  uploaderConfig,
+  schedulerNative: bindings.schedulerNative,
 });
 
-// Forward device-produced Honch frames arriving over your BLE stack.
-// The relay decodes them, stamps $relayed=true, and preserves the device's
-// original device_id and timestamp before uploading.
-const subscription = relay.subscribeNativeFrames();
-
-// On teardown:
-// subscription.remove();
+await relay.startUploadScheduler();
 ```
 
-If your BLE bytes arrive through your own JS handler instead of the native frame
-emitter, pass each complete frame to `relay.receiveFrame(deviceId, frameBytes)`
-— do not parse the frame yourself. (Verify `receiveFrame` and the option shape
-above against the installed package's types before emitting code.)
+Feed frames from **your** BLE stack (the relay never scans/connects). The relay
+decodes each frame, stamps `$relayed=true`, preserves the device's original
+`device_id`/`timestamp`, durably queues it, and returns `ackBytes` you must write
+back over the ACK characteristic so the device can release the message:
+
+```ts
+hostBle.onRelayFrame(async ({ deviceId, frameBytes }) => {
+  await relay.receiveFrame(deviceId, frameBytes, {
+    acknowledge: async ({ ackBytes }) => {
+      await hostBle.writeRelayAck(deviceId, ackBytes); // -> ACK Write characteristic
+    },
+  });
+});
+```
+
+Do not parse the frame yourself. There is **no** `bleNative`/`frameEvents`
+option and **no** `subscribeNativeFrames()` — the returned relay exposes
+`receiveFrame`, `pending`, `startUploadScheduler`, `stopUploadScheduler`, and
+`drainUploads`. Confirm these against the installed package's types before
+emitting code.
 
 ## Verify
 

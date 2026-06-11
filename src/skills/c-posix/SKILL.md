@@ -122,10 +122,28 @@ For a property-less event call `honch_track(client, "service.start", NULL, 0)`.
 
 Call `honch_init()` once during process startup, after config/secrets are
 loaded and before you emit events. It allocates a `honch_client_t` you pass to
-every other call. Drive delivery by calling `honch_tick(client)` periodically
-from a normal worker thread or your main loop (not a signal handler). Call
-`honch_flush(client)` and `honch_shutdown(client)` on graceful exit so queued
-events are sent.
+every other call.
+
+**`honch_tick()` is blocking, not just cooperative.** A tick that flushes runs a
+synchronous DNS resolution + TLS handshake + HTTP POST on the calling thread and
+can block for up to `transport_timeout_ms`. There is no SDK-owned background
+thread — you own the cadence — so drive delivery deliberately:
+
+- Run `honch_tick(client)` on its own **dedicated worker thread**. Never call it
+  on a latency-sensitive path — your main event loop, a request-handling hot
+  path, or a `select`/`poll`/`epoll` loop — or a single slow flush stalls the
+  whole process for seconds. Never call it from a **signal handler**: it is not
+  async-signal-safe.
+- If you create that thread with a custom (non-default) stack, keep it
+  TLS-capable — the TLS handshake alone needs several KB. The default pthread
+  stack is large enough; only the manually-shrunk case is a hazard.
+- Unless `honch.h` documents the client handle as thread-safe, **serialize
+  access to it**: don't call `honch_track()` from app threads while
+  `honch_tick()` runs on another. Funnel events through one thread or guard the
+  handle with a mutex.
+
+Call `honch_flush(client)` and `honch_shutdown(client)` on graceful exit so
+queued events are sent.
 
 ```c
 #include "honch.h"
@@ -142,7 +160,8 @@ int main(void) {
     if (honch_init(&client, &cfg) != HONCH_OK) return 1;
 
     honch_track(client, "service.start", NULL, 0);
-    /* ... periodically: honch_tick(client); ... */
+    /* On a dedicated thread, periodically: honch_tick(client);
+       it blocks on TLS+POST — never on your main/event loop. */
     honch_flush(client);
     honch_shutdown(client);
     return 0;

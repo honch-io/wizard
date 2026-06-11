@@ -24,11 +24,10 @@ describe('local-skills', () => {
     expect(fs.existsSync(path.join(dir, 'esp-idf', 'SKILL.md'))).toBe(true);
     for (const id of [
       'esp-idf',
+      'arduino',
       'c-posix',
       'micropython',
       'react-native-relay',
-      'ios-swift',
-      'android-kotlin',
     ]) {
       expect(localSkillExists(id)).toBe(true);
     }

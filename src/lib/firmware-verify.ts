@@ -51,6 +51,7 @@ const VERIFIERS: Record<
   ) => VerificationOutcome[]
 > = {
   'esp-idf': verifyEspIdf,
+  arduino: verifyArduino,
   'c-posix': verifyCPosix,
   micropython: verifyMicroPython,
 };
@@ -123,7 +124,20 @@ function checkEspIdfApiKey(
   if (!existsSync(sdkconfigPath)) return [];
 
   const value = readKconfigValue(sdkconfigPath, 'CONFIG_HONCH_API_KEY');
-  if (value === null) return [];
+  if (value === null) {
+    // A built sdkconfig with no CONFIG_HONCH_API_KEY symbol at all means the app
+    // never declared it in a Kconfig (the SDK component ships none), so the
+    // provisioned key was dropped as an unknown symbol and never reached the
+    // firmware. Surface it instead of passing silently.
+    return [
+      {
+        label: 'ESP-IDF Honch key',
+        status: 'failed',
+        detail:
+          'sdkconfig has no CONFIG_HONCH_API_KEY symbol — the app did not declare it in a Kconfig (e.g. main/Kconfig.projbuild), so the provisioned key was discarded as unknown. Declare config HONCH_API_KEY / HONCH_HOST and run `idf.py reconfigure`.',
+      },
+    ];
+  }
   if (value.length === 0) {
     return [
       {
@@ -155,6 +169,36 @@ function checkEspIdfApiKey(
         ? 'sdkconfig key matches the provisioned project key.'
         : 'sdkconfig key set.',
     },
+  ];
+}
+
+/**
+ * Arduino ESP32 builds need a full board core (downloaded on demand, network +
+ * minutes) and a flashable board, so the wizard does not run a compile itself —
+ * it records the exact command for the user. PlatformIO and arduino-cli get
+ * their own command; if neither is on PATH we still surface the PlatformIO one
+ * as the common default.
+ */
+function verifyArduino(
+  installDir: string,
+  run: CommandRunner,
+): VerificationOutcome[] {
+  const isPlatformIo = existsSync(join(installDir, 'platformio.ini'));
+  if (isPlatformIo) {
+    return [
+      pending(
+        'Arduino ESP32 build',
+        toolAvailable(run, installDir, 'pio')
+          ? 'Run `pio run` to compile the sketch against the Honch wiring.'
+          : 'PlatformIO not on PATH; run `pio run` to compile the sketch against the Honch wiring.',
+      ),
+    ];
+  }
+  return [
+    pending(
+      'Arduino ESP32 build',
+      'Run `arduino-cli compile --fqbn esp32:esp32:esp32 <sketch-dir>` to compile against the Honch wiring.',
+    ),
   ];
 }
 

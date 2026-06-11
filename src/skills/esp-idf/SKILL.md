@@ -14,9 +14,9 @@ directly to Honch over the device's own Wi-Fi/TLS stack.
   `include($ENV{IDF_PATH}/tools/cmake/project.cmake)`, a `main/` component, and
   usually `sdkconfig` / `sdkconfig.defaults`).
 - The device has its own network connectivity (Wi-Fi STA or cellular). If it is
-  BLE-only and relays through a phone, use the `react-native-relay`,
-  `ios-swift`, or `android-kotlin` skill on the app side instead — the firmware
-  still uses this SDK but drains to a buffer rather than uploading.
+  BLE-only and relays through a phone, use the `react-native-relay` skill on the
+  app side instead — the firmware still uses this SDK but drains to a buffer
+  rather than uploading.
 
 ## Ground-truth rule (read this first)
 
@@ -145,6 +145,25 @@ idf_component_register(SRCS "app_main.c" INCLUDE_DIRS "." REQUIRES honch)
   wizard's `set_env_values` tool to write `CONFIG_HONCH_API_KEY` /
   `CONFIG_HONCH_HOST` into the gitignored `sdkconfig.defaults.local`, and read
   them via `CONFIG_*`.
+- **Declare the `CONFIG_HONCH_*` symbols first — this is the #0 prerequisite.**
+  The Honch SDK component ships **no Kconfig**; `CONFIG_HONCH_API_KEY` and
+  `CONFIG_HONCH_HOST` do not exist until *your app component* declares them. If
+  they aren't declared, `idf.py reconfigure` discards the keys from
+  `sdkconfig.defaults*` as unknown symbols and any `CONFIG_HONCH_API_KEY`
+  reference in C fails to compile — the provisioned key never reaches the
+  firmware. So add (or extend) `main/Kconfig.projbuild` with a `menu` declaring
+  both string symbols, then read them in C via `CONFIG_HONCH_API_KEY` /
+  `CONFIG_HONCH_HOST`:
+  ```kconfig
+  menu "Honch"
+      config HONCH_API_KEY
+          string "Honch API Key"
+          default ""
+      config HONCH_HOST
+          string "Honch Host"
+          default "https://i.honch.io"
+  endmenu
+  ```
 - **Make the key actually take effect — this is the #1 silent failure on
   ESP-IDF.** A value in `sdkconfig.defaults*` is ineffective unless BOTH hold:
   1. **No stale `sdkconfig` shadows it.** ESP-IDF: a value already in the
@@ -172,6 +191,14 @@ idf_component_register(SRCS "app_main.c" INCLUDE_DIRS "." REQUIRES honch)
   (`>= 8192` bytes) with its size.
 - Do not point `host` at a non-TLS URL and do not add any
   `insecure_skip_tls_verify` flag in production.
+- **Be frugal with the radio and the user's data plan.** The SDK ships
+  conservative delivery defaults — `flush_interval_seconds` 60,
+  `flush_min_interval_ms` 10000, `flush_max_batches` 1, `flush_event_threshold`
+  30, `transport_timeout_ms` 3000. Leave them unless the product genuinely needs
+  faster delivery; never disable `flush_min_interval_ms` (benchmark/factory
+  modes only) or crank the flush cadence. Prefer low-rate, meaningful events
+  (boot, state changes, low-rate heartbeats) over per-loop or per-sample tracks
+  — each flush is a TLS round trip on the device's own connection.
 
 ## Completion criteria
 
@@ -182,7 +209,9 @@ modify executable firmware/build files and wire Honch into real behavior:
 - add the component dependency and `REQUIRES honch`;
 - initialize Honch after the device has network/IP, never before async Wi-Fi is
   ready;
-- drive `honch_tick()` from an application-owned low-priority task;
+- drive `honch_tick()` from an application-owned low-priority task **with a
+  TLS-capable stack (`>= 8192` bytes)** — a flushing tick runs a synchronous TLS
+  handshake on that task's stack, so an undersized stack reboot-loops the device;
 - add `honch_track(...)` calls at real product interaction points, not just a
   throwaway example.
 
@@ -219,12 +248,24 @@ static void honch_start(const char *api_key)
     honch_track("firmware.boot", NULL, 0);   // example event
 }
 
-// Drive delivery from a low-priority task; never from ISR / control loops /
-// watchdog-sensitive paths. honch_tick() is cooperative and non-blocking.
+// Drive delivery from a low-priority, application-owned task. honch_tick() is
+// cooperative (no SDK-owned background thread — your firmware owns the task,
+// its priority, affinity, and watchdog policy) but it is NOT non-blocking: a
+// tick that flushes runs a synchronous DNS + TLS handshake + HTTP POST on THIS
+// task's stack and can block for up to transport_timeout_ms. So:
+//   - never call it from an ISR, control loop, UI loop, or watchdog path; and
+//   - give the task a TLS-capable stack. Floor: >= 8192 BYTES — the mbedTLS
+//     handshake alone needs several KB. ESP-IDF's xTaskCreate sizes the stack
+//     in bytes (not words); smaller values like 3072/4096 overflow on the
+//     first flush and reboot-loop the device. The SDK's own example uses 8192.
 static void honch_tick_task(void *arg)
 {
     for (;;) { honch_tick(); vTaskDelay(pdMS_TO_TICKS(5000)); }
 }
+
+// Spawn it after honch_init() succeeds (e.g. at the end of honch_start()).
+// The stack size is the whole point — do not shrink it:
+//   xTaskCreate(honch_tick_task, "honch_tick", 8192, NULL, 2, NULL);
 ```
 
 Then instrument real firmware interactions. Example shapes:

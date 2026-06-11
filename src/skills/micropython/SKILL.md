@@ -26,28 +26,42 @@ https://docs.honch.io/sdks/micropython. Treat the installed module as the only
 source of truth. Do **not** invent APIs. If the build does not include
 `_honch_core`, the wrapper cannot work — fix the build, do not stub it out.
 
-The Python surface follows the six-function contract:
+The Python surface is a **class** you instantiate — `honch.Honch(...)` — with
+instance methods. There is **no** module-level `honch.init(...)` / `honch.track(...)`.
 
 ```python
 import honch
 
-honch.init(
-    api_key=API_KEY,                 # project key, honch_… (from secret/env)
+client = honch.Honch(
+    api_key=API_KEY,                 # required (project key, honch_…, from secret/env)
     endpoint_url="https://i.honch.io",
-    device_id=DEVICE_ID,             # caller-owned, stable per device
-    device_model="esp32-cam",
-    firmware_version="0.1.0",
-    event_buffer_size=8192,          # caller-owned native queue buffer (>= 8192)
+    device_id=DEVICE_ID,             # required, caller-owned, stable per device
+    device_model="esp32-cam",        # required
+    firmware_version="0.1.0",        # required
+    event_buffer=bytearray(8192),    # required: a real bytearray (>= 8192), NOT a size int
 )
-honch.track("boot", {"reset_reason": "power_on"})
-honch.identify("user_123")
-honch.flush()
-honch.tick()                         # call periodically to drive delivery
-honch.reset()
+
+client.track("boot", {"reset_reason": "power_on"})  # properties is an optional dict
+client.identify("user_123", {"plan": "beta"})
+client.set_property("plan", "pro")
+client.session_start("run"); client.session_end()
+client.flush()
+client.tick()                        # call periodically to drive delivery
+client.reset()                       # clears identity/state
+client.shutdown()                    # flush + release on exit
 ```
 
-Confirm exact wrapper function/keyword names against the installed module before
-emitting code.
+Known hallucinations to never emit:
+
+- `honch.init(...)` / module-level `honch.track(...)` — do not exist. Construct
+  `honch.Honch(...)` and call methods on the instance.
+- `event_buffer_size=` (an int) — the required keyword is `event_buffer=` and it
+  takes an actual `bytearray` (blank/missing → `InvalidArgumentError`).
+- `device_id`, `api_key`, `endpoint_url`, `device_model`, `firmware_version`,
+  `event_buffer` are all **required** — a blank value raises `InvalidArgumentError`.
+
+Confirm exact wrapper class/keyword/method names against the installed module
+before emitting code.
 
 ## Add the SDK to the firmware build
 
@@ -56,14 +70,18 @@ firmware-build time. Get it from a source identical on every machine — vendor
 the SDK into the project, **never** reference an absolute path to a checkout
 under someone's home directory (it breaks for everyone else and in CI).
 
-0. **Vendor the SDK into the repo** as a git submodule, then reference it by a
-   path **relative to the project**:
+0. **Vendor the SDK into the repo** as a git submodule, referenced by a path
+   **relative to the project**. You cannot run `git` yourself (the wizard's Bash
+   sandbox allows only package managers), so **report this as a step the user
+   must run** — do not attempt it as a Bash command:
    ```bash
    git submodule add https://github.com/honch-io/SDK.git third_party/honch
    git submodule update --init --recursive
    ```
    (If the canonical SDK repo URL is unknown or private and unresolvable, ask the
-   user with `wizard_ask` — do not hardcode a local checkout path.)
+   user with `wizard_ask` — do not hardcode a local checkout path.) If
+   `third_party/honch` already exists in the repo, skip this step and wire the
+   build against the existing checkout.
 1. Point `USER_C_MODULES` at the vendored module's cmake fragment, using the
    project-relative submodule path:
    ```bash
@@ -90,14 +108,15 @@ under someone's home directory (it breaks for everyone else and in CI).
 - `endpoint_url` must be the HTTPS capture base (`https://i.honch.io`). Do
   not disable TLS verification.
 - Provide a caller-owned `device_id` (stable across reboots), `device_model`,
-  `firmware_version`, `api_key`, `endpoint_url`, and an event buffer size
-  (`>= 8192`).
+  `firmware_version`, `api_key`, `endpoint_url`, and an `event_buffer`
+  (`bytearray(>= 8192)`).
 
 ## Where to initialize
 
-Call `honch.init(...)` once at startup after the network is connected and
-secrets are loaded. Call `honch.tick()` periodically (e.g. from your main loop
-or a timer task) to drive uploads; call `honch.flush()` before sleep/shutdown.
+Construct `honch.Honch(...)` once at startup after the network is connected and
+secrets are loaded, and hold the instance. Call `client.tick()` periodically
+(e.g. from your main loop or a timer task) to drive uploads; call
+`client.flush()` before sleep/shutdown.
 
 ## Verify
 

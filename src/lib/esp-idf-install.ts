@@ -12,7 +12,13 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, renameSync, statSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  statSync,
+} from 'node:fs';
 import { join } from 'node:path';
 
 export const HONCH_ESP_IDF_SDK_URL = 'https://github.com/honch-io/SDK.git';
@@ -202,14 +208,20 @@ function assertRegisteredSubmodule(projectDir: string): void {
 }
 
 function moveExistingComponentAside(projectDir: string): void {
+  // Back up OUTSIDE components/ — ESP-IDF auto-discovers every directory under
+  // components/ as a build component, so a leftover `honch.pre-wizard` there
+  // would be picked up by the build (and likely break it). Park it at the
+  // project root instead.
+  const backupDir = join(projectDir, '.honch-backup');
+  mkdirSync(backupDir, { recursive: true });
   renameSync(
     join(projectDir, HONCH_ESP_IDF_COMPONENT_PATH),
-    nextBackupPath(projectDir),
+    nextBackupPath(backupDir),
   );
 }
 
-function nextBackupPath(projectDir: string): string {
-  const base = join(projectDir, 'components', 'honch.pre-wizard');
+function nextBackupPath(backupDir: string): string {
+  const base = join(backupDir, 'honch.pre-wizard');
   if (!existsSync(base)) return base;
 
   for (let index = 1; index < 1000; index++) {

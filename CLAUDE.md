@@ -15,17 +15,20 @@ orchestrator, not an SDK implementation.
 
 ## Supported Targets
 
-V1 targets:
+Stable targets:
 
 - ESP-IDF
 - C/POSIX
 - MicroPython
 
-Preview/future targets:
+Preview targets (shipped in the SDK, preview tier):
 
+- Arduino ESP32
 - React Native relay
-- iOS Swift
-- Android Kotlin
+
+There is no native iOS Swift or Android Kotlin App SDK in the Honch SDK, so the
+wizard has no such target. Only add a target when the matching SDK exists in
+`honch-io/SDK`.
 
 ## Architecture Rules
 

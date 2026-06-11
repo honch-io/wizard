@@ -152,8 +152,8 @@ export interface AnalyticsConfig<
 
 /**
  * Default package installation instruction used when frameworks don't
- * provide their own. Frameworks with specific needs (e.g., Swift SPM,
- * Composer) override this in their config.
+ * provide their own. Frameworks with specific needs (e.g., a firmware build
+ * system) override this in their config.
  */
 export const DEFAULT_PACKAGE_INSTALLATION =
   'Use the detect_package_manager tool to determine the package manager. Do not manually edit package.json; the package manager handles it automatically.';
@@ -185,7 +185,7 @@ export interface PromptConfig<
    * How to install packages for this framework.
    * Included in the agent prompt as project context.
    * Defaults to DEFAULT_PACKAGE_INSTALLATION. Only override if the framework
-   * has specific installation guidance (e.g., Swift SPM, Composer).
+   * has specific installation guidance (e.g., a firmware build system).
    */
   packageInstallation?: string;
 }

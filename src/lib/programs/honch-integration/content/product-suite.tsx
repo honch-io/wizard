@@ -14,29 +14,29 @@ export const PRODUCT_SUITE_BLOCK: ContentBlock = {
       <Text color="cyan">{'  ◆ '}</Text>
       {'ESP-IDF (firmware)    '}
       <Text color="cyan">{'◆ '}</Text>
-      {'iOS (Swift)'}
+      {'Local event queue'}
     </Text>,
     <Text>
       <Text color="cyan">{'  ◆ '}</Text>
       {'C / POSIX (firmware)  '}
       <Text color="cyan">{'◆ '}</Text>
-      {'Android (Kotlin)'}
-    </Text>,
-    <Text>
-      <Text color="cyan">{'  ◆ '}</Text>
-      {'MicroPython           '}
-      <Text color="cyan">{'◆ '}</Text>
-      {'React Native relay'}
-    </Text>,
-    <Text>
-      <Text color="cyan">{'  ◆ '}</Text>
-      {'Local event queue     '}
-      <Text color="cyan">{'◆ '}</Text>
       {'Sessions & identity'}
     </Text>,
     <Text>
       <Text color="cyan">{'  ◆ '}</Text>
-      {'BLE relay topology    '}
+      {'MicroPython (firmware)'}
+      <Text color="cyan">{'◆ '}</Text>
+      {'BLE relay topology'}
+    </Text>,
+    <Text>
+      <Text color="cyan">{'  ◆ '}</Text>
+      {'React Native relay    '}
+      <Text color="cyan">{'◆ '}</Text>
+      {'Durable retry queue'}
+    </Text>,
+    <Text>
+      <Text color="cyan">{'  ◆ '}</Text>
+      {'Auto device events    '}
       <Text color="cyan">{'◆ '}</Text>
       {'Live colored diffs'}
     </Text>,

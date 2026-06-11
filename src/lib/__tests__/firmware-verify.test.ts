@@ -57,6 +57,20 @@ describe('verifyFirmwareInstall — esp-idf', () => {
     expect(keyCheck?.detail).toContain('empty CONFIG_HONCH_API_KEY');
   });
 
+  it('fails when sdkconfig exists but has no CONFIG_HONCH_API_KEY symbol', () => {
+    const dir = tempProject();
+    // App never declared the Kconfig symbol, so reconfigure dropped the key.
+    writeFileSync(join(dir, 'sdkconfig'), 'CONFIG_SOMETHING_ELSE=y\n');
+    const { run } = makeRunner(() => fail('no idf'));
+
+    const keyCheck = verifyFirmwareInstall('esp-idf', dir, run).find(
+      (o) => o.label === 'ESP-IDF Honch key',
+    );
+
+    expect(keyCheck?.status).toBe('failed');
+    expect(keyCheck?.detail).toContain('no CONFIG_HONCH_API_KEY symbol');
+  });
+
   it('passes the key check when sdkconfig has a non-empty key', () => {
     const dir = tempProject();
     writeFileSync(join(dir, 'sdkconfig'), 'CONFIG_HONCH_API_KEY="honch_x"\n');
