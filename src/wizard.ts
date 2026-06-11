@@ -3,6 +3,7 @@ import { hideBin } from 'yargs/helpers';
 import type { Argv } from 'yargs';
 import { IS_PRODUCTION_BUILD } from '@env';
 import { toCommandModule, type Command } from './commands/command';
+import { VERSION } from './lib/version';
 
 /**
  * Global yargs options applied to every command. These are read from the
@@ -92,7 +93,7 @@ export class Wizard {
       })
       .help()
       .alias('help', 'h')
-      .version()
+      .version(VERSION)
       .alias('version', 'v');
   }
 
