@@ -5,7 +5,6 @@
 
 import path from 'path';
 import * as fs from 'fs';
-import { createRequire } from 'node:module';
 import { getUI, type SpinnerHandle } from '@ui';
 import { debug, logToFile, initLogFile, getLogFilePath } from '@utils/debug';
 import type { WizardRunOptions } from '@utils/types';
@@ -50,33 +49,6 @@ async function getSDKModule(): Promise<any> {
     _sdkModule = await import('@anthropic-ai/claude-agent-sdk');
   }
   return _sdkModule;
-}
-
-/**
- * A `require` usable for resolving installed package paths in every context we
- * run in:
- *   - ts-jest (CommonJS) and the bundled dist (rolldown shims `require`):
- *     the `require` global is present, so use it directly.
- *   - `tsx`/ESM dev (`bun run try`): `require` is undefined, so synthesize one
- *     from the CLI entry path (same package as this module).
- * We deliberately avoid `import.meta` so the file still compiles under
- * ts-jest's CommonJS target (TS1343).
- */
-const requireFromHere =
-  typeof require !== 'undefined'
-    ? require
-    : createRequire(process.argv[1] || process.cwd());
-
-/**
- * Get the path to the bundled Claude Code CLI from the SDK package.
- * This ensures we use the SDK's bundled version rather than the user's installed Claude Code.
- */
-function getClaudeCodeExecutablePath(): string {
-  // require.resolve finds the package's main entry, then we get cli.js from same dir
-  const sdkPackagePath = requireFromHere.resolve(
-    '@anthropic-ai/claude-agent-sdk',
-  );
-  return path.join(path.dirname(sdkPackagePath), 'cli.js');
 }
 
 // Using `any` because typed imports from ESM modules require import attributes
@@ -814,9 +786,7 @@ export async function runAgent(
 
   spinner.start(spinnerMessage);
 
-  const cliPath = getClaudeCodeExecutablePath();
   logToFile('Starting agent run');
-  logToFile('Claude Code executable:', cliPath);
   logToFile('Prompt:', prompt);
 
   const startTime = Date.now();
