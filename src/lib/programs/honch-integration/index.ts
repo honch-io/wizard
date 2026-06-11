@@ -155,8 +155,17 @@ function formatVerificationSection(outcomes: VerificationOutcome[]): string {
  * Records outcomes in the setup report and surfaces them in the UI. Never
  * throws — a failed build is reported, not fatal.
  */
-function runFirmwareVerification(installDir: string, targetId: string): void {
-  const outcomes = verifyFirmwareInstall(targetId, installDir);
+function runFirmwareVerification(
+  installDir: string,
+  targetId: string,
+  expectedApiKey?: string,
+): void {
+  const outcomes = verifyFirmwareInstall(
+    targetId,
+    installDir,
+    undefined,
+    expectedApiKey,
+  );
   if (outcomes.length === 0) return;
 
   for (const o of outcomes) {
@@ -366,7 +375,11 @@ export const honchIntegrationConfig: ProgramConfig = {
           preRunChangeState,
         );
         if (isFirmware) {
-          runFirmwareVerification(postRunSession.installDir, targetId);
+          runFirmwareVerification(
+            postRunSession.installDir,
+            targetId,
+            postRunSession.credentials?.projectApiKey,
+          );
         }
         // Baseline dashboard fallback: if the agent didn't create one (e.g. it
         // aborted before STEP 7), make a baseline-only dashboard so the user

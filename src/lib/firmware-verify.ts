@@ -44,7 +44,11 @@ export type CommandRunner = (
 
 const VERIFIERS: Record<
   string,
-  (installDir: string, run: CommandRunner) => VerificationOutcome[]
+  (
+    installDir: string,
+    run: CommandRunner,
+    expectedApiKey?: string,
+  ) => VerificationOutcome[]
 > = {
   'esp-idf': verifyEspIdf,
   'c-posix': verifyCPosix,
@@ -54,19 +58,23 @@ const VERIFIERS: Record<
 /**
  * Run the build verification for a firmware target. Returns an empty array for
  * non-firmware (mobile) targets, which the agent verifies through its own
- * allowed package-manager build scripts.
+ * allowed package-manager build scripts. `expectedApiKey`, when provided, lets
+ * the ESP-IDF check confirm the built sdkconfig carries the provisioned key
+ * rather than a stale leftover one.
  */
 export function verifyFirmwareInstall(
   targetId: string,
   installDir: string,
   run: CommandRunner = runCommand,
+  expectedApiKey?: string,
 ): VerificationOutcome[] {
-  return VERIFIERS[targetId]?.(installDir, run) ?? [];
+  return VERIFIERS[targetId]?.(installDir, run, expectedApiKey) ?? [];
 }
 
 function verifyEspIdf(
   installDir: string,
   run: CommandRunner,
+  expectedApiKey?: string,
 ): VerificationOutcome[] {
   const outcomes: VerificationOutcome[] = [];
 
@@ -89,16 +97,28 @@ function verifyEspIdf(
     );
   }
 
-  outcomes.push(...checkEspIdfApiKey(installDir));
+  outcomes.push(...checkEspIdfApiKey(installDir, expectedApiKey));
   return outcomes;
 }
 
+/** Show enough of a honch_ key to identify it without dumping the full secret. */
+function maskKey(key: string): string {
+  return key.length <= 12 ? key : `${key.slice(0, 12)}…`;
+}
+
 /**
- * Guard the empty-key trap: a built sdkconfig with CONFIG_HONCH_API_KEY="" will
- * fail honch_init() at runtime. Surface it as a failed check so it is not
- * silently shipped.
+ * Guard the two ways a built sdkconfig ships the wrong key:
+ *  - CONFIG_HONCH_API_KEY="" → honch_init() fails at runtime.
+ *  - a non-empty key that is NOT the provisioned one → a stale sdkconfig was
+ *    shadowing the wizard's value, so the device authenticates with the wrong
+ *    project key and capture returns 401. This is the exact failure the wizard's
+ *    sdkconfig reconciliation prevents; verify it actually stuck.
+ * Surface either as a failed check so it is not silently shipped.
  */
-function checkEspIdfApiKey(installDir: string): VerificationOutcome[] {
+function checkEspIdfApiKey(
+  installDir: string,
+  expectedApiKey?: string,
+): VerificationOutcome[] {
   const sdkconfigPath = join(installDir, 'sdkconfig');
   if (!existsSync(sdkconfigPath)) return [];
 
@@ -114,11 +134,26 @@ function checkEspIdfApiKey(installDir: string): VerificationOutcome[] {
       },
     ];
   }
+  if (expectedApiKey && value !== expectedApiKey) {
+    return [
+      {
+        label: 'ESP-IDF Honch key',
+        status: 'failed',
+        detail: `sdkconfig CONFIG_HONCH_API_KEY (${maskKey(
+          value,
+        )}) does not match the provisioned project key (${maskKey(
+          expectedApiKey,
+        )}) — a stale sdkconfig is shadowing the wizard's key. Run \`idf.py reconfigure\` and confirm the key matches before flashing.`,
+      },
+    ];
+  }
   return [
     {
       label: 'ESP-IDF Honch key',
       status: 'passed',
-      detail: 'sdkconfig key set.',
+      detail: expectedApiKey
+        ? 'sdkconfig key matches the provisioned project key.'
+        : 'sdkconfig key set.',
     },
   ];
 }

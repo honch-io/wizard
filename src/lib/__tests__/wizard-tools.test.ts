@@ -7,10 +7,13 @@ import {
   WIZARD_TOOL_NAMES,
   __test,
   ensureGitignoreCoverage,
+  ensureSdkconfigDefaultsWired,
   evaluateAskCap,
+  isEspIdfSdkconfigDefaults,
   mergeEnvValues,
   parseEnvKeys,
   resolveEnvPath,
+  stripSdkconfigKeys,
 } from '@lib/wizard-tools';
 import type { AuditCheck } from '@lib/programs/audit/types';
 
@@ -26,7 +29,7 @@ const seedChecks: AuditCheck[] = [
   {
     id: 'sdk-installed',
     area: 'Installation',
-    label: 'PostHog SDK installed',
+    label: 'Honch SDK installed',
     status: 'pending',
   },
   {
@@ -106,6 +109,133 @@ describe('mergeEnvValues', () => {
   });
 });
 
+describe('isEspIdfSdkconfigDefaults', () => {
+  it('matches ESP-IDF Kconfig defaults files and nothing else', () => {
+    expect(isEspIdfSdkconfigDefaults('sdkconfig.defaults')).toBe(true);
+    expect(isEspIdfSdkconfigDefaults('sdkconfig.defaults.local')).toBe(true);
+    expect(isEspIdfSdkconfigDefaults('sdkconfig.defaults.esp32s3')).toBe(true);
+    expect(isEspIdfSdkconfigDefaults('app/sdkconfig.defaults.local')).toBe(
+      true,
+    );
+
+    expect(isEspIdfSdkconfigDefaults('sdkconfig')).toBe(false);
+    expect(isEspIdfSdkconfigDefaults('.env.local')).toBe(false);
+    expect(isEspIdfSdkconfigDefaults('my.sdkconfig.defaults')).toBe(false);
+  });
+});
+
+describe('stripSdkconfigKeys', () => {
+  it('removes only the targeted CONFIG_ lines and reports them once', () => {
+    const sdkconfig = [
+      'CONFIG_IDF_TARGET="esp32s3"',
+      'CONFIG_HONCH_API_KEY="honch_stale"',
+      'CONFIG_HONCH_HOST="https://i.honch.io"',
+      'CONFIG_FREERTOS_HZ=1000',
+    ].join('\n');
+
+    const { content, stripped } = stripSdkconfigKeys(sdkconfig, [
+      'CONFIG_HONCH_API_KEY',
+      'CONFIG_HONCH_HOST',
+    ]);
+
+    expect(stripped).toEqual(['CONFIG_HONCH_API_KEY', 'CONFIG_HONCH_HOST']);
+    expect(content).toBe(
+      'CONFIG_IDF_TARGET="esp32s3"\nCONFIG_FREERTOS_HZ=1000',
+    );
+  });
+
+  it('is a no-op when the key is absent', () => {
+    const sdkconfig = 'CONFIG_IDF_TARGET="esp32s3"';
+    const { content, stripped } = stripSdkconfigKeys(sdkconfig, [
+      'CONFIG_HONCH_API_KEY',
+    ]);
+    expect(stripped).toEqual([]);
+    expect(content).toBe(sdkconfig);
+  });
+});
+
+describe('ensureSdkconfigDefaultsWired', () => {
+  const cmake =
+    'cmake_minimum_required(VERSION 3.16)\n' +
+    'include($ENV{IDF_PATH}/tools/cmake/project.cmake)\n' +
+    'project(pyramid)\n';
+
+  it('inserts a SDKCONFIG_DEFAULTS line before the project.cmake include', () => {
+    const { content, changed } = ensureSdkconfigDefaultsWired(
+      cmake,
+      'sdkconfig.defaults.local',
+    );
+    expect(changed).toBe(true);
+    expect(content).toContain(
+      'set(SDKCONFIG_DEFAULTS "sdkconfig.defaults;sdkconfig.defaults.local")',
+    );
+    // must precede the include so it is set before project()
+    expect(content.indexOf('SDKCONFIG_DEFAULTS')).toBeLessThan(
+      content.indexOf('project.cmake'),
+    );
+  });
+
+  it('appends to an existing SDKCONFIG_DEFAULTS list and is idempotent', () => {
+    const withList = 'set(SDKCONFIG_DEFAULTS "sdkconfig.defaults")\n' + cmake;
+    const first = ensureSdkconfigDefaultsWired(
+      withList,
+      'sdkconfig.defaults.local',
+    );
+    expect(first.changed).toBe(true);
+    expect(first.content).toContain(
+      'set(SDKCONFIG_DEFAULTS "sdkconfig.defaults;sdkconfig.defaults.local")',
+    );
+
+    const second = ensureSdkconfigDefaultsWired(
+      first.content,
+      'sdkconfig.defaults.local',
+    );
+    expect(second.changed).toBe(false);
+    expect(second.content).toBe(first.content);
+  });
+
+  it('is idempotent across the quoted, unquoted, and multi-line forms', () => {
+    const unquoted =
+      'set(SDKCONFIG_DEFAULTS sdkconfig.defaults sdkconfig.defaults.local)\n' +
+      cmake;
+    const multiline =
+      'set(SDKCONFIG_DEFAULTS\n  "sdkconfig.defaults"\n  "sdkconfig.defaults.local")\n' +
+      cmake;
+    for (const variant of [unquoted, multiline]) {
+      const result = ensureSdkconfigDefaultsWired(
+        variant,
+        'sdkconfig.defaults.local',
+      );
+      expect(result.changed).toBe(false);
+      expect(result.status).toBe('already');
+      expect(result.content).toBe(variant);
+    }
+  });
+
+  it('never inserts a second declaration when SDKCONFIG_DEFAULTS exists in a form it will not edit', () => {
+    const uneditable = 'set(SDKCONFIG_DEFAULTS ${OTHER_DEFAULTS})\n' + cmake;
+    const { content, changed, status } = ensureSdkconfigDefaultsWired(
+      uneditable,
+      'sdkconfig.defaults.local',
+    );
+    expect(changed).toBe(false);
+    expect(status).toBe('unparseable');
+    expect(content).toBe(uneditable);
+    // exactly one SDKCONFIG_DEFAULTS declaration remains
+    expect(content.match(/SDKCONFIG_DEFAULTS/g)).toHaveLength(1);
+  });
+
+  it('reports no change when the project.cmake include is missing', () => {
+    const { content, changed, status } = ensureSdkconfigDefaultsWired(
+      'project(bare)\n',
+      'sdkconfig.defaults.local',
+    );
+    expect(changed).toBe(false);
+    expect(status).toBe('no-include');
+    expect(content).toBe('project(bare)\n');
+  });
+});
+
 describe('ensureGitignoreCoverage', () => {
   let tmpDir: string;
 
@@ -174,7 +304,7 @@ describe('audit ledger helpers', () => {
         id: 'sdk-installed',
         status: 'pass',
         file: 'package.json',
-        details: 'posthog-js found',
+        details: '@honch/react-native-relay found',
       },
       { id: 'does-not-exist', status: 'warning' },
     ]);
@@ -185,7 +315,7 @@ describe('audit ledger helpers', () => {
         ...seedChecks[0],
         status: 'pass',
         file: 'package.json',
-        details: 'posthog-js found',
+        details: '@honch/react-native-relay found',
       },
       seedChecks[1],
       seedChecks[2],
