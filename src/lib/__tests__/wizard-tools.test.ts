@@ -334,7 +334,7 @@ describe('audit ledger helpers', () => {
         id: 'sdk-installed',
         status: 'pass',
         file: 'package.json',
-        details: '@honch/react-native-relay found',
+        details: '@raeedzz/react-native-relay found',
       },
       { id: 'does-not-exist', status: 'warning' },
     ]);
@@ -345,7 +345,7 @@ describe('audit ledger helpers', () => {
         ...seedChecks[0],
         status: 'pass',
         file: 'package.json',
-        details: '@honch/react-native-relay found',
+        details: '@raeedzz/react-native-relay found',
       },
       seedChecks[1],
       seedChecks[2],

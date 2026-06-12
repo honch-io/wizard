@@ -1,6 +1,6 @@
 ---
 name: honch-react-native-relay
-description: Install @honch/react-native-relay into a React Native app to forward events from a paired BLE-only Honch device up to the capture cloud. This is a mobile RELAY/uploader, not a general app-analytics SDK.
+description: Install @raeedzz/react-native-relay into a React Native app to forward events from a paired BLE-only Honch device up to the capture cloud. This is a mobile RELAY/uploader, not a general app-analytics SDK.
 ---
 
 # Honch React Native Relay Install Skill
@@ -67,10 +67,10 @@ Use the project's detected package manager (check for `bun.lockb`, `pnpm-lock.ya
 `yarn.lock`, or `package-lock.json`):
 
 ```bash
-bun add @honch/react-native-relay react-native-mmkv      # or:
-pnpm add @honch/react-native-relay react-native-mmkv
-yarn add @honch/react-native-relay react-native-mmkv
-npm install @honch/react-native-relay react-native-mmkv
+bun add @raeedzz/react-native-relay react-native-mmkv      # or:
+pnpm add @raeedzz/react-native-relay react-native-mmkv
+yarn add @raeedzz/react-native-relay react-native-mmkv
+npm install @raeedzz/react-native-relay react-native-mmkv
 ```
 
 Peer deps (let the package's own `peerDependencies` be authoritative):
@@ -107,24 +107,27 @@ replace them.
 
 ## Initialize and feed device frames
 
-Create the relay once at app startup with **exactly three** options —
-`durableStore`, `uploaderConfig`, `schedulerNative` — then pass each frame your
-own BLE stack receives to `relay.receiveFrame(...)`. Verify every name against
-the installed types.
+Create the relay once at app startup with `createMobileRelay({ durableStore,
+uploaderConfig, schedulerNative })`. `durableStore` and `uploaderConfig` are
+required; **`schedulerNative` is optional** — it exists only on Android (there is
+**no** iOS native module by design; the relay never owns BLE). Then pass each
+frame your own BLE stack receives to `relay.receiveFrame(...)`. Verify every name
+against the installed types.
 
 ```ts
-import { NativeModules } from "react-native";
+import { Platform, NativeModules, AppRegistry } from "react-native";
 import { createMMKV } from "react-native-mmkv";
 import {
   createMobileRelay,
   createRelayNativeBindings,
   createMmkvRelayStore,
   type StoredRelayMessage,
-} from "@honch/react-native-relay";
+} from "@raeedzz/react-native-relay";
 
 // uploaderConfig is RelayUploaderConfig — ALL of these fields are required.
+// endpointUrl is the capture BASE; the relay appends `/capture` itself.
 const uploaderConfig = {
-  endpointUrl: "https://i.honch.io",        // capture host (secret/native config)
+  endpointUrl: "https://i.honch.io",        // capture base (secret/native config)
   projectKey: PROJECT_KEY,                  // honch_… key, from secret ref
   relayId: "my-app-relay",                  // stable id for this relay app
   relaySdkPlatform: "react-native",
@@ -133,17 +136,39 @@ const uploaderConfig = {
   messageId: (m: StoredRelayMessage) => Number(m.sequence),
 };
 
-// createRelayNativeBindings takes the native module and returns { schedulerNative }.
-const bindings = createRelayNativeBindings(NativeModules.HonchReactNativeRelay);
+// Native upload scheduling is ANDROID-ONLY. createRelayNativeBindings THROWS if
+// the native module is missing, so guard by platform — on iOS leave it undefined
+// (foreground-only drains; see below). Do not call it unconditionally.
+const schedulerNative =
+  Platform.OS === "android" && NativeModules.HonchReactNativeRelay
+    ? createRelayNativeBindings(NativeModules.HonchReactNativeRelay).schedulerNative
+    : undefined;
 
 const relay = createMobileRelay({
+  // createMMKV is the react-native-mmkv v4 API (the package supports >=2 <5);
+  // on mmkv v2/v3 construct the instance with `new MMKV({ id: "honch-relay" })`
+  // instead. createMmkvRelayStore only needs an MMKV-like { getString, set, remove }.
   durableStore: createMmkvRelayStore(createMMKV({ id: "honch-relay" })), // survives restarts
   uploaderConfig,
-  schedulerNative: bindings.schedulerNative,
+  schedulerNative,
 });
+
+// Android: register the headless task WorkManager invokes for background drains.
+// Required for scheduled uploads to run when the app is backgrounded/cold.
+if (Platform.OS === "android") {
+  AppRegistry.registerHeadlessTask("HonchRelayUpload", () => async () => {
+    await relay.drainUploads();
+  });
+}
 
 await relay.startUploadScheduler();
 ```
+
+**iOS upload scheduling is foreground-only.** With no `schedulerNative`,
+`startUploadScheduler()` drains once immediately; drive subsequent uploads by
+calling `relay.drainUploads()` from the host app's foreground lifecycle (e.g. an
+`AppState` `active` listener). On **Android**, keep `androidx.work:work-runtime`
+available so WorkManager can launch the `HonchRelayUpload` task.
 
 Feed frames from **your** BLE stack (the relay never scans/connects). The relay
 decodes each frame, stamps `$relayed=true`, preserves the device's original

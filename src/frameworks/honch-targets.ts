@@ -128,7 +128,7 @@ function hasDependency(installDir: string, name: string): boolean {
 function detectReactNativeRelay(installDir: string): boolean {
   return (
     hasDependency(installDir, 'react-native') ||
-    hasDependency(installDir, '@honch/react-native-relay')
+    hasDependency(installDir, '@raeedzz/react-native-relay')
   );
 }
 
@@ -285,17 +285,21 @@ export const HONCH_TARGETS: readonly FrameworkConfig[] = [
     id: Integration.reactNativeRelay,
     name: 'React Native relay',
     kind: 'mobile',
-    packageName: '@honch/react-native-relay',
+    packageName: '@raeedzz/react-native-relay',
     detect: detectReactNativeRelay,
     projectTypeDetection:
-      'A React Native app (react-native in package.json), optionally with @honch/react-native-relay.',
+      'A React Native app (react-native in package.json), optionally with @raeedzz/react-native-relay.',
     contextLines: [
-      'Install @honch/react-native-relay and create the relay with createMobileRelay({ durableStore, uploaderConfig, schedulerNative }) — exactly those three keys. durableStore = createMmkvRelayStore(createMMKV({ id })); schedulerNative = createRelayNativeBindings(NativeModules.HonchReactNativeRelay).schedulerNative. Verify the option shape against the installed package types.',
-      'uploaderConfig (RelayUploaderConfig) needs ALL of: endpointUrl, projectKey, relayId, relaySdkPlatform, relaySdkVersion, streamId(message), messageId(message) — not just endpointUrl/projectKey.',
+      'Install @raeedzz/react-native-relay and create the relay with createMobileRelay({ durableStore, uploaderConfig, schedulerNative }). durableStore and uploaderConfig are required; schedulerNative is OPTIONAL and Android-only. durableStore = createMmkvRelayStore(createMMKV({ id })). Verify the option shape against the installed package types.',
+      'schedulerNative is native-upload scheduling that exists only on Android — there is no iOS native module by design. createRelayNativeBindings(NativeModules.HonchReactNativeRelay) THROWS if the module is missing, so guard it: schedulerNative = Platform.OS === "android" && NativeModules.HonchReactNativeRelay ? createRelayNativeBindings(NativeModules.HonchReactNativeRelay).schedulerNative : undefined. Calling it unconditionally crashes iOS at startup.',
+      'On Android also register the headless task WorkManager invokes for background drains: AppRegistry.registerHeadlessTask("HonchRelayUpload", () => async () => { await relay.drainUploads(); }), and keep androidx.work:work-runtime available. On iOS scheduling is foreground-only — drive relay.drainUploads() from the app foreground lifecycle (e.g. AppState active).',
+      'uploaderConfig (RelayUploaderConfig) needs ALL of: endpointUrl, projectKey, relayId, relaySdkPlatform, relaySdkVersion, streamId(message), messageId(message) — not just endpointUrl/projectKey. endpointUrl is the capture BASE (https://i.honch.io); the relay appends /capture itself — do not include the path.',
       'This package RELAYS events from a paired BLE device — it is not a general app-analytics SDK. Feed each device frame your BLE stack receives into the relay via relay.receiveFrame(deviceId, frameBytes, { acknowledge }), and write the returned ackBytes back to the device over your ACK characteristic. There is no bleNative/frameEvents option and no subscribeNativeFrames(); the host app owns BLE.',
       'Add BLE permissions: iOS NSBluetoothAlwaysUsageDescription + CoreBluetooth; Android 12+ BLUETOOTH_SCAN/BLUETOOTH_CONNECT + ACCESS_FINE_LOCATION.',
     ],
     successMessage: 'Honch React Native relay integrated.',
     estimatedDurationMinutes: 5,
+    packageInstallation:
+      'Use the detected Node package manager (bun/pnpm/yarn/npm) to add @raeedzz/react-native-relay. Install the durable-store peers react-native-mmkv + react-native-nitro-modules only when using createMmkvRelayStore. Run pod install for iOS after adding. Do not hand-edit package.json.',
   }),
 ];

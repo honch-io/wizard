@@ -688,14 +688,12 @@ export async function initializeAgent(
     });
     mcpServers['wizard-tools'] = wizardToolsServer;
 
-    // audit-3000 needs Opus 4.7's depth for the multi-phase audit chain;
-    // every other program runs on Sonnet 4.6.
-    // Bare model IDs (no `anthropic/` prefix) so the LLM gateway's Bedrock
+    // All wizard programs run on the latest Claude Opus (4.8) — the integration
+    // installs need its depth for reading SDK headers/types and wiring real code,
+    // and audit-3000's multi-phase chain already relied on Opus.
+    // Bare model ID (no `anthropic/` prefix) so the LLM gateway's Bedrock
     // fallback can match map_to_bedrock_model()'s strict lookup.
-    const model =
-      config.integrationLabel === 'audit-3000'
-        ? 'claude-opus-4-6'
-        : 'claude-sonnet-4-6';
+    const model = 'claude-opus-4-8';
 
     const agentRunConfig: AgentRunConfig = {
       workingDirectory: config.workingDirectory,
