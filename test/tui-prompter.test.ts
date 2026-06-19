@@ -9,7 +9,7 @@ describe("TuiPrompter", () => {
     });
 
     const answer = prompter.question(
-      "SDK target (esp-idf, c-posix, micropython):",
+      "SDK target (esp-idf, c-posix, micropython, arduino, react-native-relay):",
     );
     const prompt = prompter.getSnapshot().currentPrompt;
 
@@ -19,6 +19,8 @@ describe("TuiPrompter", () => {
       "esp-idf",
       "c-posix",
       "micropython",
+      "arduino",
+      "react-native-relay",
     ]);
 
     prompter.answer("c-posix");

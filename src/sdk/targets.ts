@@ -1,11 +1,16 @@
-export type SdkTargetId = "esp-idf" | "c-posix" | "micropython";
+export type SdkTargetId =
+  | "esp-idf"
+  | "c-posix"
+  | "micropython"
+  | "arduino"
+  | "react-native-relay";
 
 export type ProjectFiles = Record<string, string>;
 
 export type SdkTarget = {
   id: SdkTargetId;
   label: string;
-  status: "stable";
+  status: "stable" | "preview";
   skillPath: string;
   verificationHint: string;
 };
@@ -34,6 +39,22 @@ export const SDK_TARGETS: Record<SdkTargetId, SdkTarget> = {
     skillPath: "skills/micropython/SKILL.md",
     verificationHint:
       "Run host checks when present and report firmware build steps.",
+  },
+  arduino: {
+    id: "arduino",
+    label: "Arduino ESP32 (preview)",
+    status: "preview",
+    skillPath: "skills/arduino/SKILL.md",
+    verificationHint:
+      "Record the PlatformIO/arduino-cli compile command; a full board build runs on demand.",
+  },
+  "react-native-relay": {
+    id: "react-native-relay",
+    label: "React Native relay (preview)",
+    status: "preview",
+    skillPath: "skills/react-native-relay/SKILL.md",
+    verificationHint:
+      "Verified through the project's own package-manager build; no firmware build is run.",
   },
 };
 
@@ -72,6 +93,21 @@ export function detectSdkTargets(files: ProjectFiles): SdkTarget[] {
       contents.includes("micropython.cmake")
     ) {
       found.add("micropython");
+    }
+
+    if (
+      path.endsWith(".ino") ||
+      path.endsWith("sketch.yaml") ||
+      path.endsWith("platformio.ini")
+    ) {
+      found.add("arduino");
+    }
+
+    if (
+      path.endsWith("package.json") &&
+      /["']react-native["']\s*:/.test(contents)
+    ) {
+      found.add("react-native-relay");
     }
   }
 

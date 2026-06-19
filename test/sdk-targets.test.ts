@@ -26,4 +26,21 @@ describe("detectSdkTargets", () => {
 
     expect(result.map((target) => target.id)).toContain("micropython");
   });
+
+  it("detects Arduino projects from sketches and PlatformIO config", () => {
+    const result = detectSdkTargets({
+      "blink.ino": "void setup() {}\nvoid loop() {}",
+      "platformio.ini": "[env:esp32]\nplatform = espressif32",
+    });
+
+    expect(result.map((target) => target.id)).toContain("arduino");
+  });
+
+  it("detects React Native projects from a react-native dependency", () => {
+    const result = detectSdkTargets({
+      "package.json": '{ "dependencies": { "react-native": "0.74.0" } }',
+    });
+
+    expect(result.map((target) => target.id)).toContain("react-native-relay");
+  });
 });
