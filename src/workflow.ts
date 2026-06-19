@@ -2,6 +2,7 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { buildAgentPrompt } from "./agent/prompt.js";
 import { runAgent } from "./agent/runner.js";
+import { loginViaBrowser } from "./auth/browser-login.js";
 import { loadAuthSession, saveAuthSession } from "./auth/session.js";
 import type { CliOptions } from "./cli/options.js";
 import { createPrompter, type Prompter } from "./cli/prompt.js";
@@ -242,24 +243,20 @@ async function resolveAuth(
     };
   }
 
-  const mode = (
-    await prompter.question("Login or signup? [login/signup]:")
-  ).trim();
-  const email = await prompter.question("Email:");
-  const password = await prompter.question("Password:", { sensitive: true });
-  const token =
-    mode === "signup"
-      ? await platformClient.register({ email, password })
-      : await platformClient.login({ email, password });
+  prompter.addRunMessage?.("Opening your browser to sign in to Honch…");
+  const { token: accessToken } = await loginViaBrowser({
+    apiBaseUrl: options.apiBaseUrl,
+    onUrl: (url) =>
+      prompter.addRunMessage?.(`If your browser didn't open, visit:\n${url}`),
+  });
   const wizardToken = options.runAgent
-    ? (await platformClient.createWizardToken(token.accessToken)).accessToken
+    ? (await platformClient.createWizardToken(accessToken)).accessToken
     : undefined;
   saveAuthSession({
     apiBaseUrl: options.apiBaseUrl,
-    accessToken: token.accessToken,
-    email,
+    accessToken,
   });
-  return { accessToken: token.accessToken, wizardToken, mode };
+  return { accessToken, wizardToken, mode: "browser login" };
 }
 
 async function resolveProject(
