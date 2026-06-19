@@ -1,6 +1,6 @@
 {
-  "name": "@honch/honcho-wizard",
-  "version": "0.1.0",
+  "name": "@honch/honcho",
+  "version": "2.0.0",
   "type": "module",
   "description": "Agent-powered Honch SDK setup wizard",
   "license": "MIT",
