@@ -55,7 +55,7 @@ struct HonchConfig {
   const char *rootCaPem;         // TLS root CA for the capture endpoint (production)
   const char *deviceId;          // optional, NULL to derive
   const char *deviceModel;       // required
-  const char *firmwareVersion;   // required
+  const char *firmwareVersion;   // required, from the project's version source
   const char *environment;       // optional, defaults to "production"
   uint8_t    *eventBuffer;       // required, caller-owned RAM for the queue
   size_t      eventBufferSize;   // required, recommend >= 8192
@@ -160,7 +160,7 @@ void setup() {
     .host            = HONCH_HOST,             // "https://i.honch.io"
     .rootCaPem       = HONCH_ROOT_CA_PEM,
     .deviceModel     = "esp32-devkit",
-    .firmwareVersion = "0.1.0",
+    .firmwareVersion = FIRMWARE_VERSION,
     .eventBuffer     = s_eventBuffer,
     .eventBufferSize = sizeof(s_eventBuffer),
   };

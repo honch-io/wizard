@@ -1,7 +1,0 @@
-#!/bin/bash
-set -e
-
-# Install or upgrade dependencies
-echo "Installing dependencies..."
-pnpm install;
-cd e2e-tests && pnpm install;

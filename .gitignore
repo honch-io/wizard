@@ -1,43 +1,15 @@
-.DS_Store
-
-# Thumbnails
-._*
-
-# Files that might appear on external disk
-.Spotlight-V100
-.Trashes
-
-docs/_build
-docs/doctrees
-
-build
-!bin/build
-node_modules
-npm-debug.log
-ios
-./android
-yarn-error.log
-
-scratch/
-
-*.pyc
-
-.idea
-*.sublime-*
-
 dist/
-coverage/
-plugins
-
-.eslintcache
-.vscode/launch.json
+node_modules/
 .env
-.vercel
-.claude/settings.json
-.claude/settings.local.json
-.claude/worktrees/
+.env.*
+!.env.example
 
-e2e-tests/fixtures/.tracking/*
+# Local-only dev docs — kept on disk, not tracked or published
+AGENTS.md
+SPEC/
 
-# Generated at build time by scripts/generate-version.js
-src/lib/version.ts
+# Artifacts from running the wizard against this repo itself
+components/
+.gitmodules
+.honch-backup/
+honch-setup-report.md

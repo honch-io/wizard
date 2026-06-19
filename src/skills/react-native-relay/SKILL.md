@@ -1,6 +1,6 @@
 ---
 name: honch-react-native-relay
-description: Install @raeedzz/react-native-relay into a React Native app to forward events from a paired BLE-only Honch device up to the capture cloud. This is a mobile RELAY/uploader, not a general app-analytics SDK.
+description: Install @honch/react-native-relay into a React Native app to forward events from a paired BLE-only Honch device up to the capture cloud. This is a mobile RELAY/uploader, not a general app-analytics SDK.
 ---
 
 # Honch React Native Relay Install Skill
@@ -67,10 +67,10 @@ Use the project's detected package manager (check for `bun.lockb`, `pnpm-lock.ya
 `yarn.lock`, or `package-lock.json`):
 
 ```bash
-bun add @raeedzz/react-native-relay react-native-mmkv      # or:
-pnpm add @raeedzz/react-native-relay react-native-mmkv
-yarn add @raeedzz/react-native-relay react-native-mmkv
-npm install @raeedzz/react-native-relay react-native-mmkv
+bun add @honch/react-native-relay react-native-mmkv      # or:
+pnpm add @honch/react-native-relay react-native-mmkv
+yarn add @honch/react-native-relay react-native-mmkv
+npm install @honch/react-native-relay react-native-mmkv
 ```
 
 Peer deps (let the package's own `peerDependencies` be authoritative):
@@ -122,7 +122,7 @@ import {
   createRelayNativeBindings,
   createMmkvRelayStore,
   type StoredRelayMessage,
-} from "@raeedzz/react-native-relay";
+} from "@honch/react-native-relay";
 
 // uploaderConfig is RelayUploaderConfig — ALL of these fields are required.
 // endpointUrl is the capture BASE; the relay appends `/capture` itself.

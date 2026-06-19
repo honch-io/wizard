@@ -1,87 +1,96 @@
-<h1>Honch wizard ✨</h1>
+# Honcho Wizard
 
-The Honch wizard installs the [Honch](https://honch.io) analytics SDK into your
-project. Run it, sign in through your browser once, and it does the rest —
-detect the target, resolve your project + capture key, read the live docs, and
-wire the SDK in with an AI agent, showing you every code change live.
-
-```sh
-npx -y honcho-wizard
-```
-
-…or via [honch.dev](https://honch.dev):
-
-```sh
-curl -fsSL https://honch.dev | sh
-```
-
-That's it. It opens your browser to sign in (and remembers you next time), then
-handles everything else — no manual project picking.
-
-> Both run the same wizard. Today the `curl` path just bootstraps `npx`, so it
-> still needs Node — in the future we'll ship a standalone compiled binary so
-> `curl | sh` works without a Node toolchain.
-
-## What it does
-
-1. **Sign in once.** On first run it opens your browser to authenticate, then
-   saves the login to `~/.honch/config.json` so future runs are zero-friction.
-   It mints a short-lived wizard token (for the agent's LLM, proxied through the
-   Honch platform) and looks up your project and its `honch_…` capture key.
-   Already have a token? Pass it as `--token`/`HONCH_WIZARD_TOKEN` to skip the
-   browser step.
-2. **Auto-detects the target** from your build files:
-   - **ESP-IDF** · **Arduino ESP32** (preview) · **C/POSIX** · **MicroPython** (firmware / Device SDK)
-   - **React Native relay** (forwards a paired BLE device's events to the cloud)
-3. **Reads `https://docs.honch.io` every run** and treats the installed SDK
-   headers as the only source of truth — it never invents APIs or hand-encodes
-   the wire format.
-4. **Installs + wires the SDK** using your project's own build system, writing
-   the capture key to env/config (never hardcoded) and initializing Honch at the
-   right lifecycle point.
-5. **Asks only when topology matters** — e.g. a firmware target with a companion
-   mobile app that relays events over BLE.
-6. **Shows live colored diffs** of every file as it's changed, plus a stage
-   timeline, and writes a `honch-setup-report.md`.
-
-## Flags
-
-Run `honcho-wizard login` to sign in ahead of time (or refresh an expired
-login); the default run does this automatically when it finds no saved login.
-
-| Flag | Env | Default |
-|------|-----|---------|
-| `<token>` / `--token` | `HONCH_WIZARD_TOKEN` | — (optional; browser login if unset) |
-| `--api-base-url` | `HONCH_WIZARD_API_BASE_URL` | `https://api.honch.io` (backend) |
-| `--frontend-url` | `HONCH_WIZARD_FRONTEND_URL` | `https://app.honch.io` (app links) |
-| `--capture-host` | `HONCH_WIZARD_CAPTURE_HOST` | `https://i.honch.io` |
-| `--project` | `HONCH_WIZARD_PROJECT` | your only / first project |
-| `--device-model` | `HONCH_WIZARD_DEVICE_MODEL` | — |
-| `--firmware-version` | `HONCH_WIZARD_FIRMWARE_VERSION` | — |
-| `--install-dir` | `HONCH_WIZARD_INSTALL_DIR` | cwd |
-
-The wizard sends **no telemetry**.
-
-## Integrating Honch by hand
-
-The same install knowledge ships as a portable skill at
-[`.claude/skills/honch-integration`](.claude/skills/honch-integration/SKILL.md)
-and per-target guides under [`src/skills/`](src/skills) — drop them into any
-project's `.claude/skills/` and run them with Claude Code without the wizard.
-
-## Development
+Agent-powered Honch SDK setup for client projects.
 
 ```sh
 bun install
-bun run build         # -> dist/bin.js
-bun run typecheck
-bun run test
-node dist/bin.js --help
+bun run dev -- --install-dir /path/to/client
 ```
 
----
+The installed binary name is `honcho`.
 
-Forked from [PostHog/wizard](https://github.com/PostHog/wizard) (MIT). The
-agent runner, Ink TUI, framework-config detection, secret vault, and in-process
-MCP tools are PostHog's; the Honch fork swaps auth, targets, skills, prompt,
-branding, and adds the live-diff view. See `LICENSE`.
+The wizard is an interactive terminal UI. It scans the target project, prompts
+for Honch auth or signup, lets the user pick or create a project, confirms the
+planned install, then writes a setup report. Passing `--run-agent` runs the
+Claude Agent SDK through the Honch platform LLM proxy and exposes local MCP
+tools for package detection and safe `.env` updates.
+
+## Local Dry Run
+
+You can exercise scanning, confirmation, and setup report generation without a
+running platform API by supplying local project values:
+
+```sh
+bun run build
+node dist/bin.mjs \
+  --install-dir . \
+  --target c-posix \
+  --project-name Local \
+  --project-api-key honch_test \
+  --device-model TestDevice \
+  --yes
+```
+
+This writes `honch-setup-report.md` in the target project and does not modify
+SDK source files unless `--run-agent` is also provided.
+
+## Platform Agent Run
+
+Run the platform API from the platform branch that includes the wizard proxy,
+then point the wizard at it:
+
+```sh
+bun run build
+node dist/bin.mjs \
+  --install-dir /path/to/client \
+  --api-base-url http://127.0.0.1:3000 \
+  --run-agent
+```
+
+The platform must be configured with its Anthropic provider credentials. The
+wizard asks for Honch login/signup, organization, project, device model,
+capture host, and final confirmation before the agent mutates the target
+project. Firmware version is sourced from the target project's own version
+definition during integration, not entered into the wizard.
+
+## Commands
+
+```sh
+bun run dev -- --help
+bun run build
+bun run test
+bun run typecheck
+bun run format:check
+```
+
+## Environment
+
+| Variable | Purpose |
+| --- | --- |
+| `HONCH_WIZARD_API_BASE_URL` | Platform API base URL |
+| `HONCH_WIZARD_INSTALL_DIR` | Target project directory |
+| `HONCH_WIZARD_TARGET` | SDK target: `esp-idf`, `c-posix`, or `micropython` |
+| `HONCH_WIZARD_YES` | Skip confirmation prompts when all inputs are supplied |
+| `HONCH_WIZARD_AUTH_TOKEN` | Existing Honch platform bearer token |
+| `HONCH_WIZARD_CAPTURE_HOST` | Capture host written into SDK config |
+| `HONCH_WIZARD_DEVICE_MODEL` | Device model used by the SDK install |
+| `HONCH_WIZARD_PROJECT_NAME` | Project name for local/offline testing |
+| `HONCH_WIZARD_PROJECT_API_KEY` | Project API key for local/offline testing |
+| `HONCH_WIZARD_RUN_AGENT` | Set to `1` to run Claude Agent SDK through platform proxy |
+
+## Layout
+
+```text
+src/
+  agent/      Prompt assembly and agent run configuration
+  cli/        CLI option parsing
+  platform/   Honch auth, project, and wizard-token client
+  project/    Target-project disk scanning
+  report/     Setup report generation
+  sdk/        SDK target detection and target metadata
+  secrets/    In-memory secret vault
+  tools/      Local Claude Agent SDK MCP tools
+  ui/         Ink terminal UI
+SPEC/         Product and implementation spec
+test/         Unit tests
+```

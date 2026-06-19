@@ -55,7 +55,7 @@ typedef struct {
     const char *api_key;             // required (project key, honch_…)
     const char *host;                // required, e.g. "https://i.honch.io"
     const char *device_model;        // required
-    const char *firmware_version;    // required
+    const char *firmware_version;    // required, from the project's version source
     const char *environment;         // optional, defaults to "production"
     uint8_t    *event_buffer;        // required, caller-owned RAM for the queue
     size_t      event_buffer_size;   // required, recommend >= 8192
@@ -238,7 +238,7 @@ static void honch_start(const char *api_key)
         .api_key           = api_key,                  // from CONFIG_*/secret ref
         .host              = "https://i.honch.io",
         .device_model      = "esp32-s3-devkitc",
-        .firmware_version  = "0.1.0",
+        .firmware_version  = FIRMWARE_VERSION,         // existing app/OTA/build version
         .event_buffer      = s_honch_event_buffer,
         .event_buffer_size = sizeof(s_honch_event_buffer),
     };
