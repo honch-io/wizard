@@ -82,8 +82,10 @@ export function parseOptions(argv: string[], env: Env): CliOptions {
       stringFlag(flags, "project-api-key") ??
       env.HONCH_WIZARD_PROJECT_API_KEY ??
       undefined,
-    runAgent:
-      booleanFlag(flags, "run-agent") || env.HONCH_WIZARD_RUN_AGENT === "1",
+    // Real install is the default; --dry-run previews without the agent.
+    runAgent: !(
+      booleanFlag(flags, "dry-run") || env.HONCH_WIZARD_DRY_RUN === "1"
+    ),
     yes: booleanFlag(flags, "yes") || env.HONCH_WIZARD_YES === "1",
     help: booleanFlag(flags, "help"),
   };
@@ -101,6 +103,6 @@ function booleanFlag(flags: Map<string, string | boolean>, key: string) {
 function booleanFlagName(arg: string) {
   if (arg === "--yes" || arg === "-y") return "yes";
   if (arg === "--help" || arg === "-h") return "help";
-  if (arg === "--run-agent") return "run-agent";
+  if (arg === "--dry-run" || arg === "-n") return "dry-run";
   return undefined;
 }

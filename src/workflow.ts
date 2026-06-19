@@ -180,11 +180,9 @@ export async function runWorkflow(
       }
       prompter.completeStep?.("agent", "agent install completed");
     } else {
-      prompter.setStep?.("agent", "dry run selected");
+      prompter.setStep?.("agent", "dry run");
       verification.push("dry run: no files modified");
-      prompter.addRunMessage?.(
-        "Dry run selected; target files were not mutated",
-      );
+      prompter.addRunMessage?.("Dry run — target files were not modified.");
       prompter.completeStep?.("agent", "skipped mutation");
     }
 

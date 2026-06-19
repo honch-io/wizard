@@ -41,9 +41,12 @@ describe("parseOptions", () => {
     expect(options.deviceModel).toBe("ActionCam");
   });
 
-  it("parses run-agent as a boolean flag", () => {
-    const options = parseOptions(["--run-agent"], {});
-
-    expect(options.runAgent).toBe(true);
+  it("runs the agent by default and opts out with --dry-run", () => {
+    expect(parseOptions([], {}).runAgent).toBe(true);
+    expect(parseOptions(["--dry-run"], {}).runAgent).toBe(false);
+    expect(parseOptions(["-n"], {}).runAgent).toBe(false);
+    expect(parseOptions([], { HONCH_WIZARD_DRY_RUN: "1" }).runAgent).toBe(
+      false,
+    );
   });
 });

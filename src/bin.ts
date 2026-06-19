@@ -24,7 +24,7 @@ Options:
   --firmware-version <v>  Firmware version to configure
   --project-name <name>   Honch project name for local/offline testing
   --project-api-key <key> Honch project API key for local/offline testing
-  --run-agent             Run Claude Agent SDK through Honch platform proxy
+  --dry-run, -n           Preview the plan without running the agent or changing files
   --yes, -y               Skip confirmation prompts when inputs are complete
   --help, -h              Show this help
 `);
@@ -79,7 +79,7 @@ async function main() {
     process.stdout.write(
       result.agentRan
         ? "Agent run completed.\n"
-        : "Dry run completed; pass --run-agent after platform auth is configured.\n",
+        : "Dry run — no files were changed.\n",
     );
     unmount();
   } catch (error) {
