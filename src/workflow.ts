@@ -211,17 +211,18 @@ async function resolveTarget(
   prompter: Prompter,
 ): Promise<SdkTarget> {
   if (requested) return SDK_TARGETS[requested];
-  const recommendedId = detected[0]?.id ?? "esp-idf";
+  // Only suggest a target when the scan actually detected one; otherwise let
+  // the user pick from a clean list with nothing pre-selected.
+  const detectedId = detected[0]?.id;
   const answer = await prompter.question(
     `SDK target (${Object.keys(SDK_TARGETS).join(", ")}):`,
-    {
-      recommend: {
-        value: recommendedId,
-        source: detected.length > 0 ? "detected" : "recommended",
-      },
-    },
+    detectedId
+      ? { recommend: { value: detectedId, source: "detected" } }
+      : undefined,
   );
-  return SDK_TARGETS[answer as SdkTargetId] ?? SDK_TARGETS[recommendedId];
+  return (
+    SDK_TARGETS[answer as SdkTargetId] ?? SDK_TARGETS[detectedId ?? "esp-idf"]
+  );
 }
 
 async function resolveAuth(

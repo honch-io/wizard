@@ -190,7 +190,7 @@ function WelcomeView({
     if (done) return;
     const timer = setInterval(
       () => setShown((current) => Math.min(current + 2, full.length)),
-      16,
+      12,
     );
     return () => clearInterval(timer);
   }, [done, full.length]);
