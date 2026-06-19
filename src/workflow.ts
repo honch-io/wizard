@@ -91,7 +91,7 @@ export async function runWorkflow(
     prompter.completeStep?.("target", target.label);
 
     prompter.setStep?.("auth", "connecting Honch account");
-    const auth = await resolveAuth(options, platformClient, prompter);
+    const auth = await resolveAuth(options, prompter);
     prompter.setSummary?.({ authMode: auth.mode });
     prompter.completeStep?.(
       "auth",
@@ -109,6 +109,15 @@ export async function runWorkflow(
     );
     prompter.setSummary?.({ projectName: project.name });
     prompter.completeStep?.("project", project.name);
+
+    // Mint the wizard LLM token now that the project is known, so the platform
+    // meters proxy usage against this project (the installer is free, tracked
+    // per project). Offline runs (local API key) have no platform token.
+    const wizardToken =
+      options.runAgent && auth.accessToken
+        ? (await platformClient.createWizardToken(auth.accessToken, project.id))
+            .accessToken
+        : undefined;
 
     prompter.setStep?.("config", "collecting device configuration");
     const deviceModel = await requiredInput(
@@ -178,7 +187,7 @@ export async function runWorkflow(
     let integrated: boolean | undefined;
     let agentSummary: string | undefined;
     const verification: string[] = [];
-    if (options.runAgent && auth.wizardToken) {
+    if (options.runAgent && wizardToken) {
       prompter.setStep?.("agent", "running Claude Agent SDK");
       if (branch) {
         baseBranch = currentBranch(options.installDir);
@@ -226,7 +235,7 @@ export async function runWorkflow(
           cwd: options.installDir,
           prompt: nextPrompt,
           resume: sessionId,
-          platformToken: auth.wizardToken,
+          platformToken: wizardToken,
           abortController: abort,
           llmBaseUrl: `${options.apiBaseUrl.replace(/\/+$/, "")}/api/wizard/llm`,
           onEvent: (event) => {
@@ -378,24 +387,20 @@ async function resolveTarget(
   );
 }
 
-async function resolveAuth(
-  options: CliOptions,
-  platformClient: PlatformClient,
-  prompter: Prompter,
-) {
+async function resolveAuth(options: CliOptions, prompter: Prompter) {
+  // Note: the wizard LLM token is NOT minted here. It's created after the
+  // project is selected (see runWorkflow) so it can be scoped to that project
+  // for per-project usage metering.
   if (options.projectApiKey) {
-    return { accessToken: "", wizardToken: undefined, mode: "local API key" };
+    return { accessToken: "", mode: "local API key" };
   }
 
   if (options.authToken) {
-    const wizardToken = options.runAgent
-      ? (await platformClient.createWizardToken(options.authToken)).accessToken
-      : undefined;
     saveAuthSession({
       apiBaseUrl: options.apiBaseUrl,
       accessToken: options.authToken,
     });
-    return { accessToken: options.authToken, wizardToken, mode: "token" };
+    return { accessToken: options.authToken, mode: "token" };
   }
 
   const saved = loadAuthSession(options.apiBaseUrl);
@@ -411,13 +416,8 @@ async function resolveAuth(
           ? `Using saved Honch session for ${activeSession.email}`
           : "Using saved Honch session",
       );
-      const wizardToken = options.runAgent
-        ? (await platformClient.createWizardToken(activeSession.accessToken))
-            .accessToken
-        : undefined;
       return {
         accessToken: activeSession.accessToken,
-        wizardToken,
         mode: "saved session",
       };
     }
@@ -432,12 +432,8 @@ async function resolveAuth(
     onUrl: (url) =>
       prompter.addRunMessage?.(`If your browser didn't open, visit:\n${url}`),
   });
-  const accessToken = login.token;
-  const wizardToken = options.runAgent
-    ? (await platformClient.createWizardToken(accessToken)).accessToken
-    : undefined;
   saveBrowserAuthSession(options.apiBaseUrl, login);
-  return { accessToken, wizardToken, mode: "browser login" };
+  return { accessToken: login.token, mode: "browser login" };
 }
 
 async function refreshSavedSession(

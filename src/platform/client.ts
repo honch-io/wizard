@@ -28,8 +28,14 @@ export class PlatformClient {
     this.fetcher = fetcher;
   }
 
-  async createWizardToken(accessToken: string): Promise<TokenResponse> {
-    return this.post<TokenResponse>("/api/wizard/token", {}, accessToken);
+  async createWizardToken(
+    accessToken: string,
+    projectId?: string,
+  ): Promise<TokenResponse> {
+    const path = projectId
+      ? `/api/wizard/token?project_id=${encodeURIComponent(projectId)}`
+      : "/api/wizard/token";
+    return this.post<TokenResponse>(path, {}, accessToken);
   }
 
   async listOrganizations(accessToken: string) {
