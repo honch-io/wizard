@@ -1,7 +1,13 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.4.16/schema.json",
   "files": {
-    "includes": ["**", "!dist"]
+    "includes": [
+      "**",
+      "!dist",
+      "!components",
+      "!.honch-backup",
+      "!honch-setup-report.md"
+    ]
   },
   "formatter": {
     "enabled": true,

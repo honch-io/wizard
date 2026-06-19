@@ -7,3 +7,9 @@ node_modules/
 # Local-only dev docs — kept on disk, not tracked or published
 AGENTS.md
 SPEC/
+
+# Artifacts from running the wizard against this repo itself
+components/
+.gitmodules
+.honch-backup/
+honch-setup-report.md
