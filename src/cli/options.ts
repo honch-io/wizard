@@ -2,14 +2,20 @@ import path from "node:path";
 import { z } from "zod";
 import type { SdkTargetId } from "../sdk/targets.js";
 
-const targetSchema = z.enum(["esp-idf", "c-posix", "micropython"]);
+const targetSchema = z.enum([
+  "esp-idf",
+  "c-posix",
+  "micropython",
+  "arduino",
+  "react-native-relay",
+]);
 
 export type CliOptions = {
   apiBaseUrl: string;
   installDir: string;
   target?: SdkTargetId;
   authToken?: string;
-  captureHost?: string;
+  captureHost: string;
   deviceModel?: string;
   firmwareVersion?: string;
   projectName?: string;
@@ -45,7 +51,7 @@ export function parseOptions(argv: string[], env: Env): CliOptions {
     apiBaseUrl:
       stringFlag(flags, "api-base-url") ??
       env.HONCH_WIZARD_API_BASE_URL ??
-      "https://app.honch.io",
+      "https://api.honch.io",
     installDir: path.resolve(
       stringFlag(flags, "install-dir") ??
         env.HONCH_WIZARD_INSTALL_DIR ??

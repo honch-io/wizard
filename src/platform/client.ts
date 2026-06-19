@@ -20,21 +20,6 @@ export class PlatformClient {
     this.fetcher = fetcher;
   }
 
-  async login(input: {
-    email: string;
-    password: string;
-  }): Promise<TokenResponse> {
-    return this.post<TokenResponse>("/api/auth/login", input);
-  }
-
-  async register(input: {
-    email: string;
-    password: string;
-    name?: string;
-  }): Promise<TokenResponse> {
-    return this.post<TokenResponse>("/api/auth/register", input);
-  }
-
   async createWizardToken(accessToken: string): Promise<TokenResponse> {
     return this.post<TokenResponse>("/api/wizard/token", {}, accessToken);
   }

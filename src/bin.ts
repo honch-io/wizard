@@ -16,7 +16,7 @@ Agent-powered Honch SDK setup.
 
 Options:
   --install-dir <path>    Client project directory
-  --target <target>       esp-idf, c-posix, or micropython
+  --target <target>       esp-idf, c-posix, micropython, arduino, or react-native-relay
   --api-base-url <url>    Honch platform API base URL
   --auth-token <token>    Existing Honch platform bearer token
   --capture-host <url>    Capture host for SDK configuration

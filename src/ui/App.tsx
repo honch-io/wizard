@@ -490,27 +490,16 @@ function activeStepLabel(steps: WizardStep[]) {
 }
 
 function mainTitle(prompt: PromptRequest) {
-  if (prompt.title === "Connect Honch" || prompt.title === "Account email") {
-    return "Connect your Honcho account";
-  }
   if (prompt.title === "Choose SDK target") return "Detect the SDK target";
   if (prompt.title === "Review install plan") return "Review the install plan";
   return prompt.title;
 }
 
 function mainDescription(prompt: PromptRequest) {
-  if (prompt.title === "Account email") {
-    return "Enter the email associated with your Honcho account.";
-  }
-  if (prompt.title === "Account password") {
-    return "Enter your password to finish authenticating with Honcho.";
-  }
   return prompt.message;
 }
 
 function inputLabel(prompt: PromptRequest) {
-  if (prompt.title === "Account email") return "Email";
-  if (prompt.title === "Account password") return "Password";
   return prompt.message.replace(/:$/, "");
 }
 

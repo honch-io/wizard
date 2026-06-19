@@ -1,4 +1,24 @@
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { SDK_TARGETS, type SdkTargetId } from "../sdk/targets.js";
+
+/**
+ * Resolve a bundled skill to an absolute path so the agent's Read tool can load
+ * it regardless of the project cwd it runs in. Skills sit next to the entry in a
+ * build (dist/skills, where this module is bundled into dist/bin.mjs) and one
+ * level up in dev (src/skills, while this file is src/agent/prompt.ts).
+ */
+export function resolveSkillPath(skillPath: string): string {
+  const candidates = [
+    new URL(skillPath, import.meta.url), // bundled: dist/bin.mjs -> dist/<skillPath>
+    new URL(`../${skillPath}`, import.meta.url), // dev: src/agent/ -> src/<skillPath>
+  ];
+  for (const candidate of candidates) {
+    const resolved = fileURLToPath(candidate);
+    if (existsSync(resolved)) return resolved;
+  }
+  return fileURLToPath(candidates[0]);
+}
 
 export type AgentPromptInput = {
   targetId: SdkTargetId;
@@ -13,7 +33,7 @@ export function buildAgentPrompt(input: AgentPromptInput): string {
 
   return `You are the Honch SDK installer agent. Your job is to integrate the Honch ${target.label} SDK into this client project with the smallest correct set of changes.
 
-Start by reading the bundled SDK skill at ${target.skillPath}. Treat that skill as the target-specific source of truth. Then inspect the project before editing files.
+Start by reading the bundled SDK skill at ${resolveSkillPath(target.skillPath)}. Treat that skill as the target-specific source of truth. Then inspect the project before editing files.
 
 Project context:
 - SDK target: ${target.label}

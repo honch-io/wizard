@@ -211,19 +211,6 @@ export class TuiPrompter implements Prompter {
       };
     }
 
-    if (prompt.startsWith("Login or signup")) {
-      return {
-        id: ++this.promptId,
-        title: "Connect Honch",
-        message: "Use an existing account or create one before project setup.",
-        kind: "select",
-        options: [
-          { label: "Login", value: "login", hint: "existing Honch account" },
-          { label: "Signup", value: "signup", hint: "create a Honch account" },
-        ],
-      };
-    }
-
     return {
       id: ++this.promptId,
       title: promptTitle(normalized),
@@ -259,8 +246,6 @@ export class TuiPrompter implements Prompter {
 }
 
 function promptTitle(prompt: string) {
-  if (prompt.startsWith("Email")) return "Account email";
-  if (prompt.startsWith("Password")) return "Account password";
   if (prompt.startsWith("Organization")) return "Organization";
   if (prompt.startsWith("Project")) return "Honch project";
   if (prompt.startsWith("Device")) return "Device profile";

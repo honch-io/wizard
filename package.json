@@ -1,9 +1,30 @@
 {
   "name": "@honch/honcho-wizard",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "description": "Agent-powered Honch SDK setup wizard",
+  "license": "MIT",
+  "author": "Honch",
+  "homepage": "https://github.com/honch-io/wizard#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/honch-io/wizard.git"
+  },
+  "bugs": {
+    "url": "https://github.com/honch-io/wizard/issues"
+  },
+  "keywords": [
+    "honch",
+    "sdk",
+    "wizard",
+    "installer",
+    "esp-idf",
+    "firmware",
+    "cli"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "honcho": "dist/bin.mjs"
   },
@@ -14,12 +35,13 @@
     "AGENTS.md"
   ],
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && node -e \"require('node:fs').cpSync('src/skills','dist/skills',{recursive:true})\"",
     "dev": "tsx src/bin.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "format": "biome check --write .",
-    "format:check": "biome check ."
+    "format:check": "biome check .",
+    "prepublishOnly": "bun run typecheck && bun run test && bun run build"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.146",
