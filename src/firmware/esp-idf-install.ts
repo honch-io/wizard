@@ -120,11 +120,13 @@ function ensureGitWorkTree(projectDir: string, runGit: GitRunner): boolean {
 }
 
 /**
- * Add the submodule, recovering from a leftover module gitdir. A prior
- * interrupted run can leave .git/modules/components/honch behind, so a plain
- * `git submodule add` fails with "a git directory ... is found locally". Git
- * itself suggests --force to reuse it; since the leftover origin is the Honch
- * SDK, reuse is safe.
+ * Add the submodule, retrying with --force when git refuses the plain add.
+ * Two cases need the force flag, and both are safe here because the component
+ * path is dedicated to the Honch SDK:
+ *  - a leftover .git/modules/components/honch from an interrupted run
+ *    ("a git directory ... is found locally");
+ *  - the project's .gitignore ignores components/ — the SDK component still
+ *    has to live there for the build, so we add it anyway.
  */
 function addHonchSubmodule(projectDir: string, runGit: GitRunner): void {
   try {
@@ -133,7 +135,7 @@ function addHonchSubmodule(projectDir: string, runGit: GitRunner): void {
       { cwd: projectDir },
     );
   } catch (error) {
-    if (!isLeftoverModuleDirError(error)) throw error;
+    if (!submoduleAddNeedsForce(error)) throw error;
     runGit(
       [
         "submodule",
@@ -147,9 +149,11 @@ function addHonchSubmodule(projectDir: string, runGit: GitRunner): void {
   }
 }
 
-function isLeftoverModuleDirError(error: unknown): boolean {
+function submoduleAddNeedsForce(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return /is found locally|already exists in the index|--force/.test(message);
+  return /is found locally|already exists in the index|--force|ignored by one of your|Use -f/.test(
+    message,
+  );
 }
 
 function registerExistingHonchCheckout(

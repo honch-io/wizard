@@ -112,6 +112,35 @@ describe("installEspIdfHonchSubmodule", () => {
     ]);
   });
 
+  it("retries with --force when components/ is gitignored", () => {
+    const projectDir = tempProject();
+    const git = fakeGit(projectDir);
+    const runner: GitRunner = (args, options) => {
+      if (
+        args[0] === "submodule" &&
+        args[1] === "add" &&
+        !args.includes("--force")
+      ) {
+        throw new Error(
+          "git submodule add failed: The following paths are ignored by one of your .gitignore files:\ncomponents/honch\nhint: Use -f if you really want to add them.",
+        );
+      }
+      return git.runner(args, options);
+    };
+
+    const result = installEspIdfHonchSubmodule(projectDir, runner);
+
+    expect(result.changed).toBe(true);
+    expect(isHonchSubmoduleRegistered(projectDir)).toBe(true);
+    expect(git.calls).toContainEqual([
+      "submodule",
+      "add",
+      "--force",
+      HONCH_ESP_IDF_SDK_URL,
+      HONCH_ESP_IDF_COMPONENT_PATH,
+    ]);
+  });
+
   it("updates an already-registered submodule without adding it again", () => {
     const projectDir = tempProject();
     mkdirSync(join(projectDir, HONCH_ESP_IDF_COMPONENT_PATH), {
