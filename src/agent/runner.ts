@@ -75,10 +75,8 @@ export function renderAgentEvent(
   if (message.type === "assistant") {
     for (const content of message.message.content) {
       if (content.type === "tool_use") {
-        return {
-          kind: "tool",
-          text: formatToolUse(content.name, content.input),
-        };
+        const text = formatToolUse(content.name, content.input);
+        return text ? { kind: "tool", text } : undefined;
       }
       if (content.type === "text") {
         const text = firstMeaningfulLine(content.text);
@@ -130,34 +128,63 @@ export function renderAgentEvent(
   return undefined;
 }
 
-function formatToolUse(name: string, input: unknown) {
+/**
+ * Turn a raw tool call into a short, human-readable action line. Returns
+ * undefined for pure noise (e.g. `echo` separators) so it is dropped from the
+ * install log entirely.
+ */
+function formatToolUse(name: string, input: unknown): string | undefined {
   const record =
     input && typeof input === "object"
       ? (input as Record<string, unknown>)
       : {};
-  const filePath = stringValue(record.file_path) ?? stringValue(record.path);
+  const file = stringValue(record.file_path) ?? stringValue(record.path);
   const command = stringValue(record.command);
-  const heading = filePath
-    ? `${name} ${filePath}`
-    : command
-      ? `${name} ${command}`
-      : name;
-  const preview = codePreview(record);
-  return preview ? `${heading}\n${preview}` : heading;
+
+  // The wizard's own local MCP tools.
+  if (name.includes("detect_package_manager"))
+    return "Detecting package manager";
+  if (name.includes("check_env_keys")) return "Checking environment keys";
+  if (name.includes("set_env_values")) return "Writing environment values";
+
+  switch (name) {
+    case "Read":
+      return file ? `Reading ${basename(file)}` : "Reading a file";
+    case "Edit":
+    case "MultiEdit":
+      return file ? `Editing ${basename(file)}` : "Editing a file";
+    case "Write":
+      return file ? `Writing ${basename(file)}` : "Writing a file";
+    case "Glob":
+      return "Scanning the project";
+    case "Grep":
+      return "Searching the project";
+    case "LS":
+      return "Listing files";
+    case "Bash":
+      return formatBashCommand(command);
+    default:
+      return name;
+  }
 }
 
-function codePreview(record: Record<string, unknown>) {
-  const source =
-    stringValue(record.content) ??
-    stringValue(record.new_string) ??
-    stringValue(record.old_string);
-  if (!source) return undefined;
-  const lines = source
-    .split("\n")
-    .map((line) => line.trimEnd())
-    .filter((line) => line.trim().length > 0)
-    .slice(0, 3);
-  return lines.length > 0 ? lines.join("\n") : undefined;
+function formatBashCommand(command?: string): string | undefined {
+  if (!command) return "Running a command";
+  const trimmed = command.trim();
+  // Echo separators are pure noise.
+  if (/^echo\b/.test(trimmed)) return undefined;
+  // The agent often inspects files with cat/head/tail — show what it's reading.
+  const inspect = /^(?:cat|head|tail)\s+(?:-\S+\s+)*"?([^\s"|]+)/.exec(trimmed);
+  if (inspect) return `Inspecting ${basename(inspect[1])}`;
+  return `$ ${truncate(trimmed, 56)}`;
+}
+
+function basename(filePath: string): string {
+  return filePath.replace(/\/+$/, "").split("/").pop() || filePath;
+}
+
+function truncate(value: string, max: number): string {
+  return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
 }
 
 function firstMeaningfulLine(text: string) {

@@ -3,6 +3,8 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import type { CliOptions } from "../cli/options.js";
 import type {
   PromptRequest,
+  RunMessage,
+  RunMessageKind,
   TuiPrompter,
   WizardStep,
   WizardSummary,
@@ -90,6 +92,7 @@ export function App({
         >
           <MainArea
             width={main - 3}
+            height={rows - 3}
             activeStep={activeStepLabel(snapshot.steps)}
             prompt={prompt}
             completed={snapshot.completed}
@@ -145,6 +148,7 @@ function Sidebar({
 
 function MainArea({
   width,
+  height,
   activeStep,
   prompt,
   completed,
@@ -154,12 +158,13 @@ function MainArea({
   onAnswer,
 }: {
   width: number;
+  height: number;
   activeStep: string;
   prompt?: PromptRequest;
   completed?: boolean;
   error?: string;
   reportPath?: string;
-  messages: Array<{ id: number; text: string }>;
+  messages: RunMessage[];
   onAnswer: (value: string) => void;
 }) {
   if (error) return <ErrorView message={error} />;
@@ -173,7 +178,14 @@ function MainArea({
         onAnswer={onAnswer}
       />
     );
-  return <RunView activeStep={activeStep} messages={messages} width={width} />;
+  return (
+    <RunView
+      activeStep={activeStep}
+      messages={messages}
+      width={width}
+      height={height}
+    />
+  );
 }
 
 function PromptView({
@@ -378,37 +390,103 @@ function StepHeading({ title }: { title: string }) {
   );
 }
 
+const STAR_FRAMES = ["✶", "✷", "✸", "✹", "✺", "✹", "✸", "✷"];
+
+/** A twinkling star, à la Claude. */
+function Spinner() {
+  const [frame, setFrame] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(
+      () => setFrame((f) => (f + 1) % STAR_FRAMES.length),
+      90,
+    );
+    return () => clearInterval(timer);
+  }, []);
+  return <Text color={COLORS.accent}>{STAR_FRAMES[frame]}</Text>;
+}
+
+function runGlyph(kind: RunMessageKind): { glyph: string; color: string } {
+  switch (kind) {
+    case "assistant":
+      return { glyph: "✻", color: COLORS.accent };
+    case "error":
+      return { glyph: "✗", color: COLORS.failure };
+    case "status":
+      return { glyph: "•", color: COLORS.secondary };
+    default:
+      return { glyph: "›", color: COLORS.neutral };
+  }
+}
+
 function RunView({
   activeStep,
   messages,
   width,
+  height,
 }: {
   activeStep: string;
-  messages: Array<{ id: number; text: string }>;
+  messages: RunMessage[];
   width: number;
+  height: number;
 }) {
   const isAgent = activeStep === "agent";
+  const visible = Math.max(height - 4, 4);
+  const total = messages.length;
+  const maxOffset = Math.max(total - visible, 0);
+  // Offset from the newest line: 0 follows the tail; ↑/↓ scrolls the history.
+  const [offset, setOffset] = useState(0);
+  const clamped = Math.min(offset, maxOffset);
+
+  useInput((_input, key) => {
+    if (key.upArrow) setOffset((o) => Math.min(o + 1, maxOffset));
+    else if (key.downArrow) setOffset((o) => Math.max(o - 1, 0));
+  });
+
+  const end = total - clamped;
+  const start = Math.max(end - visible, 0);
+  const windowed = messages.slice(start, end);
+
   return (
     <Box flexDirection="column">
-      <StepHeading
-        title={isAgent ? "Claude is installing Honch" : "Preparing install"}
-      />
+      <Text>
+        {isAgent ? <Spinner /> : <Text color={COLORS.accent}>◉</Text>}
+        <Text bold color={COLORS.value}>
+          {"  "}
+          {isAgent ? "Claude is installing Honch" : "Preparing install"}
+        </Text>
+      </Text>
       <Box height={1} />
-      {messages.length === 0 ? (
+      {total === 0 ? (
         <Text color={COLORS.help}>
           {isAgent
             ? "Waiting for Claude to inspect the project…"
             : "Analyzing project and preparing setup…"}
         </Text>
       ) : (
-        messages.map((message) => (
-          <Text key={message.id}>
-            <Text color={COLORS.accent}>›</Text>{" "}
-            <Text color={COLORS.value}>
-              {truncate(message.text, width - 2)}
-            </Text>
-          </Text>
-        ))
+        <Box flexDirection="column">
+          {start > 0 ? (
+            <Text color={COLORS.help}>↑ {start} earlier</Text>
+          ) : null}
+          {windowed.map((message) => {
+            const { glyph, color } = runGlyph(message.kind);
+            return (
+              <Text key={message.id}>
+                <Text color={color}>{glyph}</Text>{" "}
+                <Text
+                  color={
+                    message.kind === "assistant" ? COLORS.value : COLORS.neutral
+                  }
+                  dimColor={message.kind === "tool"}
+                >
+                  {truncate(message.text, width - 2)}
+                </Text>
+              </Text>
+            );
+          })}
+          {total - end > 0 ? (
+            <Text color={COLORS.help}>↓ {total - end} more</Text>
+          ) : null}
+        </Box>
       )}
     </Box>
   );

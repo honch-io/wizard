@@ -137,12 +137,13 @@ export async function runWorkflow(
       if (target.id === "esp-idf") {
         prompter.addRunMessage?.(
           "Registering Honch SDK component (git submodule)",
+          "status",
         );
         const install = installEspIdfHonchSubmodule(options.installDir);
         verification.push(install.message);
-        prompter.addRunMessage?.(install.message);
+        prompter.addRunMessage?.(install.message, "status");
       }
-      prompter.addRunMessage?.("Building Honch SDK installation prompt");
+      prompter.addRunMessage?.("Preparing the install plan", "status");
       const prompt = buildAgentPrompt({
         targetId: target.id,
         projectApiKeyRef,
@@ -150,14 +151,14 @@ export async function runWorkflow(
         deviceModel,
         firmwareVersion,
       });
-      prompter.addRunMessage?.("Starting agent with local Honcho MCP tools");
+      prompter.addRunMessage?.("Handing off to Claude", "status");
       await runAgent({
         cwd: options.installDir,
         prompt,
         platformToken: auth.wizardToken,
         llmBaseUrl: `${options.apiBaseUrl.replace(/\/+$/, "")}/api/wizard/llm`,
         onEvent: (event) => {
-          prompter.addRunMessage?.(event.text);
+          prompter.addRunMessage?.(event.text, event.kind);
         },
         mcpServers: {
           "honcho-tools": createLocalToolsServer({
@@ -167,6 +168,7 @@ export async function runWorkflow(
         },
       });
       agentRan = true;
+      prompter.addRunMessage?.("Verifying the integration", "status");
       verification.push("agent run completed");
       for (const result of verifyFirmwareInstall(
         target.id,
@@ -176,7 +178,10 @@ export async function runWorkflow(
       )) {
         const line = formatVerificationOutcome(result);
         verification.push(line);
-        prompter.addRunMessage?.(line);
+        prompter.addRunMessage?.(
+          line,
+          result.status === "failed" ? "error" : "status",
+        );
       }
       prompter.completeStep?.("agent", "agent install completed");
     } else {

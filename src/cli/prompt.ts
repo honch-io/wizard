@@ -59,11 +59,15 @@ export type SelectConfig = {
   defaultValue?: string;
 };
 
+export type RunMessageKind = "tool" | "assistant" | "status" | "error" | "info";
+
+export type RunMessage = { id: number; text: string; kind: RunMessageKind };
+
 export type TuiSnapshot = {
   steps: WizardStep[];
   summary: WizardSummary;
   currentPrompt?: PromptRequest;
-  runMessages: Array<{ id: number; text: string }>;
+  runMessages: RunMessage[];
   error?: string;
   completed?: boolean;
 };
@@ -78,7 +82,7 @@ export type Prompter = {
   setStep?(id: WizardStepId, detail?: string): void;
   completeStep?(id: WizardStepId, detail?: string): void;
   setSummary?(summary: Partial<WizardSummary>): void;
-  addRunMessage?(message: string): void;
+  addRunMessage?(message: string, kind?: RunMessageKind): void;
   finish?(summary: Partial<WizardSummary>): void;
   fail?(message: string): void;
 };
@@ -211,17 +215,19 @@ export class TuiPrompter implements Prompter {
     this.update({ summary: { ...this.snapshot.summary, ...summary } });
   }
 
-  addRunMessage(message: string) {
-    const messages = message
+  addRunMessage(message: string, kind: RunMessageKind = "info") {
+    const lines = message
       .split("\n")
       .map((line) => line.trimEnd())
       .filter((line) => line.length > 0);
-    this.update({
-      runMessages: [
-        ...this.snapshot.runMessages,
-        ...messages.map((text) => ({ id: ++this.runMessageId, text })),
-      ].slice(-10),
-    });
+    const next = [...this.snapshot.runMessages];
+    for (const text of lines) {
+      // Streaming text deltas re-emit the same first line repeatedly; collapse
+      // consecutive duplicates so the log stays readable.
+      if (next[next.length - 1]?.text === text) continue;
+      next.push({ id: ++this.runMessageId, text, kind });
+    }
+    this.update({ runMessages: next.slice(-500) });
   }
 
   finish(summary: Partial<WizardSummary>) {

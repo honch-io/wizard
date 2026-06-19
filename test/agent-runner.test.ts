@@ -32,7 +32,7 @@ describe("buildAgentOptions", () => {
     expect(options.env).not.toHaveProperty("CLAUDE_CODE_OAUTH_TOKEN");
   });
 
-  it("renders edit tool events with code previews", () => {
+  it("renders edit tool events as a friendly action line", () => {
     const event = renderAgentEvent({
       type: "assistant",
       message: {
@@ -50,9 +50,24 @@ describe("buildAgentOptions", () => {
       },
     } as never);
 
-    expect(event).toEqual({
+    expect(event).toEqual({ kind: "tool", text: "Editing app_main.c" });
+  });
+
+  it("drops echo noise and labels file inspection", () => {
+    const make = (command: string) =>
+      renderAgentEvent({
+        type: "assistant",
+        message: {
+          content: [
+            { type: "tool_use", id: "t", name: "Bash", input: { command } },
+          ],
+        },
+      } as never);
+
+    expect(make('echo "---"')).toBeUndefined();
+    expect(make("cat components/honch/main/app_main.c")).toEqual({
       kind: "tool",
-      text: 'Edit main/app_main.c\nhonch_init(&config);\nhonch_track("boot", NULL);',
+      text: "Inspecting app_main.c",
     });
   });
 });
