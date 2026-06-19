@@ -165,43 +165,63 @@ export async function runWorkflow(
         firmwareVersion,
       });
       prompter.addRunMessage?.(
-        "Handing off to Claude — press esc to stop",
+        "Handing off to Claude — press esc to pause",
         "status",
       );
       // Snapshot the project right before Claude touches it so the user can
-      // revert its work if they interrupt the run.
+      // revert its work if they pause the run.
       const snapshot = snapshotProject(options.installDir);
-      const abort = new AbortController();
-      prompter.onInterrupt?.(() => {
-        prompter.addRunMessage?.("Stopping Claude…", "status");
-        abort.abort();
-      });
-      await runAgent({
-        cwd: options.installDir,
-        prompt,
-        platformToken: auth.wizardToken,
-        abortController: abort,
-        llmBaseUrl: `${options.apiBaseUrl.replace(/\/+$/, "")}/api/wizard/llm`,
-        onEvent: (event) => {
-          prompter.addRunMessage?.(event.text, event.kind);
-        },
-        mcpServers: {
-          "honcho-tools": createLocalToolsServer({
-            workingDirectory: options.installDir,
-            secretVault: vault,
-          }),
-        },
-      });
 
-      if (abort.signal.aborted) {
-        agentRan = await resolveInterruption(
+      let sessionId: string | undefined;
+      let nextPrompt = prompt;
+      let outcome: "completed" | "kept" | "reverted" = "completed";
+
+      while (true) {
+        const abort = new AbortController();
+        prompter.onInterrupt?.(() => {
+          prompter.addRunMessage?.("Pausing Claude…", "status");
+          abort.abort();
+        });
+        const result = await runAgent({
+          cwd: options.installDir,
+          prompt: nextPrompt,
+          resume: sessionId,
+          platformToken: auth.wizardToken,
+          abortController: abort,
+          llmBaseUrl: `${options.apiBaseUrl.replace(/\/+$/, "")}/api/wizard/llm`,
+          onEvent: (event) => {
+            prompter.addRunMessage?.(event.text, event.kind);
+          },
+          mcpServers: {
+            "honcho-tools": createLocalToolsServer({
+              workingDirectory: options.installDir,
+              secretVault: vault,
+            }),
+          },
+        });
+        sessionId = result.sessionId ?? sessionId;
+
+        if (!abort.signal.aborted) break;
+
+        const choice = await resolveInterruption(
           options.installDir,
           snapshot,
           prompter,
           verification,
         );
-      } else {
-        agentRan = true;
+        if (choice === "continue") {
+          prompter.setStep?.("agent", "resuming Claude");
+          prompter.addRunMessage?.("Resuming Claude…", "status");
+          nextPrompt =
+            "Continue the Honch SDK installation from where you left off.";
+          continue;
+        }
+        outcome = choice === "revert" ? "reverted" : "kept";
+        break;
+      }
+
+      agentRan = outcome !== "reverted";
+      if (outcome === "completed") {
         prompter.addRunMessage?.("Verifying the integration", "status");
         verification.push("agent run completed");
         for (const result of verifyFirmwareInstall(
@@ -220,7 +240,11 @@ export async function runWorkflow(
       }
       prompter.completeStep?.(
         "agent",
-        agentRan ? "agent install completed" : "stopped",
+        outcome === "completed"
+          ? "agent install completed"
+          : outcome === "kept"
+            ? "stopped — changes kept"
+            : "reverted",
       );
     } else {
       prompter.setStep?.("agent", "dry run");
@@ -401,31 +425,32 @@ async function resolveInterruption(
   snapshot: string | undefined,
   prompter: Prompter,
   verification: string[],
-): Promise<boolean> {
+): Promise<"continue" | "revert" | "keep"> {
   const choice = await prompter.select({
-    title: "Claude stopped",
-    message: snapshot
-      ? "You stopped the install. Revert the changes Claude made, or keep them?"
-      : "You stopped the install. Keep what Claude did so far? (no snapshot to revert to)",
-    defaultValue: snapshot ? "revert" : "keep",
-    options: snapshot
-      ? [
-          { label: "Revert to before Claude's work", value: "revert" },
-          { label: "Keep Claude's changes", value: "keep" },
-        ]
-      : [{ label: "Keep Claude's changes", value: "keep" }],
+    title: "Claude paused",
+    message: "What would you like to do?",
+    defaultValue: "continue",
+    options: [
+      { label: "Continue — let Claude keep working", value: "continue" },
+      ...(snapshot
+        ? [{ label: "Revert to before Claude's work", value: "revert" }]
+        : []),
+      { label: "Keep changes and stop here", value: "keep" },
+    ],
   });
 
   if (choice === "revert" && snapshot) {
     restoreProject(installDir, snapshot);
     prompter.addRunMessage?.("Reverted Claude's changes.", "status");
     verification.push("interrupted — reverted Claude's changes");
-    return false;
+    return "revert";
   }
-
-  prompter.addRunMessage?.("Kept Claude's changes.", "status");
-  verification.push("interrupted — kept Claude's changes");
-  return true;
+  if (choice === "keep") {
+    prompter.addRunMessage?.("Kept Claude's changes.", "status");
+    verification.push("interrupted — kept Claude's changes");
+    return "keep";
+  }
+  return "continue";
 }
 
 async function resolveOrganization(

@@ -12,6 +12,12 @@ export type AgentRunInput = {
   mcpServers: NonNullable<Options["mcpServers"]>;
   onEvent?: (event: AgentRunEvent) => void;
   abortController?: AbortController;
+  resume?: string;
+};
+
+export type AgentRunResult = {
+  messages: string[];
+  sessionId?: string;
 };
 
 export type AgentRunEvent = {
@@ -31,6 +37,7 @@ export function buildAgentOptions(input: Omit<AgentRunInput, "prompt">) {
     ...(input.abortController
       ? { abortController: input.abortController }
       : {}),
+    ...(input.resume ? { resume: input.resume } : {}),
     allowedTools: [
       "Read",
       "Write",
@@ -52,8 +59,9 @@ export function buildAgentOptions(input: Omit<AgentRunInput, "prompt">) {
   };
 }
 
-export async function runAgent(input: AgentRunInput): Promise<string[]> {
+export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
   const messages: string[] = [];
+  let sessionId: string | undefined;
   const response = query({
     prompt: input.prompt,
     options: buildAgentOptions(input),
@@ -61,6 +69,9 @@ export async function runAgent(input: AgentRunInput): Promise<string[]> {
 
   try {
     for await (const message of response) {
+      const id = (message as { session_id?: string }).session_id;
+      if (id) sessionId = id;
+
       const event = renderAgentEvent(message);
       if (event) input.onEvent?.(event);
 
@@ -75,7 +86,7 @@ export async function runAgent(input: AgentRunInput): Promise<string[]> {
     if (!input.abortController?.signal.aborted) throw error;
   }
 
-  return messages;
+  return { messages, sessionId };
 }
 
 export function renderAgentEvent(
