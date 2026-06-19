@@ -29,6 +29,8 @@ export type WorkflowResult = {
 
 /** Sentinel value for the "choose a different SDK" option in the detected flow. */
 const PICK_DIFFERENT_TARGET = "__pick_different__";
+/** Sentinel value for the "create a new project" option. */
+const CREATE_NEW_PROJECT = "__create_new_project__";
 
 export async function runWorkflow(
   options: CliOptions,
@@ -316,28 +318,62 @@ async function resolveProject(
     };
   }
 
-  const organizationId = await prompter.question(
-    "Organization ID (leave blank for single-org accounts):",
+  const organizationId = await resolveOrganization(
+    accessToken,
+    platformClient,
+    prompter,
   );
+
   const projects = await platformClient.listProjects(
     accessToken,
-    organizationId || undefined,
+    organizationId,
   );
-  const existing = projects[0];
-  const answer = await prompter.question(
-    existing
-      ? `Project name or blank for ${existing.name}:`
-      : "Project name to create:",
-  );
-  const projectName = answer.trim();
-  if (!projectName && existing) return existing;
-  const byName = projects.find((project) => project.name === projectName);
-  if (byName) return byName;
+
+  // Let the user pick one of their existing projects, or create a new one.
+  if (projects.length > 0) {
+    const choice = await prompter.select({
+      title: "Choose a project",
+      message: "Pick an existing Honch project, or create a new one.",
+      defaultValue: projects[0].id,
+      options: [
+        ...projects.map((project) => ({
+          label: project.name,
+          value: project.id,
+        })),
+        { label: "＋ Create a new project", value: CREATE_NEW_PROJECT },
+      ],
+    });
+    const picked = projects.find((project) => project.id === choice);
+    if (picked) return picked;
+  }
+
+  const name = (await prompter.question("New project name:")).trim();
   return platformClient.createProject(
     accessToken,
-    projectName || "Honch Project",
-    organizationId || undefined,
+    name || "Honch Project",
+    organizationId,
   );
+}
+
+async function resolveOrganization(
+  accessToken: string,
+  platformClient: PlatformClient,
+  prompter: Prompter,
+): Promise<string | undefined> {
+  const organizations = await platformClient.listOrganizations(accessToken);
+  if (organizations.length === 0) return undefined;
+  if (organizations.length === 1) return organizations[0].id;
+
+  return prompter.select({
+    title: "Choose an organization",
+    message: "Which organization should this project belong to?",
+    defaultValue: organizations[0].id,
+    options: organizations.map((org) => ({
+      label: org.name,
+      value: org.id,
+      hint: org.role,
+    })),
+  });
 }
 
 async function requiredInput(

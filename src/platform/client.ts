@@ -9,6 +9,14 @@ export type ProjectResponse = {
   id: string;
   name: string;
   apiKey?: string;
+  organizationId?: string;
+};
+
+export type OrganizationResponse = {
+  id: string;
+  name: string;
+  slug: string;
+  role: string;
 };
 
 export class PlatformClient {
@@ -22,6 +30,10 @@ export class PlatformClient {
 
   async createWizardToken(accessToken: string): Promise<TokenResponse> {
     return this.post<TokenResponse>("/api/wizard/token", {}, accessToken);
+  }
+
+  async listOrganizations(accessToken: string) {
+    return this.get<OrganizationResponse[]>("/api/organizations", accessToken);
   }
 
   async listProjects(accessToken: string, organizationId?: string) {
