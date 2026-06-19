@@ -141,16 +141,24 @@ export class TuiPrompter implements Prompter {
     const pending = this.pending;
     if (!pending) return;
     this.pending = undefined;
-    this.update({ currentPrompt: undefined });
+    // Keep the answered prompt on screen until the next step/prompt replaces
+    // it. Clearing it here left a frame where MainArea fell back to the run
+    // view and flashed the previous step's run messages between prompts.
     pending.resolve(value);
   }
 
   setStep(id: WizardStepId, detail?: string) {
-    this.updateSteps(id, "active", detail);
+    // Entering a step drops the prior step's run output and any answered
+    // prompt, so the transition never re-renders the previous step's view.
+    this.update({
+      steps: this.computeSteps(id, "active", detail),
+      runMessages: [],
+      currentPrompt: undefined,
+    });
   }
 
   completeStep(id: WizardStepId, detail?: string) {
-    this.updateSteps(id, "done", detail);
+    this.update({ steps: this.computeSteps(id, "done", detail) });
   }
 
   setSummary(summary: Partial<WizardSummary>) {
@@ -223,19 +231,17 @@ export class TuiPrompter implements Prompter {
     };
   }
 
-  private updateSteps(
+  private computeSteps(
     id: WizardStepId,
     status: WizardStep["status"],
     detail?: string,
-  ) {
-    this.update({
-      steps: this.snapshot.steps.map((step) => {
-        if (step.id === id) return { ...step, status, detail };
-        if (status === "active" && step.status === "active") {
-          return { ...step, status: "done" };
-        }
-        return step;
-      }),
+  ): WizardStep[] {
+    return this.snapshot.steps.map((step) => {
+      if (step.id === id) return { ...step, status, detail };
+      if (status === "active" && step.status === "active") {
+        return { ...step, status: "done" };
+      }
+      return step;
     });
   }
 

@@ -20,7 +20,7 @@ const COLORS = {
   rule: "#2d3545",
 } as const;
 
-const SIDEBAR_WIDTH = 18;
+const SIDEBAR_WIDTH = 24;
 
 /** Adapt to the terminal width, clamped to a readable range. */
 function layout() {
