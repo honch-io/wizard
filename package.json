@@ -30,9 +30,7 @@
   },
   "files": [
     "dist",
-    "README.md",
-    "SPEC",
-    "AGENTS.md"
+    "README.md"
   ],
   "scripts": {
     "build": "tsdown && node -e \"require('node:fs').cpSync('src/skills','dist/skills',{recursive:true})\"",

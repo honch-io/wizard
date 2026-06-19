@@ -71,7 +71,7 @@ function errorHtml(message: string): string {
 <body style="font-family:system-ui,sans-serif;text-align:center;padding:48px">
 <h2>Login failed</h2>
 <p>${message}</p>
-<p>Return to your terminal and run <code>honcho-wizard login</code> again.</p>
+<p>Return to your terminal and run <code>honcho</code> again.</p>
 </body></html>`;
 }
 
@@ -214,7 +214,7 @@ export function loginViaBrowser(
         finish(() =>
           reject(
             new Error(
-              "Login failed: state parameter mismatch (possible CSRF). Please run honcho-wizard login again.",
+              "Login failed: state parameter mismatch (possible CSRF). Please run honcho again.",
             ),
           ),
         );
@@ -274,7 +274,7 @@ export function loginViaBrowser(
           finish(() =>
             reject(
               new Error(
-                "Login timed out after 5 minutes. Run honcho-wizard login to try again.",
+                "Login timed out after 5 minutes. Run honcho to try again.",
               ),
             ),
           );

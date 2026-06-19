@@ -3,3 +3,7 @@ node_modules/
 .env
 .env.*
 !.env.example
+
+# Local-only dev docs — kept on disk, not tracked or published
+AGENTS.md
+SPEC/
