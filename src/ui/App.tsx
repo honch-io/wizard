@@ -59,6 +59,12 @@ export function App({
   }, []);
 
   const { inner, main, rows } = layout();
+  const installing =
+    activeStepLabel(snapshot.steps) === "agent" &&
+    !prompt &&
+    !snapshot.completed &&
+    !snapshot.error &&
+    !snapshot.cancelled;
 
   useInput((input, key) => {
     if (key.ctrl && input.toLowerCase() === "c") {
@@ -99,6 +105,7 @@ export function App({
             prompt={prompt}
             completed={snapshot.completed}
             error={snapshot.error}
+            cancelled={snapshot.cancelled}
             reportPath={snapshot.summary.reportPath}
             messages={snapshot.runMessages}
             onAnswer={(value) => prompter.answer(value)}
@@ -106,7 +113,10 @@ export function App({
         </Box>
       </Box>
       <Text color={COLORS.rule}>{rule(inner)}</Text>
-      <Text color={COLORS.help}>↑/↓ move · enter select · ctrl+c exit</Text>
+      <Text color={COLORS.help}>
+        ↑/↓ move · enter select
+        {installing ? " · esc stop Claude" : ""} · ctrl+c exit
+      </Text>
     </Box>
   );
 }
@@ -155,6 +165,7 @@ function MainArea({
   prompt,
   completed,
   error,
+  cancelled,
   reportPath,
   messages,
   onAnswer,
@@ -165,10 +176,12 @@ function MainArea({
   prompt?: PromptRequest;
   completed?: boolean;
   error?: string;
+  cancelled?: boolean;
   reportPath?: string;
   messages: RunMessage[];
   onAnswer: (value: string) => void;
 }) {
+  if (cancelled) return <CancelledView />;
   if (error) return <ErrorView message={error} />;
   if (completed) return <DoneView width={width} reportPath={reportPath} />;
   if (prompt)
@@ -510,6 +523,21 @@ function DoneView({
       <Text color={COLORS.help}>Report generated at</Text>
       <Text color={COLORS.value}>
         {truncate(reportPath ?? "honch-setup-report.md", width)}
+      </Text>
+    </Box>
+  );
+}
+
+function CancelledView() {
+  return (
+    <Box flexDirection="column">
+      <Text bold color={COLORS.neutral}>
+        ◌ Wizard cancelled
+      </Text>
+      <Box height={1} />
+      <Text color={COLORS.help} wrap="wrap">
+        No further changes will be made. Run honcho again any time to pick up
+        where you left off.
       </Text>
     </Box>
   );

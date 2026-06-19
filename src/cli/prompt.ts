@@ -70,6 +70,7 @@ export type TuiSnapshot = {
   runMessages: RunMessage[];
   error?: string;
   completed?: boolean;
+  cancelled?: boolean;
 };
 
 export type Prompter = {
@@ -259,7 +260,8 @@ export class TuiPrompter implements Prompter {
   cancel(message = "Wizard cancelled") {
     const pending = this.pending;
     this.pending = undefined;
-    this.update({ currentPrompt: undefined, error: message });
+    this.interruptHandler = undefined;
+    this.update({ currentPrompt: undefined, cancelled: true });
     pending?.reject(new Error(message));
   }
 

@@ -62,9 +62,16 @@ function handleSigint() {
   if (shuttingDown) return;
   shuttingDown = true;
   prompter.cancel?.("Wizard cancelled");
-  unmount();
-  process.stdout.write("\nWizard cancelled.\n");
-  process.exit(130);
+  if (useTui) {
+    // Let Ink paint the cancelled screen before the process exits.
+    setTimeout(() => {
+      unmount();
+      process.exit(130);
+    }, 400);
+  } else {
+    process.stdout.write("\nWizard cancelled.\n");
+    process.exit(130);
+  }
 }
 
 process.once("SIGINT", handleSigint);

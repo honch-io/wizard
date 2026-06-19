@@ -97,6 +97,6 @@ describe("TuiPrompter", () => {
 
     await expect(answer).rejects.toThrow("Wizard cancelled");
     expect(prompter.getSnapshot().currentPrompt).toBeUndefined();
-    expect(prompter.getSnapshot().error).toBe("Wizard cancelled");
+    expect(prompter.getSnapshot().cancelled).toBe(true);
   });
 });
