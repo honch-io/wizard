@@ -21,12 +21,20 @@ describe("auth session persistence", () => {
     saveAuthSession({
       apiBaseUrl: "http://localhost:3001/",
       accessToken: "platform-jwt",
+      clientId: "honch_client_123",
+      refreshToken: "refresh-token",
+      expiresAt: "2027-01-01T00:00:00.000Z",
+      scope: "read:projects",
       email: "user@example.com",
     });
 
     expect(loadAuthSession("http://localhost:3001")).toMatchObject({
       apiBaseUrl: "http://localhost:3001",
       accessToken: "platform-jwt",
+      clientId: "honch_client_123",
+      refreshToken: "refresh-token",
+      expiresAt: "2027-01-01T00:00:00.000Z",
+      scope: "read:projects",
       email: "user@example.com",
     });
     expect(sessionPath.endsWith("session.json")).toBe(true);
@@ -41,6 +49,19 @@ describe("auth session persistence", () => {
     });
 
     expect(loadAuthSession("http://localhost:3001")).toBeUndefined();
+  });
+
+  it("loads legacy sessions without OAuth refresh metadata", () => {
+    useTempSessionFile();
+
+    saveAuthSession({
+      apiBaseUrl: "http://localhost:3001",
+      accessToken: "legacy-platform-jwt",
+    });
+
+    expect(loadAuthSession("http://localhost:3001")).toMatchObject({
+      accessToken: "legacy-platform-jwt",
+    });
   });
 });
 

@@ -2,8 +2,16 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { buildAgentPrompt } from "./agent/prompt.js";
 import { runAgent } from "./agent/runner.js";
-import { loginViaBrowser } from "./auth/browser-login.js";
-import { loadAuthSession, saveAuthSession } from "./auth/session.js";
+import {
+  type BrowserLoginResult,
+  loginViaBrowser,
+  refreshOAuthSession,
+} from "./auth/browser-login.js";
+import {
+  type AuthSession,
+  loadAuthSession,
+  saveAuthSession,
+} from "./auth/session.js";
 import type { CliOptions } from "./cli/options.js";
 import { createPrompter, type Prompter } from "./cli/prompt.js";
 import { installEspIdfHonchSubmodule } from "./firmware/esp-idf-install.js";
@@ -385,35 +393,106 @@ async function resolveAuth(
 
   const saved = loadAuthSession(options.apiBaseUrl);
   if (saved) {
-    prompter.addRunMessage?.(
-      saved.email
-        ? `Using saved Honch session for ${saved.email}`
-        : "Using saved Honch session",
+    const activeSession = await refreshSavedSession(
+      options.apiBaseUrl,
+      saved,
+      prompter,
     );
-    const wizardToken = options.runAgent
-      ? (await platformClient.createWizardToken(saved.accessToken)).accessToken
-      : undefined;
-    return {
-      accessToken: saved.accessToken,
-      wizardToken,
-      mode: "saved session",
-    };
+    if (activeSession) {
+      prompter.addRunMessage?.(
+        activeSession.email
+          ? `Using saved Honch session for ${activeSession.email}`
+          : "Using saved Honch session",
+      );
+      const wizardToken = options.runAgent
+        ? (await platformClient.createWizardToken(activeSession.accessToken))
+            .accessToken
+        : undefined;
+      return {
+        accessToken: activeSession.accessToken,
+        wizardToken,
+        mode: "saved session",
+      };
+    }
+    prompter.addRunMessage?.(
+      "Saved Honch session expired; opening your browser to sign in again.",
+    );
   }
 
   prompter.addRunMessage?.("Opening your browser to sign in to Honch…");
-  const { token: accessToken } = await loginViaBrowser({
+  const login = await loginViaBrowser({
     apiBaseUrl: options.apiBaseUrl,
     onUrl: (url) =>
       prompter.addRunMessage?.(`If your browser didn't open, visit:\n${url}`),
   });
+  const accessToken = login.token;
   const wizardToken = options.runAgent
     ? (await platformClient.createWizardToken(accessToken)).accessToken
     : undefined;
-  saveAuthSession({
-    apiBaseUrl: options.apiBaseUrl,
-    accessToken,
-  });
+  saveBrowserAuthSession(options.apiBaseUrl, login);
   return { accessToken, wizardToken, mode: "browser login" };
+}
+
+async function refreshSavedSession(
+  apiBaseUrl: string,
+  saved: AuthSession,
+  prompter: Prompter,
+): Promise<AuthSession | undefined> {
+  if (!saved.clientId || !saved.refreshToken) return saved;
+  if (!shouldRefresh(saved)) return saved;
+
+  try {
+    const refreshed = await refreshOAuthSession({
+      apiBaseUrl,
+      clientId: saved.clientId,
+      refreshToken: saved.refreshToken,
+      scope: saved.scope,
+    });
+    saveBrowserAuthSession(apiBaseUrl, refreshed, saved.email);
+    return {
+      ...saved,
+      accessToken: refreshed.token,
+      refreshToken: refreshed.refreshToken ?? saved.refreshToken,
+      expiresAt: refreshed.expiresAt,
+      scope: refreshed.scope,
+      savedAt: new Date().toISOString(),
+    };
+  } catch {
+    if (isExpired(saved)) return undefined;
+    prompter.addRunMessage?.(
+      "Could not refresh saved Honch session; using the cached access token.",
+    );
+    return saved;
+  }
+}
+
+function saveBrowserAuthSession(
+  apiBaseUrl: string,
+  login: BrowserLoginResult,
+  email?: string,
+) {
+  saveAuthSession({
+    apiBaseUrl,
+    accessToken: login.token,
+    clientId: login.clientId,
+    refreshToken: login.refreshToken,
+    expiresAt: login.expiresAt,
+    scope: login.scope,
+    email,
+  });
+}
+
+function shouldRefresh(session: AuthSession) {
+  if (!session.expiresAt) return true;
+  const expiresAt = Date.parse(session.expiresAt);
+  if (Number.isNaN(expiresAt)) return true;
+  return expiresAt - Date.now() < 60_000;
+}
+
+function isExpired(session: AuthSession) {
+  if (!session.expiresAt) return true;
+  const expiresAt = Date.parse(session.expiresAt);
+  return Number.isNaN(expiresAt) || expiresAt <= Date.now();
 }
 
 async function resolveProject(

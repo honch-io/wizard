@@ -6,6 +6,10 @@ import { z } from "zod";
 const sessionSchema = z.object({
   apiBaseUrl: z.string(),
   accessToken: z.string().min(1),
+  clientId: z.string().min(1).optional(),
+  refreshToken: z.string().min(1).optional(),
+  expiresAt: z.string().optional(),
+  scope: z.string().optional(),
   email: z.string().optional(),
   savedAt: z.string(),
 });
@@ -29,6 +33,10 @@ export function loadAuthSession(apiBaseUrl: string): AuthSession | undefined {
 export function saveAuthSession(input: {
   apiBaseUrl: string;
   accessToken: string;
+  clientId?: string;
+  refreshToken?: string;
+  expiresAt?: string;
+  scope?: string;
   email?: string;
 }) {
   const file = sessionFile();
@@ -36,6 +44,10 @@ export function saveAuthSession(input: {
   const session: AuthSession = {
     apiBaseUrl: normalizeUrl(input.apiBaseUrl),
     accessToken: input.accessToken,
+    ...(input.clientId ? { clientId: input.clientId } : {}),
+    ...(input.refreshToken ? { refreshToken: input.refreshToken } : {}),
+    ...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),
+    ...(input.scope ? { scope: input.scope } : {}),
     email: input.email,
     savedAt: new Date().toISOString(),
   };

@@ -1,31 +1,17 @@
 /**
- * Browser (loopback) login for the Honch wizard — PKCE authorization-code flow.
+ * Browser (loopback) login for the Honch wizard — OAuth PKCE code flow.
  *
- * The backend (honch-io/platform) deliberately never sends the bearer token
- * through the loopback URL. Instead it uses PKCE: only a short-lived, one-time
- * authorization `code` travels through the browser, and the CLI redeems it for
- * the token over a direct back-channel POST. The flow:
+ * The platform never sends the bearer token through the loopback URL. Only a
+ * short-lived authorization code travels through the browser, and the CLI
+ * redeems it over a direct back-channel POST. The flow:
  *
- *   1. CLI generates a random `code_verifier` and its S256 challenge
- *      `code_challenge = base64url(sha256(code_verifier))`.
- *   2. CLI opens, in the browser:
- *        GET {api}/api/auth/cli/login?redirect_uri=<loopback>&state=<nonce>&code_challenge=<challenge>
- *      The backend 302s the browser to the global web login page
- *        {FRONTEND_URL}/login?cli_redirect=<loopback>&state=<nonce>&code_challenge=<challenge>
- *   3. The user signs in by any method. The logged-in web app mints a one-time
- *      `code` (bound to the user + loopback + challenge) and forwards the
- *      browser to  <loopback>?code=<code>&state=<nonce>.
- *   4. CLI verifies `state`, then POSTs to
- *        {api}/api/auth/cli/exchange  { code, codeVerifier }
- *      The backend verifies sha256(codeVerifier) === code_challenge and returns
- *        { accessToken, tokenType: "bearer" }.
+ *   1. Register a public OAuth client for the selected loopback redirect URI.
+ *   2. Open {api}/api/oauth/authorize with response_type=code and PKCE S256.
+ *   3. The frontend consent page redirects to <loopback>?code=...&state=....
+ *   4. Exchange the code at {api}/api/oauth/token.
  *
- * `state` is a CSRF/mix-up guard; `code_verifier` proves the redeeming CLI is
- * the same one that started the flow. The resolved token is the normal user
- * bearer, which the caller persists via the credentials store.
- *
- * NOTE: `redirect_uri` must be `http://127.0.0.1[:port]/callback` or
- * `http://localhost[:port]/callback` — the backend rejects anything else.
+ * `state` guards against CSRF/mix-up; `code_verifier` proves the redeeming CLI
+ * is the same process that started the flow.
  */
 
 import { createHash, randomBytes } from "node:crypto";
@@ -35,12 +21,14 @@ import { openBrowser } from "./open-browser.js";
 
 /**
  * Loopback ports the CLI tries in order for the OAuth callback server. The
- * backend allowlists these for the cli login redirect_uri.
+ * dynamically registered OAuth client is scoped to the first port that binds.
  */
 const OAUTH_PORTS = [8239, 8238, 8240, 8237, 8236, 8235] as const;
 
 /** Default time to wait for the user to finish the browser flow. */
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
+const DEFAULT_SCOPE = "read:projects";
+const CLIENT_NAME = "Honcho Wizard";
 
 export interface BrowserLoginOptions {
   /** Platform API base URL (backend), e.g. https://api.honch.io. */
@@ -58,6 +46,14 @@ export interface BrowserLoginOptions {
 export interface BrowserLoginResult {
   /** The user bearer returned by the platform. */
   token: string;
+  /** OAuth client id returned by dynamic client registration. */
+  clientId: string;
+  /** Opaque refresh token returned by the OAuth token endpoint. */
+  refreshToken?: string;
+  /** ISO timestamp when the access token expires. */
+  expiresAt?: string;
+  /** Space-delimited OAuth scopes granted to the client. */
+  scope: string;
 }
 
 const SUCCESS_HTML = `<!doctype html><html><head><meta charset="utf-8"><title>Honch</title></head>
@@ -81,23 +77,75 @@ function pkceChallenge(codeVerifier: string): string {
   return createHash("sha256").update(codeVerifier).digest("base64url");
 }
 
-/**
- * Redeem the one-time authorization code for the user bearer over the direct
- * back-channel. The code + verifier are the proof; no auth header is sent.
- */
-async function exchangeCodeForToken(
+type OAuthTokenResponse = {
+  access_token?: unknown;
+  token_type?: unknown;
+  expires_in?: unknown;
+  refresh_token?: unknown;
+  scope?: unknown;
+};
+
+async function registerOAuthClient(
   apiBaseUrl: string,
-  code: string,
-  codeVerifier: string,
+  redirectUri: string,
   fetcher: typeof fetch,
-): Promise<string> {
-  const url = `${apiBaseUrl.replace(/\/+$/, "")}/api/auth/cli/exchange`;
+): Promise<{ clientId: string; scope: string }> {
+  const url = `${apiBaseUrl.replace(/\/+$/, "")}/api/oauth/register`;
   let response: Response;
   try {
     response = await fetcher(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code, codeVerifier }),
+      body: JSON.stringify({
+        client_name: CLIENT_NAME,
+        redirect_uris: [redirectUri],
+        scope: DEFAULT_SCOPE,
+        token_endpoint_auth_method: "none",
+      }),
+    });
+  } catch (err) {
+    throw new Error(
+      `Could not reach Honch to start OAuth login at ${url}. Check your network or pass --api-base-url.`,
+      { cause: err },
+    );
+  }
+
+  const body = await parseOAuthResponse(response, "client registration");
+  const clientId = (body as { client_id?: unknown }).client_id;
+  const scope = (body as { scope?: unknown }).scope;
+  if (typeof clientId !== "string" || clientId.length === 0) {
+    throw new Error("Login failed: Honch did not return an OAuth client id.");
+  }
+
+  return {
+    clientId,
+    scope:
+      typeof scope === "string" && scope.length > 0 ? scope : DEFAULT_SCOPE,
+  };
+}
+
+/** Redeem the one-time authorization code for the user bearer. */
+async function exchangeCodeForToken(
+  apiBaseUrl: string,
+  code: string,
+  clientId: string,
+  redirectUri: string,
+  codeVerifier: string,
+  fetcher: typeof fetch,
+): Promise<BrowserLoginResult> {
+  const url = `${apiBaseUrl.replace(/\/+$/, "")}/api/oauth/token`;
+  let response: Response;
+  try {
+    response = await fetcher(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: redirectUri,
+        client_id: clientId,
+        code_verifier: codeVerifier,
+      }),
     });
   } catch (err) {
     throw new Error(
@@ -106,27 +154,93 @@ async function exchangeCodeForToken(
     );
   }
 
+  return tokenResultFromResponse(response, clientId, "token exchange");
+}
+
+export async function refreshOAuthSession(options: {
+  apiBaseUrl: string;
+  clientId: string;
+  refreshToken: string;
+  scope?: string;
+  fetcher?: typeof fetch;
+}): Promise<BrowserLoginResult> {
+  const fetcher = options.fetcher ?? fetch;
+  const url = `${options.apiBaseUrl.replace(/\/+$/, "")}/api/oauth/token`;
+  let response: Response;
+  try {
+    response = await fetcher(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        grant_type: "refresh_token",
+        refresh_token: options.refreshToken,
+        client_id: options.clientId,
+        ...(options.scope ? { scope: options.scope } : {}),
+      }),
+    });
+  } catch (err) {
+    throw new Error(
+      `Could not reach Honch to refresh login at ${url}. Check your network or pass --api-base-url.`,
+      { cause: err },
+    );
+  }
+
+  return tokenResultFromResponse(response, options.clientId, "token refresh");
+}
+
+async function tokenResultFromResponse(
+  response: Response,
+  clientId: string,
+  label: "token exchange" | "token refresh",
+): Promise<BrowserLoginResult> {
+  const body = (await parseOAuthResponse(
+    response,
+    label,
+  )) as OAuthTokenResponse;
+  const accessToken = body.access_token;
+  if (typeof accessToken !== "string" || accessToken.length === 0) {
+    throw new Error("Login failed: Honch did not return an access token.");
+  }
+
+  const expiresIn = typeof body.expires_in === "number" ? body.expires_in : 0;
+  const refreshToken =
+    typeof body.refresh_token === "string" && body.refresh_token.length > 0
+      ? body.refresh_token
+      : undefined;
+  const scope =
+    typeof body.scope === "string" && body.scope.length > 0
+      ? body.scope
+      : DEFAULT_SCOPE;
+
+  return {
+    token: accessToken,
+    clientId,
+    refreshToken,
+    expiresAt:
+      expiresIn > 0
+        ? new Date(Date.now() + expiresIn * 1000).toISOString()
+        : undefined,
+    scope,
+  };
+}
+
+async function parseOAuthResponse(response: Response, label: string) {
   const text = await response.text();
   if (!response.ok) {
     throw new Error(
-      `Login failed: token exchange returned HTTP ${response.status}${
+      `Login failed: ${label} returned HTTP ${response.status}${
         text ? ` - ${text}` : ""
       }`,
     );
   }
 
-  let body: unknown;
   try {
-    body = JSON.parse(text);
+    return JSON.parse(text) as unknown;
   } catch {
-    body = undefined;
+    throw new Error(
+      `Login failed: Honch returned an invalid ${label} response.`,
+    );
   }
-  const accessToken = (body as { accessToken?: unknown } | undefined)
-    ?.accessToken;
-  if (typeof accessToken !== "string" || accessToken.length === 0) {
-    throw new Error("Login failed: Honch did not return an access token.");
-  }
-  return accessToken;
 }
 
 /**
@@ -175,6 +289,11 @@ export function loginViaBrowser(
   const state = randomBytes(32).toString("hex");
   const codeVerifier = randomBytes(32).toString("base64url");
   const codeChallenge = pkceChallenge(codeVerifier);
+  const oauthClient = {
+    clientId: "",
+    redirectUri: "",
+    scope: DEFAULT_SCOPE,
+  };
 
   return new Promise<BrowserLoginResult>((resolve, reject) => {
     let settled = false;
@@ -235,18 +354,20 @@ export function loginViaBrowser(
         return;
       }
 
-      // Redeem the code over the back-channel before reporting success — a
+      // Redeem the code over the back-channel before reporting success; a
       // failed exchange must surface as a login failure, not a green tab.
       try {
         const token = await exchangeCodeForToken(
           apiBaseUrl,
           code,
+          oauthClient.clientId,
+          oauthClient.redirectUri,
           codeVerifier,
           fetcher,
         );
         res.writeHead(200, html);
         res.end(SUCCESS_HTML);
-        finish(() => resolve({ token }));
+        finish(() => resolve(token));
       } catch (err) {
         res.writeHead(502, html);
         res.end(errorHtml("Could not complete sign-in. Please try again."));
@@ -264,25 +385,57 @@ export function loginViaBrowser(
       .then(({ server: started, port }) => {
         server = started;
         const redirectUri = `http://127.0.0.1:${port}/callback`;
-        const loginUrl =
-          `${apiBaseUrl.replace(/\/+$/, "")}/api/auth/cli/login` +
-          `?redirect_uri=${encodeURIComponent(redirectUri)}` +
-          `&state=${state}` +
-          `&code_challenge=${encodeURIComponent(codeChallenge)}`;
+        oauthClient.redirectUri = redirectUri;
+        return registerOAuthClient(apiBaseUrl, redirectUri, fetcher).then(
+          (client) => {
+            oauthClient.clientId = client.clientId;
+            oauthClient.scope = client.scope;
+            const loginUrl = buildAuthorizeUrl({
+              apiBaseUrl,
+              clientId: client.clientId,
+              redirectUri,
+              state,
+              codeChallenge,
+              scope: client.scope,
+            });
 
-        timer = setTimeout(() => {
-          finish(() =>
-            reject(
-              new Error(
-                "Login timed out after 5 minutes. Run honcho to try again.",
-              ),
-            ),
-          );
-        }, timeoutMs);
+            timer = setTimeout(() => {
+              finish(() =>
+                reject(
+                  new Error(
+                    "Login timed out after 5 minutes. Run honcho to try again.",
+                  ),
+                ),
+              );
+            }, timeoutMs);
 
-        options.onUrl?.(loginUrl);
-        open(loginUrl);
+            options.onUrl?.(loginUrl);
+            open(loginUrl);
+          },
+        );
       })
       .catch((err) => finish(() => reject(err)));
   });
+}
+
+function buildAuthorizeUrl(input: {
+  apiBaseUrl: string;
+  clientId: string;
+  redirectUri: string;
+  state: string;
+  codeChallenge: string;
+  scope: string;
+}) {
+  const url = new URL(
+    "/api/oauth/authorize",
+    `${input.apiBaseUrl.replace(/\/+$/, "")}/`,
+  );
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("client_id", input.clientId);
+  url.searchParams.set("redirect_uri", input.redirectUri);
+  url.searchParams.set("scope", input.scope);
+  url.searchParams.set("state", input.state);
+  url.searchParams.set("code_challenge", input.codeChallenge);
+  url.searchParams.set("code_challenge_method", "S256");
+  return url.toString();
 }
