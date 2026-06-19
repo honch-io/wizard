@@ -1,6 +1,5 @@
 import { stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
-import { SDK_TARGETS, type SdkTargetId } from "../sdk/targets.js";
 
 export type WizardStepId =
   | "scan"
@@ -49,14 +48,15 @@ export type PromptRequest = {
   lines?: string[];
 };
 
-export type Recommendation = {
-  value: string;
-  source: "detected" | "recommended";
-};
-
 export type QuestionOptions = {
   sensitive?: boolean;
-  recommend?: Recommendation;
+};
+
+export type SelectConfig = {
+  title: string;
+  message: string;
+  options: PromptOption[];
+  defaultValue?: string;
 };
 
 export type TuiSnapshot = {
@@ -70,6 +70,7 @@ export type TuiSnapshot = {
 
 export type Prompter = {
   question(prompt: string, options?: QuestionOptions): Promise<string>;
+  select(config: SelectConfig): Promise<string>;
   confirm(prompt: string): Promise<boolean>;
   welcome?(config: { body: string; lines: string[] }): Promise<void>;
   close(): void;
@@ -125,6 +126,22 @@ export class TuiPrompter implements Prompter {
       const request = this.buildRequest(prompt, options ?? {});
       this.pending = { resolve, reject };
       this.update({ currentPrompt: request });
+    });
+  }
+
+  select(config: SelectConfig): Promise<string> {
+    return new Promise((resolve, reject) => {
+      this.pending = { resolve, reject };
+      this.update({
+        currentPrompt: {
+          id: ++this.promptId,
+          title: config.title,
+          message: config.message,
+          kind: "select",
+          options: config.options,
+          defaultValue: config.defaultValue,
+        },
+      });
     });
   }
 
@@ -236,26 +253,6 @@ export class TuiPrompter implements Prompter {
     options: QuestionOptions,
   ): PromptRequest {
     const normalized = prompt.replace(/:$/, "");
-
-    if (prompt.startsWith("SDK target")) {
-      const recommend = options.recommend;
-      return {
-        id: ++this.promptId,
-        title: "Select your SDK",
-        message: recommend
-          ? "Which SDK should I set up? I've suggested one based on your project."
-          : "Which SDK should I set up?",
-        kind: "select",
-        defaultValue: recommend?.value,
-        options: (Object.keys(SDK_TARGETS) as SdkTargetId[]).map((id) => ({
-          label: SDK_TARGETS[id].label,
-          value: id,
-          hint: SDK_TARGETS[id].verificationHint,
-          badge: recommend?.value === id ? `(${recommend.source})` : undefined,
-        })),
-      };
-    }
-
     return {
       id: ++this.promptId,
       title: promptTitle(normalized),
@@ -303,6 +300,25 @@ export function createPrompter(): Prompter {
   return {
     async question(prompt) {
       return rl.question(`${prompt} `);
+    },
+    async select(config) {
+      const list = config.options
+        .map((option, index) => `  ${index + 1}) ${option.label}`)
+        .join("\n");
+      const answer = (
+        await rl.question(`${config.message}\n${list}\n> `)
+      ).trim();
+      const byIndex = config.options[Number(answer) - 1];
+      const byValue = config.options.find(
+        (option) => option.value === answer || option.label === answer,
+      );
+      return (
+        byIndex?.value ??
+        byValue?.value ??
+        config.defaultValue ??
+        config.options[0]?.value ??
+        ""
+      );
     },
     async confirm(prompt) {
       const answer = await rl.question(`${prompt} [y/N] `);

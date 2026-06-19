@@ -2,15 +2,20 @@ import { describe, expect, it } from "vitest";
 import { TuiPrompter } from "../src/cli/prompt.js";
 
 describe("TuiPrompter", () => {
-  it("turns workflow questions into selectable TUI prompts", async () => {
+  it("turns a select() call into a selectable TUI prompt", async () => {
     const prompter = new TuiPrompter({
       targetProject: "/tmp/client",
       platformApi: "https://app.honch.io",
     });
 
-    const answer = prompter.question(
-      "SDK target (esp-idf, c-posix, micropython, arduino, react-native-relay):",
-    );
+    const answer = prompter.select({
+      title: "Select your SDK",
+      message: "Which SDK should I set up?",
+      options: [
+        { label: "ESP-IDF", value: "esp-idf" },
+        { label: "C/POSIX", value: "c-posix" },
+      ],
+    });
     const prompt = prompter.getSnapshot().currentPrompt;
 
     expect(prompt?.kind).toBe("select");
@@ -18,29 +23,30 @@ describe("TuiPrompter", () => {
     expect(prompt?.options.map((option) => option.value)).toEqual([
       "esp-idf",
       "c-posix",
-      "micropython",
-      "arduino",
-      "react-native-relay",
     ]);
 
     prompter.answer("c-posix");
     await expect(answer).resolves.toBe("c-posix");
   });
 
-  it("badges and pre-selects the recommended SDK target", () => {
+  it("carries the badge and default value through select()", () => {
     const prompter = new TuiPrompter({});
 
-    void prompter.question("SDK target (esp-idf, c-posix, micropython):", {
-      recommend: { value: "micropython", source: "detected" },
+    void prompter.select({
+      title: "Detected SDK",
+      message: "Use it, or pick a different SDK?",
+      defaultValue: "micropython",
+      options: [
+        { label: "Use MicroPython", value: "micropython", badge: "(detected)" },
+        { label: "Choose a different SDK", value: "__other__" },
+      ],
     });
     const prompt = prompter.getSnapshot().currentPrompt;
 
     expect(prompt?.defaultValue).toBe("micropython");
-    const recommended = prompt?.options.find((o) => o.value === "micropython");
-    expect(recommended?.badge).toBe("(detected)");
-    expect(prompt?.options.filter((o) => o.badge).map((o) => o.value)).toEqual([
-      "micropython",
-    ]);
+    expect(prompt?.options.find((o) => o.value === "micropython")?.badge).toBe(
+      "(detected)",
+    );
   });
 
   it("tracks progress and summary state for the app", () => {

@@ -27,6 +27,9 @@ export type WorkflowResult = {
   agentRan: boolean;
 };
 
+/** Sentinel value for the "choose a different SDK" option in the detected flow. */
+const PICK_DIFFERENT_TARGET = "__pick_different__";
+
 export async function runWorkflow(
   options: CliOptions,
   deps: {
@@ -44,9 +47,7 @@ export async function runWorkflow(
     const scan = scanProject(options.installDir);
     const findings =
       scan.detectedTargets.length > 0
-        ? scan.detectedTargets.map(
-            (target) => `Detected a ${target.label} project`,
-          )
+        ? scan.detectedTargets.map((target) => `Detected ${target.label}`)
         : ["No SDK auto-detected — you can pick one on the next screen."];
     if (prompter.welcome && !options.yes) {
       await prompter.welcome({
@@ -211,18 +212,41 @@ async function resolveTarget(
   prompter: Prompter,
 ): Promise<SdkTarget> {
   if (requested) return SDK_TARGETS[requested];
-  // Only suggest a target when the scan actually detected one; otherwise let
-  // the user pick from a clean list with nothing pre-selected.
-  const detectedId = detected[0]?.id;
-  const answer = await prompter.question(
-    `SDK target (${Object.keys(SDK_TARGETS).join(", ")}):`,
-    detectedId
-      ? { recommend: { value: detectedId, source: "detected" } }
-      : undefined,
-  );
-  return (
-    SDK_TARGETS[answer as SdkTargetId] ?? SDK_TARGETS[detectedId ?? "esp-idf"]
-  );
+
+  const fullList = (Object.keys(SDK_TARGETS) as SdkTargetId[]).map((id) => ({
+    label: SDK_TARGETS[id].label,
+    value: id,
+    hint: SDK_TARGETS[id].verificationHint,
+  }));
+
+  // If the scan detected a target, offer to continue with it or pick another.
+  const detectedTarget = detected[0];
+  if (detectedTarget) {
+    const choice = await prompter.select({
+      title: "Detected SDK",
+      message: `Detected ${detectedTarget.label} in your project. Use it, or pick a different SDK?`,
+      defaultValue: detectedTarget.id,
+      options: [
+        {
+          label: `Use ${detectedTarget.label}`,
+          value: detectedTarget.id,
+          badge: "(detected)",
+        },
+        { label: "Choose a different SDK", value: PICK_DIFFERENT_TARGET },
+      ],
+    });
+    if (choice !== PICK_DIFFERENT_TARGET) {
+      return SDK_TARGETS[choice as SdkTargetId] ?? detectedTarget;
+    }
+  }
+
+  // Nothing detected, or the user chose to browse: show the full list.
+  const answer = await prompter.select({
+    title: "Select your SDK",
+    message: "Which SDK should I set up?",
+    options: fullList,
+  });
+  return SDK_TARGETS[answer as SdkTargetId] ?? SDK_TARGETS["esp-idf"];
 }
 
 async function resolveAuth(

@@ -22,12 +22,13 @@ const COLORS = {
 
 const SIDEBAR_WIDTH = 24;
 
-/** Adapt to the terminal width, clamped to a readable range. */
+/** Fit to the live terminal size. */
 function layout() {
-  const cols = Math.min(Math.max(process.stdout.columns ?? 80, 64), 96);
+  const cols = Math.max(process.stdout.columns ?? 80, 48);
+  const rows = Math.max(process.stdout.rows ?? 24, 12);
   const inner = cols - 4; // outer paddingX={2}
-  const main = Math.max(inner - SIDEBAR_WIDTH - 3, 34); // gutter + left rule
-  return { inner, main };
+  const main = Math.max(inner - SIDEBAR_WIDTH - 3, 30); // gutter + left rule
+  return { inner, main, rows };
 }
 
 export function App({
@@ -44,7 +45,18 @@ export function App({
     prompter.getSnapshot,
   );
   const prompt = snapshot.currentPrompt;
-  const { inner, main } = layout();
+
+  // Re-render (and re-read the terminal size) whenever the window resizes.
+  const [, forceResize] = useState(0);
+  useEffect(() => {
+    const onResize = () => forceResize((n) => n + 1);
+    process.stdout.on("resize", onResize);
+    return () => {
+      process.stdout.off("resize", onResize);
+    };
+  }, []);
+
+  const { inner, main, rows } = layout();
 
   useInput((input, key) => {
     if (key.ctrl && input.toLowerCase() === "c") {
@@ -53,8 +65,14 @@ export function App({
   });
 
   return (
-    <Box flexDirection="column" paddingX={2} paddingY={1}>
-      <Box gap={2}>
+    <Box
+      flexDirection="column"
+      height={rows}
+      paddingX={2}
+      paddingTop={1}
+      paddingBottom={0}
+    >
+      <Box gap={2} flexGrow={1}>
         <Sidebar
           options={options}
           steps={snapshot.steps}
@@ -82,7 +100,6 @@ export function App({
           />
         </Box>
       </Box>
-      <Box height={1} />
       <Text color={COLORS.rule}>{rule(inner)}</Text>
       <Text color={COLORS.help}>↑/↓ move · enter select · ctrl+c exit</Text>
     </Box>
@@ -100,24 +117,28 @@ function Sidebar({
 }) {
   return (
     <Box width={SIDEBAR_WIDTH} flexDirection="column">
-      {steps.map((step) => (
-        <Text key={step.id}>
-          <Text color={stepColor(step.status)}>{stepGlyph(step.status)}</Text>
-          <Text
-            bold={step.status === "active"}
-            color={step.status === "active" ? COLORS.accent : COLORS.value}
-            dimColor={step.status === "pending"}
-          >
-            {" "}
-            {timelineLabel(step)}
+      <Box flexDirection="column">
+        {steps.map((step) => (
+          <Text key={step.id}>
+            <Text color={stepColor(step.status)}>{stepGlyph(step.status)}</Text>
+            <Text
+              bold={step.status === "active"}
+              color={step.status === "active" ? COLORS.accent : COLORS.value}
+              dimColor={step.status === "pending"}
+            >
+              {" "}
+              {timelineLabel(step)}
+            </Text>
           </Text>
-        </Text>
-      ))}
-      <Box height={1} />
-      <Fact label="Path" value={displayPath(options.installDir)} />
-      <Fact label="SDK" value={summary.sdkTarget ?? "—"} />
-      <Fact label="Device" value={summary.deviceModel ?? "—"} />
-      <Fact label="Mode" value={summary.runMode ?? "dry run"} />
+        ))}
+      </Box>
+      <Box flexGrow={1} />
+      <Box flexDirection="column">
+        <Fact label="Path" value={displayPath(options.installDir)} />
+        <Fact label="SDK" value={summary.sdkTarget ?? "—"} />
+        <Fact label="Device" value={summary.deviceModel ?? "—"} />
+        <Fact label="Mode" value={summary.runMode ?? "dry run"} />
+      </Box>
     </Box>
   );
 }
@@ -271,10 +292,10 @@ function Picker({
 
   return (
     <Box flexDirection="column">
-      <StepHeading title={mainTitle(prompt)} />
+      <StepHeading title={prompt.title} />
       <Box height={1} />
       <Text color={COLORS.help} wrap="wrap">
-        {mainDescription(prompt)}
+        {prompt.message}
       </Text>
       <Box height={1} />
       {prompt.options.map((option, index) => {
@@ -476,16 +497,6 @@ function timelineLabel(step: WizardStep) {
 
 function activeStepLabel(steps: WizardStep[]) {
   return steps.find((step) => step.status === "active")?.id ?? "auth";
-}
-
-function mainTitle(prompt: PromptRequest) {
-  if (prompt.title === "Choose SDK target") return "Detect the SDK target";
-  if (prompt.title === "Review install plan") return "Review the install plan";
-  return prompt.title;
-}
-
-function mainDescription(prompt: PromptRequest) {
-  return prompt.message;
 }
 
 function inputLabel(prompt: PromptRequest) {
