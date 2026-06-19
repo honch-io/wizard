@@ -83,6 +83,7 @@ export type Prompter = {
   completeStep?(id: WizardStepId, detail?: string): void;
   setSummary?(summary: Partial<WizardSummary>): void;
   addRunMessage?(message: string, kind?: RunMessageKind): void;
+  onInterrupt?(handler: () => void): void;
   finish?(summary: Partial<WizardSummary>): void;
   fail?(message: string): void;
 };
@@ -109,6 +110,7 @@ export class TuiPrompter implements Prompter {
   private promptId = 0;
   private runMessageId = 0;
   private pending?: PendingPrompt;
+  private interruptHandler?: () => void;
 
   constructor(summary: WizardSummary) {
     this.snapshot = {
@@ -124,6 +126,18 @@ export class TuiPrompter implements Prompter {
   };
 
   getSnapshot = () => this.snapshot;
+
+  /** Register a one-shot interrupt handler (ESC during the agent run). */
+  onInterrupt(handler: () => void) {
+    this.interruptHandler = handler;
+  }
+
+  /** Fire the current interrupt handler, if any (called by the UI on ESC). */
+  interrupt() {
+    const handler = this.interruptHandler;
+    this.interruptHandler = undefined;
+    handler?.();
+  }
 
   question(prompt: string, options?: QuestionOptions): Promise<string> {
     return new Promise((resolve, reject) => {

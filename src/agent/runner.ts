@@ -11,6 +11,7 @@ export type AgentRunInput = {
   llmBaseUrl: string;
   mcpServers: NonNullable<Options["mcpServers"]>;
   onEvent?: (event: AgentRunEvent) => void;
+  abortController?: AbortController;
 };
 
 export type AgentRunEvent = {
@@ -27,6 +28,9 @@ export function buildAgentOptions(input: Omit<AgentRunInput, "prompt">) {
     permissionMode: "acceptEdits" as const,
     mcpServers: input.mcpServers,
     includePartialMessages: true,
+    ...(input.abortController
+      ? { abortController: input.abortController }
+      : {}),
     allowedTools: [
       "Read",
       "Write",
@@ -55,15 +59,20 @@ export async function runAgent(input: AgentRunInput): Promise<string[]> {
     options: buildAgentOptions(input),
   });
 
-  for await (const message of response) {
-    const event = renderAgentEvent(message);
-    if (event) input.onEvent?.(event);
+  try {
+    for await (const message of response) {
+      const event = renderAgentEvent(message);
+      if (event) input.onEvent?.(event);
 
-    if (message.type === "assistant") {
-      for (const content of message.message.content) {
-        if (content.type === "text") messages.push(content.text);
+      if (message.type === "assistant") {
+        for (const content of message.message.content) {
+          if (content.type === "text") messages.push(content.text);
+        }
       }
     }
+  } catch (error) {
+    // A user-requested abort ends the run cleanly; anything else is a failure.
+    if (!input.abortController?.signal.aborted) throw error;
   }
 
   return messages;

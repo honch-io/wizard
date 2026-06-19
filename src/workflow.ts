@@ -13,6 +13,7 @@ import {
 } from "./firmware/verify.js";
 import { PlatformClient, type ProjectResponse } from "./platform/client.js";
 import { scanProject } from "./project/scan.js";
+import { restoreProject, snapshotProject } from "./project/snapshot.js";
 import { buildSetupReport } from "./report/setup-report.js";
 import {
   SDK_TARGETS,
@@ -151,11 +152,23 @@ export async function runWorkflow(
         deviceModel,
         firmwareVersion,
       });
-      prompter.addRunMessage?.("Handing off to Claude", "status");
+      prompter.addRunMessage?.(
+        "Handing off to Claude — press esc to stop",
+        "status",
+      );
+      // Snapshot the project right before Claude touches it so the user can
+      // revert its work if they interrupt the run.
+      const snapshot = snapshotProject(options.installDir);
+      const abort = new AbortController();
+      prompter.onInterrupt?.(() => {
+        prompter.addRunMessage?.("Stopping Claude…", "status");
+        abort.abort();
+      });
       await runAgent({
         cwd: options.installDir,
         prompt,
         platformToken: auth.wizardToken,
+        abortController: abort,
         llmBaseUrl: `${options.apiBaseUrl.replace(/\/+$/, "")}/api/wizard/llm`,
         onEvent: (event) => {
           prompter.addRunMessage?.(event.text, event.kind);
@@ -167,23 +180,36 @@ export async function runWorkflow(
           }),
         },
       });
-      agentRan = true;
-      prompter.addRunMessage?.("Verifying the integration", "status");
-      verification.push("agent run completed");
-      for (const result of verifyFirmwareInstall(
-        target.id,
-        options.installDir,
-        undefined,
-        projectApiKey,
-      )) {
-        const line = formatVerificationOutcome(result);
-        verification.push(line);
-        prompter.addRunMessage?.(
-          line,
-          result.status === "failed" ? "error" : "status",
+
+      if (abort.signal.aborted) {
+        agentRan = await resolveInterruption(
+          options.installDir,
+          snapshot,
+          prompter,
+          verification,
         );
+      } else {
+        agentRan = true;
+        prompter.addRunMessage?.("Verifying the integration", "status");
+        verification.push("agent run completed");
+        for (const result of verifyFirmwareInstall(
+          target.id,
+          options.installDir,
+          undefined,
+          projectApiKey,
+        )) {
+          const line = formatVerificationOutcome(result);
+          verification.push(line);
+          prompter.addRunMessage?.(
+            line,
+            result.status === "failed" ? "error" : "status",
+          );
+        }
       }
-      prompter.completeStep?.("agent", "agent install completed");
+      prompter.completeStep?.(
+        "agent",
+        agentRan ? "agent install completed" : "stopped",
+      );
     } else {
       prompter.setStep?.("agent", "dry run");
       verification.push("dry run: no files modified");
@@ -356,6 +382,38 @@ async function resolveProject(
     name || "Honch Project",
     organizationId,
   );
+}
+
+async function resolveInterruption(
+  installDir: string,
+  snapshot: string | undefined,
+  prompter: Prompter,
+  verification: string[],
+): Promise<boolean> {
+  const choice = await prompter.select({
+    title: "Claude stopped",
+    message: snapshot
+      ? "You stopped the install. Revert the changes Claude made, or keep them?"
+      : "You stopped the install. Keep what Claude did so far? (no snapshot to revert to)",
+    defaultValue: snapshot ? "revert" : "keep",
+    options: snapshot
+      ? [
+          { label: "Revert to before Claude's work", value: "revert" },
+          { label: "Keep Claude's changes", value: "keep" },
+        ]
+      : [{ label: "Keep Claude's changes", value: "keep" }],
+  });
+
+  if (choice === "revert" && snapshot) {
+    restoreProject(installDir, snapshot);
+    prompter.addRunMessage?.("Reverted Claude's changes.", "status");
+    verification.push("interrupted — reverted Claude's changes");
+    return false;
+  }
+
+  prompter.addRunMessage?.("Kept Claude's changes.", "status");
+  verification.push("interrupted — kept Claude's changes");
+  return true;
 }
 
 async function resolveOrganization(

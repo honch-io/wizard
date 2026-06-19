@@ -63,6 +63,8 @@ export function App({
   useInput((input, key) => {
     if (key.ctrl && input.toLowerCase() === "c") {
       onCancel();
+    } else if (key.escape) {
+      prompter.interrupt();
     }
   });
 
