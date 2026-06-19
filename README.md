@@ -1,96 +1,112 @@
-# Honcho Wizard
+# Honcho
 
-Agent-powered Honch SDK setup for client projects.
+**Agent-powered installer for the [Honch](https://honch.io) SDK.**
 
-```sh
-bun install
-bun run dev -- --install-dir /path/to/client
-```
+`honcho` scans your project, connects your Honch account, and wires the right
+Honch SDK into your codebase for you — ESP-IDF, C/POSIX, MicroPython, Arduino,
+or a React Native relay. It runs as an interactive terminal UI and finishes with
+a setup report you can review.
 
-The installed binary name is `honcho`.
+## Quick start
 
-The wizard is an interactive terminal UI. It scans the target project, prompts
-for Honch auth or signup, lets the user pick or create a project, confirms the
-planned install, then writes a setup report. Passing `--run-agent` runs the
-Claude Agent SDK through the Honch platform LLM proxy and exposes local MCP
-tools for package detection and safe `.env` updates.
-
-## Local Dry Run
-
-You can exercise scanning, confirmation, and setup report generation without a
-running platform API by supplying local project values:
+Run it straight from npm — no install needed:
 
 ```sh
-bun run build
-node dist/bin.mjs \
-  --install-dir . \
-  --target c-posix \
-  --project-name Local \
-  --project-api-key honch_test \
-  --device-model TestDevice \
-  --yes
+# npm
+npx @honch/honcho
+
+# bun
+bunx @honch/honcho
 ```
 
-This writes `honch-setup-report.md` in the target project and does not modify
-SDK source files unless `--run-agent` is also provided.
-
-## Platform Agent Run
-
-Run the platform API from the platform branch that includes the wizard proxy,
-then point the wizard at it:
+By default it sets up the SDK in the current directory. Point it somewhere else
+with `--install-dir`:
 
 ```sh
-bun run build
-node dist/bin.mjs \
-  --install-dir /path/to/client \
-  --api-base-url http://127.0.0.1:3000 \
-  --run-agent
+npx @honch/honcho --install-dir /path/to/your/project
 ```
 
-The platform must be configured with its Anthropic provider credentials. The
-wizard asks for Honch login/signup, organization, project, device model,
-capture host, and final confirmation before the agent mutates the target
-project. Firmware version is sourced from the target project's own version
-definition during integration, not entered into the wizard.
-
-## Commands
+## Install globally
 
 ```sh
-bun run dev -- --help
-bun run build
-bun run test
-bun run typecheck
-bun run format:check
+# npm
+npm install -g @honch/honcho
+
+# bun
+bun add -g @honch/honcho
 ```
 
-## Environment
+Then run it anywhere:
 
-| Variable | Purpose |
+```sh
+honcho
+```
+
+> Requires **Node.js ≥ 22**. Bun works too — `bunx` / `bun add -g` fetch and
+> launch it under Node via its shebang.
+
+## What it does
+
+1. **Scans** the target project and detects the most likely SDK target.
+2. **Connects** your Honch account (browser login/signup) and lets you pick or
+   create a project.
+3. **Confirms** the plan — and offers to do the work on a fresh git branch so
+   you can review or discard it.
+4. **Installs** by running the Claude Agent SDK (through Honch's hosted LLM
+   proxy) with local MCP tools for package detection and safe `.env` updates.
+   The firmware version and capture host are sourced/defaulted automatically —
+   you don't enter them.
+5. **Reports** what changed in `honch-setup-report.md`, viewable in the terminal.
+
+## Preview without changing anything
+
+Use `--dry-run` (`-n`) to walk the flow and generate the setup report without
+running the agent or touching your files:
+
+```sh
+npx @honch/honcho --dry-run
+```
+
+## Options
+
+| Flag | Description |
 | --- | --- |
-| `HONCH_WIZARD_API_BASE_URL` | Platform API base URL |
-| `HONCH_WIZARD_INSTALL_DIR` | Target project directory |
-| `HONCH_WIZARD_TARGET` | SDK target: `esp-idf`, `c-posix`, or `micropython` |
-| `HONCH_WIZARD_YES` | Skip confirmation prompts when all inputs are supplied |
-| `HONCH_WIZARD_AUTH_TOKEN` | Existing Honch platform bearer token |
-| `HONCH_WIZARD_CAPTURE_HOST` | Capture host written into SDK config |
-| `HONCH_WIZARD_DEVICE_MODEL` | Device model used by the SDK install |
-| `HONCH_WIZARD_PROJECT_NAME` | Project name for local/offline testing |
-| `HONCH_WIZARD_PROJECT_API_KEY` | Project API key for local/offline testing |
-| `HONCH_WIZARD_RUN_AGENT` | Set to `1` to run Claude Agent SDK through platform proxy |
+| `--install-dir <path>` | Project to set up (defaults to the current directory) |
+| `--target <id>` | `esp-idf`, `c-posix`, `micropython`, `arduino`, or `react-native-relay` |
+| `--api-base-url <url>` | Honch platform API base URL (defaults to production) |
+| `--auth-token <token>` | Use an existing Honch bearer token instead of logging in |
+| `--device-model <name>` | Device model to configure |
+| `--project-name <name>` | Honch project name (local/offline testing) |
+| `--project-api-key <key>` | Honch project API key (local/offline testing) |
+| `--dry-run`, `-n` | Preview the plan without running the agent or changing files |
+| `--yes`, `-y` | Skip confirmation prompts when inputs are complete |
+| `--help`, `-h` | Show help |
 
-## Layout
+Every flag has an environment-variable equivalent (`HONCH_WIZARD_*`), e.g.
+`HONCH_WIZARD_INSTALL_DIR`, `HONCH_WIZARD_TARGET`, `HONCH_WIZARD_AUTH_TOKEN`,
+`HONCH_WIZARD_DEVICE_MODEL`, `HONCH_WIZARD_YES`, `HONCH_WIZARD_DRY_RUN`.
 
-```text
-src/
-  agent/      Prompt assembly and agent run configuration
-  cli/        CLI option parsing
-  platform/   Honch auth, project, and wizard-token client
-  project/    Target-project disk scanning
-  report/     Setup report generation
-  sdk/        SDK target detection and target metadata
-  secrets/    In-memory secret vault
-  tools/      Local Claude Agent SDK MCP tools
-  ui/         Ink terminal UI
-SPEC/         Product and implementation spec
-test/         Unit tests
+## Development
+
+```sh
+git clone https://github.com/honch-io/wizard
+cd wizard
+bun install
+
+bun run dev -- --help        # run from source
+bun run build                # bundle to dist/
+bun run test                 # unit tests
+bun run typecheck            # tsc --noEmit
+bun run format:check         # biome lint/format check
 ```
+
+Run the local build against a project:
+
+```sh
+bun run build
+node dist/bin.mjs --install-dir /path/to/project
+```
+
+## License
+
+MIT
