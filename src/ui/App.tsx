@@ -109,6 +109,7 @@ export function App({
             reportPath={snapshot.summary.reportPath}
             branch={snapshot.summary.branch}
             baseBranch={snapshot.summary.baseBranch}
+            reverted={snapshot.summary.reverted}
             messages={snapshot.runMessages}
             onAnswer={(value) => prompter.answer(value)}
           />
@@ -171,6 +172,7 @@ function MainArea({
   reportPath,
   branch,
   baseBranch,
+  reverted,
   messages,
   onAnswer,
 }: {
@@ -184,6 +186,7 @@ function MainArea({
   reportPath?: string;
   branch?: string;
   baseBranch?: string;
+  reverted?: boolean;
   messages: RunMessage[];
   onAnswer: (value: string) => void;
 }) {
@@ -196,6 +199,7 @@ function MainArea({
         reportPath={reportPath}
         branch={branch}
         baseBranch={baseBranch}
+        reverted={reverted}
       />
     );
   if (prompt)
@@ -526,13 +530,29 @@ function DoneView({
   reportPath,
   branch,
   baseBranch,
+  reverted,
 }: {
   width: number;
   reportPath?: string;
   branch?: string;
   baseBranch?: string;
+  reverted?: boolean;
 }) {
   const base = baseBranch ?? "your branch";
+  if (reverted) {
+    return (
+      <Box flexDirection="column">
+        <Text bold color={COLORS.neutral}>
+          ↩ Reverted Claude's changes
+        </Text>
+        <Box height={1} />
+        <Text color={COLORS.help} wrap="wrap">
+          Your project is back to how it was before the install. Run honcho
+          again whenever you're ready.
+        </Text>
+      </Box>
+    );
+  }
   return (
     <Box flexDirection="column">
       <Text bold color={COLORS.success}>

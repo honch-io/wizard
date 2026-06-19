@@ -31,6 +31,7 @@ export type WizardSummary = {
   reportPath?: string;
   branch?: string;
   baseBranch?: string;
+  reverted?: boolean;
 };
 
 export type PromptOption = {

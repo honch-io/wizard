@@ -139,6 +139,7 @@ export async function runWorkflow(
 
     let branch: string | undefined;
     let baseBranch: string | undefined;
+    let installReverted = false;
     if (options.yes) {
       // Non-interactive: install on the current branch, no prompt.
     } else if (canBranch) {
@@ -181,7 +182,6 @@ export async function runWorkflow(
       if (branch) {
         baseBranch = currentBranch(options.installDir);
         createBranch(options.installDir, branch);
-        prompter.setSummary?.({ branch, baseBranch });
         prompter.addRunMessage?.(
           `Working on a new branch: ${branch}`,
           "status",
@@ -280,7 +280,12 @@ export async function runWorkflow(
       }
       if (branch && outcome !== "reverted") {
         commitAll(options.installDir, `honch: install ${target.label} SDK`);
+        prompter.setSummary?.({ branch, baseBranch });
         prompter.addRunMessage?.(`Committed changes on ${branch}`, "status");
+      }
+      if (outcome === "reverted") {
+        prompter.setSummary?.({ reverted: true });
+        installReverted = true;
       }
       prompter.completeStep?.(
         "agent",
@@ -306,7 +311,7 @@ export async function runWorkflow(
       firmwareVersion,
       agentRan,
       verification,
-      branch,
+      branch: installReverted ? undefined : branch,
       baseBranch,
     });
     const reportPath = path.join(options.installDir, "honch-setup-report.md");
