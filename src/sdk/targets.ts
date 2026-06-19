@@ -85,12 +85,19 @@ export function detectSdkTargets(files: ProjectFiles): SdkTarget[] {
       found.add("c-posix");
     }
 
+    // MicroPython needs a real on-device signal. A bare main.py is normal in
+    // any host CPython project, so match the frozen-manifest/native-module
+    // build markers, a boot.py (the MicroPython boot convention), or Python
+    // that imports a MicroPython-only module — never main.py alone.
     if (
       path.endsWith("manifest.py") ||
       path.endsWith("boot.py") ||
-      path.endsWith("main.py") ||
       contents.includes("USER_C_MODULES") ||
-      contents.includes("micropython.cmake")
+      contents.includes("micropython.cmake") ||
+      (path.endsWith(".py") &&
+        /\b(?:import|from)\s+(?:machine|micropython|esp32?|pyb|ubinascii|uasyncio)\b/.test(
+          contents,
+        ))
     ) {
       found.add("micropython");
     }
@@ -111,5 +118,21 @@ export function detectSdkTargets(files: ProjectFiles): SdkTarget[] {
     }
   }
 
-  return Array.from(found).map((id) => SDK_TARGETS[id]);
+  // ESP-IDF projects are C/CMake projects too, so their many CMakeLists.txt
+  // files trip the generic C/POSIX heuristic alongside the IDF one. ESP-IDF is
+  // the more specific match, so it wins — never report both.
+  if (found.has("esp-idf")) {
+    found.delete("c-posix");
+  }
+
+  // Return the most specific match first so callers (welcome summary, target
+  // picker) lead with the SDK the project most likely is.
+  const priority: SdkTargetId[] = [
+    "esp-idf",
+    "micropython",
+    "arduino",
+    "react-native-relay",
+    "c-posix",
+  ];
+  return priority.filter((id) => found.has(id)).map((id) => SDK_TARGETS[id]);
 }
