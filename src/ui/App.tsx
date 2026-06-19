@@ -1,5 +1,5 @@
 import { Box, Text, useInput } from "ink";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { CliOptions } from "../cli/options.js";
 import type {
   PromptRequest,
@@ -9,6 +9,13 @@ import type {
   WizardStep,
   WizardSummary,
 } from "../cli/prompt.js";
+import { openReport } from "./open-report.js";
+import {
+  formatReportMarkdown,
+  type ReportLine,
+  reportFooterHint,
+  visibleReportLines,
+} from "./report-view.js";
 
 const COLORS = {
   accent: "#ea5924",
@@ -65,6 +72,10 @@ export function App({
     !snapshot.completed &&
     !snapshot.error &&
     !snapshot.cancelled;
+  const footer =
+    snapshot.completed && snapshot.summary.reportPath
+      ? reportFooterHint(snapshot.summary.reportPath)
+      : `↑/↓ move · enter select${installing ? " · esc stop Claude" : ""} · ctrl+c exit`;
 
   useInput((input, key) => {
     if (key.ctrl && input.toLowerCase() === "c") {
@@ -107,6 +118,7 @@ export function App({
             error={snapshot.error}
             cancelled={snapshot.cancelled}
             reportPath={snapshot.summary.reportPath}
+            reportMarkdown={snapshot.summary.reportMarkdown}
             branch={snapshot.summary.branch}
             baseBranch={snapshot.summary.baseBranch}
             reverted={snapshot.summary.reverted}
@@ -116,10 +128,7 @@ export function App({
         </Box>
       </Box>
       <Text color={COLORS.rule}>{rule(inner)}</Text>
-      <Text color={COLORS.help}>
-        ↑/↓ move · enter select
-        {installing ? " · esc stop Claude" : ""} · ctrl+c exit
-      </Text>
+      <Text color={COLORS.help}>{footer}</Text>
     </Box>
   );
 }
@@ -170,6 +179,7 @@ function MainArea({
   error,
   cancelled,
   reportPath,
+  reportMarkdown,
   branch,
   baseBranch,
   reverted,
@@ -184,6 +194,7 @@ function MainArea({
   error?: string;
   cancelled?: boolean;
   reportPath?: string;
+  reportMarkdown?: string;
   branch?: string;
   baseBranch?: string;
   reverted?: boolean;
@@ -196,7 +207,9 @@ function MainArea({
     return (
       <DoneView
         width={width}
+        height={height}
         reportPath={reportPath}
+        reportMarkdown={reportMarkdown}
         branch={branch}
         baseBranch={baseBranch}
         reverted={reverted}
@@ -527,18 +540,40 @@ function RunView({
 
 function DoneView({
   width,
+  height,
   reportPath,
+  reportMarkdown,
   branch,
   baseBranch,
   reverted,
 }: {
   width: number;
+  height: number;
   reportPath?: string;
+  reportMarkdown?: string;
   branch?: string;
   baseBranch?: string;
   reverted?: boolean;
 }) {
   const base = baseBranch ?? "your branch";
+  const lines = useMemo(
+    () => formatReportMarkdown(reportMarkdown ?? ""),
+    [reportMarkdown],
+  );
+  const headerRows = branch ? 8 : 5;
+  const reportHeight = Math.max(height - headerRows, 4);
+  const [scroll, setScroll] = useState(0);
+  const windowed = visibleReportLines(lines, reportHeight, scroll);
+
+  useInput((input, key) => {
+    if (key.upArrow) setScroll((current) => Math.max(current - 1, 0));
+    else if (key.downArrow) {
+      setScroll((current) => Math.min(current + 1, windowed.maxOffset));
+    } else if (input.toLowerCase() === "e" && reportPath) {
+      openReport(reportPath);
+    }
+  });
+
   if (reverted) {
     return (
       <Box flexDirection="column">
@@ -578,8 +613,91 @@ function DoneView({
           </Text>
         </Box>
       ) : null}
+      <Box flexDirection="column" marginTop={1}>
+        {windowed.before > 0 ? (
+          <Text color={COLORS.help}>↑ {windowed.before} earlier</Text>
+        ) : null}
+        {windowed.lines.map((line) => (
+          <MarkdownLine key={line.id} line={line} width={width} />
+        ))}
+        {windowed.after > 0 ? (
+          <Text color={COLORS.help}>↓ {windowed.after} more</Text>
+        ) : null}
+      </Box>
     </Box>
   );
+}
+
+function MarkdownLine({ line, width }: { line: ReportLine; width: number }) {
+  if (line.kind === "blank") return <Text> </Text>;
+  if (line.kind === "h1") {
+    return (
+      <Text>
+        <Text color={COLORS.accent}>#</Text>{" "}
+        <Text bold color={COLORS.value}>
+          {truncate(line.text, width - 2)}
+        </Text>
+      </Text>
+    );
+  }
+  if (line.kind === "h2") {
+    return (
+      <Text>
+        <Text color={COLORS.secondary}>##</Text>{" "}
+        <Text bold color={COLORS.value}>
+          {truncate(line.text, width - 3)}
+        </Text>
+      </Text>
+    );
+  }
+  if (line.kind === "bullet") {
+    return (
+      <Text wrap="truncate">
+        <Text color={COLORS.accent}>•</Text>{" "}
+        <MarkdownSegments line={line} width={width - 2} />
+      </Text>
+    );
+  }
+  return (
+    <Text wrap="truncate">
+      <MarkdownSegments line={line} width={width} />
+    </Text>
+  );
+}
+
+function MarkdownSegments({
+  line,
+  width,
+}: {
+  line: ReportLine;
+  width: number;
+}) {
+  let remaining = width;
+  return (
+    <>
+      {line.segments.map((segment) => {
+        if (remaining <= 0) return null;
+        const shown = clip(segment.text, remaining);
+        remaining = Math.max(remaining - shown.length, 0);
+        return (
+          <Text
+            key={`${segment.code}-${segment.text}`}
+            color={segment.code ? COLORS.success : COLORS.value}
+            bold={segment.code}
+          >
+            {shown}
+          </Text>
+        );
+      })}
+    </>
+  );
+}
+
+function clip(value: string, maxLength: number) {
+  if (maxLength <= 0) return "";
+  if (value.length <= maxLength) return value;
+  if (maxLength === 1) return "…";
+  return `${value.slice(0, maxLength - 1)}…`;
 }
 
 function CancelledView() {

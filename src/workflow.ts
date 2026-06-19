@@ -312,7 +312,7 @@ export async function runWorkflow(
     });
     const reportPath = path.join(options.installDir, "honch-setup-report.md");
     writeFileSync(reportPath, report);
-    prompter.setSummary?.({ reportPath });
+    prompter.setSummary?.({ reportPath, reportMarkdown: report });
     prompter.completeStep?.("report", reportPath);
     return { reportPath, agentRan };
   } finally {

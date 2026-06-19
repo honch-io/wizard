@@ -28,6 +28,7 @@ export type WizardSummary = {
   deviceModel?: string;
   runMode?: string;
   reportPath?: string;
+  reportMarkdown?: string;
   branch?: string;
   baseBranch?: string;
   reverted?: boolean;
