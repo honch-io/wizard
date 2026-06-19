@@ -14,6 +14,11 @@ import {
 import { PlatformClient, type ProjectResponse } from "./platform/client.js";
 import { scanProject } from "./project/scan.js";
 import {
+  availableBranchName,
+  commitAll,
+  createBranch,
+  currentBranch,
+  hasCommits,
   isGitWorkTree,
   restoreProject,
   snapshotProject,
@@ -127,26 +132,61 @@ export async function runWorkflow(
     prompter.setStep?.("confirm", "waiting for confirmation");
     // The ESP-IDF flow git-inits the project itself, so revert always works
     // there; for other targets it only works if this is already a git repo.
-    const revertable =
-      target.id === "esp-idf" || isGitWorkTree(options.installDir);
-    const warning =
-      options.runAgent && !revertable
-        ? "\n\n⚠ This folder isn't a git repo, so Claude's changes can't be auto-reverted. Run `git init` first if you want that safety net."
-        : "";
-    const confirmed =
-      options.yes ||
-      (await prompter.confirm(
+    const gitRepo = isGitWorkTree(options.installDir);
+    const revertable = target.id === "esp-idf" || gitRepo;
+    const canBranch =
+      options.runAgent && gitRepo && hasCommits(options.installDir);
+
+    let branch: string | undefined;
+    let baseBranch: string | undefined;
+    if (options.yes) {
+      // Non-interactive: install on the current branch, no prompt.
+    } else if (canBranch) {
+      const desired = availableBranchName(options.installDir, "honch/setup");
+      const choice = await prompter.select({
+        title: "Review install plan",
+        message: `Install Honch ${target.label} into ${options.installDir}?`,
+        defaultValue: "branch",
+        options: [
+          { label: "Work on a new branch", value: "branch", hint: desired },
+          { label: "Work on the current branch", value: "current" },
+          { label: "Cancel", value: "cancel" },
+        ],
+      });
+      if (choice === "cancel") {
+        throw new Error("Wizard cancelled before project mutation");
+      }
+      if (choice === "branch") branch = desired;
+    } else {
+      const warning =
+        options.runAgent && !revertable
+          ? "\n\n⚠ This folder isn't a git repo, so Claude's changes can't be auto-reverted. Run `git init` first if you want that safety net."
+          : "";
+      const confirmed = await prompter.confirm(
         `Install Honch ${target.label} into ${options.installDir}?${warning}`,
-      ));
-    if (!confirmed) {
-      throw new Error("Wizard cancelled before project mutation");
+      );
+      if (!confirmed) {
+        throw new Error("Wizard cancelled before project mutation");
+      }
     }
-    prompter.completeStep?.("confirm", "install approved");
+    prompter.completeStep?.(
+      "confirm",
+      branch ? `branch ${branch}` : "install approved",
+    );
 
     let agentRan = false;
     const verification: string[] = [];
     if (options.runAgent && auth.wizardToken) {
       prompter.setStep?.("agent", "running Claude Agent SDK");
+      if (branch) {
+        baseBranch = currentBranch(options.installDir);
+        createBranch(options.installDir, branch);
+        prompter.setSummary?.({ branch, baseBranch });
+        prompter.addRunMessage?.(
+          `Working on a new branch: ${branch}`,
+          "status",
+        );
+      }
       if (target.id === "esp-idf") {
         prompter.addRunMessage?.(
           "Registering Honch SDK component (git submodule)",
@@ -238,6 +278,10 @@ export async function runWorkflow(
           );
         }
       }
+      if (branch && outcome !== "reverted") {
+        commitAll(options.installDir, `honch: install ${target.label} SDK`);
+        prompter.addRunMessage?.(`Committed changes on ${branch}`, "status");
+      }
       prompter.completeStep?.(
         "agent",
         outcome === "completed"
@@ -262,6 +306,8 @@ export async function runWorkflow(
       firmwareVersion,
       agentRan,
       verification,
+      branch,
+      baseBranch,
     });
     const reportPath = path.join(options.installDir, "honch-setup-report.md");
     writeFileSync(reportPath, report);

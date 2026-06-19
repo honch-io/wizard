@@ -33,6 +33,80 @@ function runGitCommand(
   });
 }
 
+/** True when the repo has at least one commit (needed to branch from HEAD). */
+export function hasCommits(
+  dir: string,
+  runGit: GitRunner = runGitCommand,
+): boolean {
+  try {
+    runGit(["rev-parse", "--verify", "HEAD"], { cwd: dir });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function branchExists(dir: string, name: string, runGit: GitRunner): boolean {
+  try {
+    runGit(["rev-parse", "--verify", `refs/heads/${name}`], { cwd: dir });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** A branch name based on `base` that doesn't already exist. */
+export function availableBranchName(
+  dir: string,
+  base: string,
+  runGit: GitRunner = runGitCommand,
+): string {
+  if (!branchExists(dir, base, runGit)) return base;
+  for (let index = 2; index < 100; index += 1) {
+    const candidate = `${base}-${index}`;
+    if (!branchExists(dir, candidate, runGit)) return candidate;
+  }
+  return `${base}-${Date.now()}`;
+}
+
+/** The current branch name, or undefined when detached / not a repo. */
+export function currentBranch(
+  dir: string,
+  runGit: GitRunner = runGitCommand,
+): string | undefined {
+  try {
+    const name = runGit(["rev-parse", "--abbrev-ref", "HEAD"], {
+      cwd: dir,
+    }).trim();
+    return name && name !== "HEAD" ? name : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Create and switch to a new branch (carrying the working tree along). */
+export function createBranch(
+  dir: string,
+  name: string,
+  runGit: GitRunner = runGitCommand,
+): void {
+  runGit(["checkout", "-b", name], { cwd: dir });
+}
+
+/** Commit everything in the working tree; a no-op when there's nothing staged. */
+export function commitAll(
+  dir: string,
+  message: string,
+  runGit: GitRunner = runGitCommand,
+): void {
+  runGit(["add", "-A"], { cwd: dir });
+  try {
+    runGit(["commit", "-m", message, "--no-verify"], { cwd: dir });
+  } catch {
+    // Nothing to commit — fine.
+  }
+}
+
 export function isGitWorkTree(
   dir: string,
   runGit: GitRunner = runGitCommand,

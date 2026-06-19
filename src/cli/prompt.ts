@@ -29,6 +29,8 @@ export type WizardSummary = {
   firmwareVersion?: string;
   runMode?: string;
   reportPath?: string;
+  branch?: string;
+  baseBranch?: string;
 };
 
 export type PromptOption = {

@@ -107,6 +107,8 @@ export function App({
             error={snapshot.error}
             cancelled={snapshot.cancelled}
             reportPath={snapshot.summary.reportPath}
+            branch={snapshot.summary.branch}
+            baseBranch={snapshot.summary.baseBranch}
             messages={snapshot.runMessages}
             onAnswer={(value) => prompter.answer(value)}
           />
@@ -167,6 +169,8 @@ function MainArea({
   error,
   cancelled,
   reportPath,
+  branch,
+  baseBranch,
   messages,
   onAnswer,
 }: {
@@ -178,12 +182,22 @@ function MainArea({
   error?: string;
   cancelled?: boolean;
   reportPath?: string;
+  branch?: string;
+  baseBranch?: string;
   messages: RunMessage[];
   onAnswer: (value: string) => void;
 }) {
   if (cancelled) return <CancelledView />;
   if (error) return <ErrorView message={error} />;
-  if (completed) return <DoneView width={width} reportPath={reportPath} />;
+  if (completed)
+    return (
+      <DoneView
+        width={width}
+        reportPath={reportPath}
+        branch={branch}
+        baseBranch={baseBranch}
+      />
+    );
   if (prompt)
     return (
       <PromptView
@@ -510,10 +524,15 @@ function RunView({
 function DoneView({
   width,
   reportPath,
+  branch,
+  baseBranch,
 }: {
   width: number;
   reportPath?: string;
+  branch?: string;
+  baseBranch?: string;
 }) {
+  const base = baseBranch ?? "your branch";
   return (
     <Box flexDirection="column">
       <Text bold color={COLORS.success}>
@@ -524,6 +543,21 @@ function DoneView({
       <Text color={COLORS.value}>
         {truncate(reportPath ?? "honch-setup-report.md", width)}
       </Text>
+      {branch ? (
+        <Box flexDirection="column" marginTop={1}>
+          <Text color={COLORS.help}>
+            Claude's changes are committed on{" "}
+            <Text color={COLORS.value}>{branch}</Text>
+          </Text>
+          <Text color={COLORS.help}>
+            review <Text color={COLORS.value}>git diff {base}</Text>
+          </Text>
+          <Text color={COLORS.help}>
+            merge <Text color={COLORS.value}>git merge {branch}</Text> · discard{" "}
+            <Text color={COLORS.value}>git checkout {base}</Text>
+          </Text>
+        </Box>
+      ) : null}
     </Box>
   );
 }
