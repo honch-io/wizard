@@ -13,7 +13,11 @@ import {
 } from "./firmware/verify.js";
 import { PlatformClient, type ProjectResponse } from "./platform/client.js";
 import { scanProject } from "./project/scan.js";
-import { restoreProject, snapshotProject } from "./project/snapshot.js";
+import {
+  isGitWorkTree,
+  restoreProject,
+  snapshotProject,
+} from "./project/snapshot.js";
 import { buildSetupReport } from "./report/setup-report.js";
 import {
   SDK_TARGETS,
@@ -121,10 +125,18 @@ export async function runWorkflow(
     prompter.completeStep?.("config", "device and capture settings ready");
 
     prompter.setStep?.("confirm", "waiting for confirmation");
+    // The ESP-IDF flow git-inits the project itself, so revert always works
+    // there; for other targets it only works if this is already a git repo.
+    const revertable =
+      target.id === "esp-idf" || isGitWorkTree(options.installDir);
+    const warning =
+      options.runAgent && !revertable
+        ? "\n\n⚠ This folder isn't a git repo, so Claude's changes can't be auto-reverted. Run `git init` first if you want that safety net."
+        : "";
     const confirmed =
       options.yes ||
       (await prompter.confirm(
-        `Install Honch ${target.label} into ${options.installDir}?`,
+        `Install Honch ${target.label} into ${options.installDir}?${warning}`,
       ));
     if (!confirmed) {
       throw new Error("Wizard cancelled before project mutation");

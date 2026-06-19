@@ -33,7 +33,10 @@ function runGitCommand(
   });
 }
 
-function isGitWorkTree(dir: string, runGit: GitRunner): boolean {
+export function isGitWorkTree(
+  dir: string,
+  runGit: GitRunner = runGitCommand,
+): boolean {
   try {
     return (
       runGit(["rev-parse", "--is-inside-work-tree"], { cwd: dir }).trim() ===
