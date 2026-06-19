@@ -66,7 +66,7 @@ export function visibleReportLines(
 
 export function reportFooterHint(reportPath?: string) {
   const file = reportPath ? path.basename(reportPath) : "honch-setup-report.md";
-  return `↑/↓ scroll · E open ${file} · ctrl+c exit`;
+  return `↑/↓ scroll · E open ${file} · q quit`;
 }
 
 function inlineSegments(line: string): ReportSegment[] {

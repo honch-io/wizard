@@ -19,7 +19,6 @@ Options:
   --target <target>       esp-idf, c-posix, micropython, arduino, or react-native-relay
   --api-base-url <url>    Honch platform API base URL
   --auth-token <token>    Existing Honch platform bearer token
-  --capture-host <url>    Capture host for SDK configuration
   --device-model <name>   Device model to configure
   --project-name <name>   Honch project name for local/offline testing
   --project-api-key <key> Honch project API key for local/offline testing
@@ -46,7 +45,12 @@ if (useTui) {
 let shuttingDown = false;
 const instance = useTui
   ? render(
-      React.createElement(App, { options, prompter, onCancel: handleSigint }),
+      React.createElement(App, {
+        options,
+        prompter,
+        onCancel: handleSigint,
+        onExit: handleExit,
+      }),
       {
         exitOnCtrlC: false,
       },
@@ -55,6 +59,14 @@ const instance = useTui
 
 function unmount() {
   instance?.unmount();
+}
+
+/** Clean exit after the user dismisses the completed report. */
+function handleExit() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  unmount();
+  process.exit(0);
 }
 
 function handleSigint() {
@@ -80,14 +92,18 @@ async function main() {
     const result = await runWorkflow(options, { prompter });
     process.off("SIGINT", handleSigint);
     prompter.finish?.({ reportPath: result.reportPath });
-    await delay(250);
-    process.stdout.write(`\nSetup report: ${result.reportPath}\n`);
-    process.stdout.write(
-      result.agentRan
-        ? "Agent run completed.\n"
-        : "Dry run — no files were changed.\n",
-    );
-    unmount();
+    // Leave the completed report on screen. The App stays mounted until the
+    // user dismisses it (q / enter), which calls handleExit. In a non-TTY run
+    // there's no interactive UI, so print a plain summary and exit.
+    if (!useTui) {
+      process.stdout.write(`\nSetup report: ${result.reportPath}\n`);
+      process.stdout.write(
+        result.agentRan
+          ? "Agent run completed.\n"
+          : "Dry run — no files were changed.\n",
+      );
+      unmount();
+    }
   } catch (error) {
     process.off("SIGINT", handleSigint);
     if (shuttingDown) return;

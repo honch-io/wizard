@@ -23,6 +23,7 @@ import { PlatformClient, type ProjectResponse } from "./platform/client.js";
 import { scanProject } from "./project/scan.js";
 import {
   availableBranchName,
+  changedFilesSince,
   commitAll,
   createBranch,
   currentBranch,
@@ -45,8 +46,6 @@ export type WorkflowResult = {
   agentRan: boolean;
 };
 
-/** Sentinel value for the "choose a different SDK" option in the detected flow. */
-const PICK_DIFFERENT_TARGET = "__pick_different__";
 /** Sentinel value for the "create a new project" option. */
 const CREATE_NEW_PROJECT = "__create_new_project__";
 
@@ -118,22 +117,14 @@ export async function runWorkflow(
       prompter,
     );
     prompter.setSummary?.({ deviceModel });
-    // Firmware version is intentionally NOT collected here. It's a per-release
-    // value the project already tracks in its own code; the agent wires Honch's
-    // firmware_version to that source so it updates without re-running the
-    // wizard (see the agent prompt).
-    const captureHost =
-      options.captureHost ??
-      normalizeDefault(
-        await prompter.question("Capture host:", { sensitive: false }),
-        "https://capture.honch.io",
-      ) ??
-      "https://capture.honch.io";
-    prompter.setSummary?.({ captureHost });
+    // Neither firmware version nor capture host is collected here. Firmware is a
+    // per-release value the project already tracks in its own code (the agent
+    // wires Honch's firmware_version to that source); the capture host is
+    // defaulted by the SDK, so the agent leaves it unset.
     const projectApiKey =
       project.apiKey ?? (await prompter.question("Project API key:"));
     const projectApiKeyRef = vault.put("Honch project API key", projectApiKey);
-    prompter.completeStep?.("config", "device and capture settings ready");
+    prompter.completeStep?.("config", "device settings ready");
 
     prompter.setStep?.("confirm", "waiting for confirmation");
     // The ESP-IDF flow git-inits the project itself, so revert always works
@@ -182,6 +173,10 @@ export async function runWorkflow(
     );
 
     let agentRan = false;
+    // Whether Claude actually changed project files. undefined = not applicable
+    // (dry run / reverted / non-git project where we can't tell).
+    let integrated: boolean | undefined;
+    let agentSummary: string | undefined;
     const verification: string[] = [];
     if (options.runAgent && auth.wizardToken) {
       prompter.setStep?.("agent", "running Claude Agent SDK");
@@ -206,7 +201,6 @@ export async function runWorkflow(
       const prompt = buildAgentPrompt({
         targetId: target.id,
         projectApiKeyRef,
-        captureHost,
         deviceModel,
       });
       prompter.addRunMessage?.(
@@ -220,6 +214,7 @@ export async function runWorkflow(
       let sessionId: string | undefined;
       let nextPrompt = prompt;
       let outcome: "completed" | "kept" | "reverted" = "completed";
+      let lastMessages: string[] = [];
 
       while (true) {
         const abort = new AbortController();
@@ -245,6 +240,7 @@ export async function runWorkflow(
           },
         });
         sessionId = result.sessionId ?? sessionId;
+        if (result.messages.length > 0) lastMessages = result.messages;
 
         if (!abort.signal.aborted) break;
 
@@ -267,6 +263,19 @@ export async function runWorkflow(
 
       agentRan = outcome !== "reverted";
       if (outcome === "completed") {
+        // Did Claude actually touch project files? The setup report it writes
+        // doesn't count — a report-only run means it couldn't integrate.
+        const changed = changedFilesSince(options.installDir, snapshot).filter(
+          (file) => file !== "honch-setup-report.md",
+        );
+        integrated = changed.length > 0;
+        agentSummary = lastMessages.at(-1)?.trim();
+        if (!integrated) {
+          prompter.addRunMessage?.(
+            "Claude did not change any project files",
+            "error",
+          );
+        }
         prompter.addRunMessage?.("Verifying the integration", "status");
         verification.push("agent run completed");
         for (const result of verifyFirmwareInstall(
@@ -311,16 +320,17 @@ export async function runWorkflow(
     const report = buildSetupReport({
       targetLabel: target.label,
       projectName: project.name,
-      captureHost,
       deviceModel,
       agentRan,
+      integrated,
+      agentSummary,
       verification,
       branch: installReverted ? undefined : branch,
       baseBranch,
     });
     const reportPath = path.join(options.installDir, "honch-setup-report.md");
     writeFileSync(reportPath, report);
-    prompter.setSummary?.({ reportPath, reportMarkdown: report });
+    prompter.setSummary?.({ reportPath, reportMarkdown: report, integrated });
     prompter.completeStep?.("report", reportPath);
     return { reportPath, agentRan };
   } finally {
@@ -335,40 +345,37 @@ async function resolveTarget(
 ): Promise<SdkTarget> {
   if (requested) return SDK_TARGETS[requested];
 
-  const fullList = (Object.keys(SDK_TARGETS) as SdkTargetId[]).map((id) => ({
+  // Always show every SDK in a single list. When the scan detected one, pin it
+  // to the top, badge it, and pre-select it — so "enter" accepts the detected
+  // SDK while every other option stays one keypress away.
+  const detectedTarget = detected[0];
+  const orderedIds = (Object.keys(SDK_TARGETS) as SdkTargetId[]).sort(
+    (a, b) => {
+      if (a === detectedTarget?.id) return -1;
+      if (b === detectedTarget?.id) return 1;
+      return 0;
+    },
+  );
+  const options = orderedIds.map((id) => ({
     label: SDK_TARGETS[id].label,
     value: id,
     hint: SDK_TARGETS[id].verificationHint,
+    ...(id === detectedTarget?.id ? { badge: "(detected)" } : {}),
   }));
 
-  // If the scan detected a target, offer to continue with it or pick another.
-  const detectedTarget = detected[0];
-  if (detectedTarget) {
-    const choice = await prompter.select({
-      title: "Detected SDK",
-      message: `Detected ${detectedTarget.label} in your project. Use it, or pick a different SDK?`,
-      defaultValue: detectedTarget.id,
-      options: [
-        {
-          label: `Use ${detectedTarget.label}`,
-          value: detectedTarget.id,
-          badge: "(detected)",
-        },
-        { label: "Choose a different SDK", value: PICK_DIFFERENT_TARGET },
-      ],
-    });
-    if (choice !== PICK_DIFFERENT_TARGET) {
-      return SDK_TARGETS[choice as SdkTargetId] ?? detectedTarget;
-    }
-  }
-
-  // Nothing detected, or the user chose to browse: show the full list.
   const answer = await prompter.select({
-    title: "Select your SDK",
-    message: "Which SDK should I set up?",
-    options: fullList,
+    title: "Select SDK",
+    message: detectedTarget
+      ? `Detected ${detectedTarget.label} — press enter to use it, or pick another SDK.`
+      : "Which SDK should I set up?",
+    ...(detectedTarget ? { defaultValue: detectedTarget.id } : {}),
+    options,
   });
-  return SDK_TARGETS[answer as SdkTargetId] ?? SDK_TARGETS["esp-idf"];
+  return (
+    SDK_TARGETS[answer as SdkTargetId] ??
+    detectedTarget ??
+    SDK_TARGETS["esp-idf"]
+  );
 }
 
 async function resolveAuth(
@@ -606,11 +613,6 @@ async function requiredInput(
   prompter: Prompter,
 ) {
   return value ?? prompter.question(prompt);
-}
-
-function normalizeDefault(value: string, fallback: string) {
-  const normalized = value.trim();
-  return normalized.length > 0 ? normalized : fallback;
 }
 
 function formatVerificationOutcome(outcome: VerificationOutcome): string {

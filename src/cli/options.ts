@@ -15,7 +15,6 @@ export type CliOptions = {
   installDir: string;
   target?: SdkTargetId;
   authToken?: string;
-  captureHost: string;
   deviceModel?: string;
   projectName?: string;
   projectApiKey?: string;
@@ -61,10 +60,6 @@ export function parseOptions(argv: string[], env: Env): CliOptions {
       stringFlag(flags, "auth-token") ??
       env.HONCH_WIZARD_AUTH_TOKEN ??
       undefined,
-    captureHost:
-      stringFlag(flags, "capture-host") ??
-      env.HONCH_WIZARD_CAPTURE_HOST ??
-      "https://capture.honch.io",
     deviceModel:
       stringFlag(flags, "device-model") ??
       env.HONCH_WIZARD_DEVICE_MODEL ??

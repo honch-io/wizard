@@ -44,10 +44,12 @@ export function App({
   options,
   prompter,
   onCancel,
+  onExit,
 }: {
   options: CliOptions;
   prompter: TuiPrompter;
   onCancel: () => void;
+  onExit: () => void;
 }) {
   const snapshot = useSyncExternalStore(
     prompter.subscribe,
@@ -79,7 +81,14 @@ export function App({
 
   useInput((input, key) => {
     if (key.ctrl && input.toLowerCase() === "c") {
-      onCancel();
+      // On the finished report, ctrl+c is just "I'm done" — exit cleanly.
+      if (snapshot.completed) onExit();
+      else onCancel();
+    } else if (
+      snapshot.completed &&
+      (input.toLowerCase() === "q" || key.return)
+    ) {
+      onExit();
     } else if (key.escape) {
       prompter.interrupt();
     }
@@ -122,6 +131,7 @@ export function App({
             branch={snapshot.summary.branch}
             baseBranch={snapshot.summary.baseBranch}
             reverted={snapshot.summary.reverted}
+            integrated={snapshot.summary.integrated}
             messages={snapshot.runMessages}
             onAnswer={(value) => prompter.answer(value)}
           />
@@ -183,6 +193,7 @@ function MainArea({
   branch,
   baseBranch,
   reverted,
+  integrated,
   messages,
   onAnswer,
 }: {
@@ -198,6 +209,7 @@ function MainArea({
   branch?: string;
   baseBranch?: string;
   reverted?: boolean;
+  integrated?: boolean;
   messages: RunMessage[];
   onAnswer: (value: string) => void;
 }) {
@@ -213,6 +225,7 @@ function MainArea({
         branch={branch}
         baseBranch={baseBranch}
         reverted={reverted}
+        integrated={integrated}
       />
     );
   if (prompt)
@@ -476,11 +489,11 @@ function RunView({
   height: number;
 }) {
   const isAgent = activeStep === "agent";
-  const visible = Math.max(height - 4, 4);
+  const budget = Math.max(height - 4, 4);
   const total = messages.length;
-  const maxOffset = Math.max(total - visible, 0);
   // Offset from the newest line: 0 follows the tail; ↑/↓ scrolls the history.
   const [offset, setOffset] = useState(0);
+  const maxOffset = Math.max(total - 1, 0);
   const clamped = Math.min(offset, maxOffset);
 
   useInput((_input, key) => {
@@ -488,8 +501,23 @@ function RunView({
     else if (key.downArrow) setOffset((o) => Math.max(o - 1, 0));
   });
 
+  // Assistant lines wrap, so a single message can occupy several rows. Fill the
+  // visible row budget from the newest message backwards so wrapped text is
+  // shown in full instead of truncated, and the footer never gets pushed off.
   const end = total - clamped;
-  const start = Math.max(end - visible, 0);
+  const textWidth = Math.max(width - 2, 1);
+  let used = 0;
+  let start = end;
+  for (let i = end - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    const rows =
+      message.kind === "assistant"
+        ? Math.max(1, Math.ceil(message.text.length / textWidth))
+        : 1;
+    if (used + rows > budget && start < end) break;
+    used += rows;
+    start = i;
+  }
   const windowed = messages.slice(start, end);
 
   return (
@@ -515,18 +543,22 @@ function RunView({
           ) : null}
           {windowed.map((message) => {
             const { glyph, color } = runGlyph(message.kind);
+            const wrapText = message.kind === "assistant";
             return (
-              <Text key={message.id}>
-                <Text color={color}>{glyph}</Text>{" "}
-                <Text
-                  color={
-                    message.kind === "assistant" ? COLORS.value : COLORS.neutral
-                  }
-                  dimColor={message.kind === "tool"}
-                >
-                  {truncate(message.text, width - 2)}
-                </Text>
-              </Text>
+              <Box key={message.id} flexDirection="row">
+                <Text color={color}>{glyph} </Text>
+                <Box flexGrow={1}>
+                  <Text
+                    color={wrapText ? COLORS.value : COLORS.neutral}
+                    dimColor={message.kind === "tool"}
+                    wrap={wrapText ? "wrap" : "truncate"}
+                  >
+                    {wrapText
+                      ? message.text
+                      : truncate(message.text, textWidth)}
+                  </Text>
+                </Box>
+              </Box>
             );
           })}
           {total - end > 0 ? (
@@ -546,6 +578,7 @@ function DoneView({
   branch,
   baseBranch,
   reverted,
+  integrated,
 }: {
   width: number;
   height: number;
@@ -554,13 +587,15 @@ function DoneView({
   branch?: string;
   baseBranch?: string;
   reverted?: boolean;
+  integrated?: boolean;
 }) {
   const base = baseBranch ?? "your branch";
   const lines = useMemo(
     () => formatReportMarkdown(reportMarkdown ?? ""),
     [reportMarkdown],
   );
-  const headerRows = branch ? 8 : 5;
+  const notInstalled = integrated === false;
+  const headerRows = (branch ? 8 : 5) + (notInstalled ? 1 : 0);
   const reportHeight = Math.max(height - headerRows, 4);
   const [scroll, setScroll] = useState(0);
   const windowed = visibleReportLines(lines, reportHeight, scroll);
@@ -590,9 +625,21 @@ function DoneView({
   }
   return (
     <Box flexDirection="column">
-      <Text bold color={COLORS.success}>
-        ✓ Setup flow complete
-      </Text>
+      {notInstalled ? (
+        <Box flexDirection="column">
+          <Text bold color={COLORS.accent}>
+            ⚠ Honch was not installed
+          </Text>
+          <Text color={COLORS.help} wrap="wrap">
+            Claude didn't change any files in this project — see the report
+            below for why.
+          </Text>
+        </Box>
+      ) : (
+        <Text bold color={COLORS.success}>
+          ✓ Setup flow complete
+        </Text>
+      )}
       <Box height={1} />
       <Text color={COLORS.help}>Report generated at</Text>
       <Text color={COLORS.value}>
@@ -631,21 +678,20 @@ function DoneView({
 function MarkdownLine({ line, width }: { line: ReportLine; width: number }) {
   if (line.kind === "blank") return <Text> </Text>;
   if (line.kind === "h1") {
+    // Render the document title as a styled heading — no literal "#".
     return (
-      <Text>
-        <Text color={COLORS.accent}>#</Text>{" "}
-        <Text bold color={COLORS.value}>
-          {truncate(line.text, width - 2)}
-        </Text>
+      <Text bold color={COLORS.accent} wrap="wrap">
+        {line.text.toUpperCase()}
       </Text>
     );
   }
   if (line.kind === "h2") {
+    // Section headings: bold + colored, with a leading marker glyph (not "##").
     return (
-      <Text>
-        <Text color={COLORS.secondary}>##</Text>{" "}
-        <Text bold color={COLORS.value}>
-          {truncate(line.text, width - 3)}
+      <Text wrap="wrap">
+        <Text color={COLORS.secondary}>▌</Text>{" "}
+        <Text bold color={COLORS.secondary}>
+          {line.text}
         </Text>
       </Text>
     );

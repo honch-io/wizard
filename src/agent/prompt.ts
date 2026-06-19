@@ -8,7 +8,7 @@ import { SDK_TARGETS, type SdkTargetId } from "../sdk/targets.js";
  * build (dist/skills, where this module is bundled into dist/bin.mjs) and one
  * level up in dev (src/skills, while this file is src/agent/prompt.ts).
  */
-export function resolveSkillPath(skillPath: string): string {
+function resolveSkillPath(skillPath: string): string {
   const candidates = [
     new URL(skillPath, import.meta.url), // bundled: dist/bin.mjs -> dist/<skillPath>
     new URL(`../${skillPath}`, import.meta.url), // dev: src/agent/ -> src/<skillPath>
@@ -23,7 +23,6 @@ export function resolveSkillPath(skillPath: string): string {
 export type AgentPromptInput = {
   targetId: SdkTargetId;
   projectApiKeyRef: string;
-  captureHost: string;
   deviceModel: string;
 };
 
@@ -37,7 +36,6 @@ Start by reading the bundled SDK skill at ${resolveSkillPath(target.skillPath)}.
 Project context:
 - SDK target: ${target.label}
 - Honch project API key secret ref: ${input.projectApiKeyRef}
-- Capture host: ${input.captureHost}
 - Device model: ${input.deviceModel}
 
 Required workflow:
@@ -56,7 +54,7 @@ Required workflow:
    - Preserve existing user-owned config values unless they are clearly Honch-specific placeholders.
 4. Wire the SDK into the application lifecycle.
    - Initialize Honch once at app/firmware startup or the nearest existing platform initialization point.
-   - Configure the capture host, device model, and project API key.
+   - Configure the device model and project API key. Do NOT set the capture host / endpoint — the SDK defaults it, so leave it unset unless the project already overrides it.
    - For firmware_version, do NOT hardcode a version string. The device's firmware version is a per-release value the project already tracks, so wire Honch's firmware_version to the project's own version source. Search for one in this order and use the first that exists:
      1. An existing firmware/app version constant or macro (e.g. FIRMWARE_VERSION, APP_VERSION, FW_VERSION) — reference it directly.
      2. A build-system version: CMake project(... VERSION x), an ESP-IDF app version (esp_app_get_description()->version / PROJECT_VER), a PlatformIO/build -D flag, or package.json "version".
@@ -72,10 +70,10 @@ Required workflow:
    - Include the SDK target, files changed, dependency/config changes, initialization location, verification commands run, results, and any manual follow-up steps.
 
 Target-specific expectations:
-- ESP-IDF: prefer idf.py add-dependency "honch-io/honch^0.2.0"; configure api_key, host, device_model, firmware_version sourced from the project's version definition, and caller-owned event buffers; call honch_tick() only from a low-priority task; never from ISR, control loops, or watchdog-sensitive paths; do not weaken TLS.
-- C/POSIX: prefer find_package(honch_posix REQUIRED) when present, otherwise use CMake FetchContent with SOURCE_SUBDIR ports/posix; link with honch::honch_posix; configure api_key, endpoint_url, device_model, firmware_version sourced from the project's version definition, and queue_directory; preserve durability, retry, timestamps, and shutdown behavior.
+- ESP-IDF: prefer idf.py add-dependency "honch-io/honch^0.2.0"; configure api_key, device_model, firmware_version sourced from the project's version definition, and caller-owned event buffers; leave the capture host at the SDK default; call honch_tick() only from a low-priority task; never from ISR, control loops, or watchdog-sensitive paths; do not weaken TLS.
+- C/POSIX: prefer find_package(honch_posix REQUIRED) when present, otherwise use CMake FetchContent with SOURCE_SUBDIR ports/posix; link with honch::honch_posix; configure api_key, device_model, firmware_version sourced from the project's version definition, and queue_directory; leave endpoint_url at the SDK default; preserve durability, retry, timestamps, and shutdown behavior.
 - MicroPython: ensure firmware includes _honch_core; configure USER_C_MODULES with ports/micropython/usermod/honch/micropython.cmake; freeze wrapper files through manifest.py when appropriate; avoid duplicate /lib/honch files if wrapper is frozen; clearly report firmware build steps when runtime validation cannot run locally.
-- Arduino ESP32 (preview): add the Honch Arduino wrapper to the sketch/PlatformIO project via its existing dependency mechanism; configure api_key, host, device_model, and firmwareVersion sourced from the project's version definition; keep the event queue in a caller-owned RAM buffer and leave Wi-Fi, TLS, and task scheduling owned by the application; do not run a board compile yourself — record the PlatformIO/arduino-cli command for the user.
+- Arduino ESP32 (preview): add the Honch Arduino wrapper to the sketch/PlatformIO project via its existing dependency mechanism; configure api_key, device_model, and firmwareVersion sourced from the project's version definition; leave the capture host at the SDK default; keep the event queue in a caller-owned RAM buffer and leave Wi-Fi, TLS, and task scheduling owned by the application; do not run a board compile yourself — record the PlatformIO/arduino-cli command for the user.
 - React Native relay (preview): install @honch/react-native-relay plus its peer deps with the project's detected package manager; this is a relay/uploader that forwards events from a paired BLE-only Honch device, not an app-analytics SDK, so do not instrument the app itself; verify every API against the installed package's TypeScript types before emitting code; for iOS, record the \`pod install\` step rather than running native toolchains.
 
 Hard rules:

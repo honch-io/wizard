@@ -24,7 +24,6 @@ export type WizardSummary = {
   sdkTarget?: string;
   authMode?: string;
   projectName?: string;
-  captureHost?: string;
   deviceModel?: string;
   runMode?: string;
   reportPath?: string;
@@ -32,6 +31,8 @@ export type WizardSummary = {
   branch?: string;
   baseBranch?: string;
   reverted?: boolean;
+  /** Whether Claude actually changed project files (false = report-only run). */
+  integrated?: boolean;
 };
 
 export type PromptOption = {
@@ -284,9 +285,6 @@ export class TuiPrompter implements Prompter {
       message: normalized,
       kind: options.sensitive ? "password" : "text",
       options: [],
-      defaultValue: prompt.startsWith("Capture host")
-        ? "https://capture.honch.io"
-        : undefined,
     };
   }
 
@@ -314,7 +312,6 @@ function promptTitle(prompt: string) {
   if (prompt.startsWith("Organization")) return "Organization";
   if (prompt.startsWith("Project")) return "Honch project";
   if (prompt.startsWith("Device")) return "Device profile";
-  if (prompt.startsWith("Capture")) return "Capture endpoint";
   return "Wizard input";
 }
 

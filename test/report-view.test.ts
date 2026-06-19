@@ -51,7 +51,7 @@ describe("report view helpers", () => {
 
   it("shows the report open key in the completed footer", () => {
     expect(reportFooterHint("/tmp/client/honch-setup-report.md")).toBe(
-      "↑/↓ scroll · E open honch-setup-report.md · ctrl+c exit",
+      "↑/↓ scroll · E open honch-setup-report.md · q quit",
     );
   });
 });

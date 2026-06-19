@@ -6,7 +6,6 @@ describe("buildAgentPrompt", () => {
     const prompt = buildAgentPrompt({
       targetId: "esp-idf",
       projectApiKeyRef: "secret:project",
-      captureHost: "https://capture.honch.io",
       deviceModel: "ActionCam X1",
     });
 

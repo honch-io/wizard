@@ -1,9 +1,12 @@
 export type SetupReportInput = {
   targetLabel: string;
   projectName: string;
-  captureHost: string;
   deviceModel: string;
   agentRan: boolean;
+  /** Whether Claude actually changed project files. undefined = not applicable. */
+  integrated?: boolean;
+  /** Claude's closing explanation — surfaced when nothing was integrated. */
+  agentSummary?: string;
   verification: string[];
   branch?: string;
   baseBranch?: string;
@@ -11,6 +14,18 @@ export type SetupReportInput = {
 
 export function buildSetupReport(input: SetupReportInput) {
   const base = input.baseBranch ?? "your previous branch";
+
+  // When the agent ran but changed nothing, lead with an honest outcome and
+  // Claude's reason so the report explains itself instead of implying success.
+  const notIntegrated = input.agentRan && input.integrated === false;
+  const outcomeSection = notIntegrated
+    ? `## Outcome
+
+Honch was **not** integrated — Claude made no changes to this project.
+
+${input.agentSummary ? `${input.agentSummary}\n\n` : ""}`
+    : "";
+
   const branchSection = input.branch
     ? `## Review Claude's changes
 
@@ -29,11 +44,10 @@ Claude's work was committed on branch \`${input.branch}\`.
 
 - SDK target: ${input.targetLabel}
 - Honch project: ${input.projectName}
-- Capture host: ${input.captureHost}
 - Device model: ${input.deviceModel}
-- Agent execution: ${input.agentRan ? "ran" : "not run"}${input.branch ? `\n- Branch: ${input.branch}` : ""}
+- Agent execution: ${input.agentRan ? (input.integrated === false ? "ran — no changes made" : "ran") : "not run"}${input.branch ? `\n- Branch: ${input.branch}` : ""}
 
-## Verification
+${outcomeSection}## Verification
 
 ${input.verification.map((line) => `- ${line}`).join("\n")}
 

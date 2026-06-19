@@ -141,6 +141,26 @@ export function snapshotProject(
 }
 
 /**
+ * List the paths that changed (added, modified, or deleted) in the working tree
+ * since the given snapshot tree. Returns [] when the directory isn't a git work
+ * tree or the snapshot is unknown — i.e. when we can't tell.
+ */
+export function changedFilesSince(
+  dir: string,
+  tree: string | undefined,
+  runGit: GitRunner = runGitCommand,
+): string[] {
+  if (!tree || !isGitWorkTree(dir, runGit)) return [];
+  const env = { GIT_INDEX_FILE: freshIndex("honch-changed-") };
+  runGit(["add", "-A"], { cwd: dir, env });
+  const out = runGit(["diff", "--cached", "--name-only", tree], {
+    cwd: dir,
+    env,
+  }).trim();
+  return out.split("\n").filter(Boolean);
+}
+
+/**
  * Restore the working tree to a snapshot tree: overwrite tracked files with the
  * snapshot version and delete files created after the snapshot was taken.
  */
