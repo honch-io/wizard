@@ -18,7 +18,7 @@ describe("buildAgentOptions", () => {
     });
 
     expect(options.cwd).toBe("/tmp/project");
-    expect(options.model).toBe("claude-sonnet-4-6");
+    expect(options.model).toBe("claude-opus-4-8");
     expect(options).not.toHaveProperty("fallbackModel");
     expect(options.includePartialMessages).toBe(true);
     expect(options.mcpServers).toHaveProperty("honcho-tools");

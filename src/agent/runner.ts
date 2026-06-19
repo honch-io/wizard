@@ -25,7 +25,9 @@ export type AgentRunEvent = {
   text: string;
 };
 
-const HONCH_AGENT_MODEL = "claude-sonnet-4-6";
+// The backend proxy pins the model server-side; this keeps the client request
+// aligned with what actually runs.
+const HONCH_AGENT_MODEL = "claude-opus-4-8";
 
 export function buildAgentOptions(input: Omit<AgentRunInput, "prompt">) {
   return {
