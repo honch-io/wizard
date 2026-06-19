@@ -5,6 +5,11 @@ import { runAgent } from "./agent/runner.js";
 import { loadAuthSession, saveAuthSession } from "./auth/session.js";
 import type { CliOptions } from "./cli/options.js";
 import { createPrompter, type Prompter } from "./cli/prompt.js";
+import { installEspIdfHonchSubmodule } from "./firmware/esp-idf-install.js";
+import {
+  type VerificationOutcome,
+  verifyFirmwareInstall,
+} from "./firmware/verify.js";
 import { PlatformClient, type ProjectResponse } from "./platform/client.js";
 import { scanProject } from "./project/scan.js";
 import { buildSetupReport } from "./report/setup-report.js";
@@ -113,6 +118,14 @@ export async function runWorkflow(
     const verification: string[] = [];
     if (options.runAgent && auth.wizardToken) {
       prompter.setStep?.("agent", "running Claude Agent SDK");
+      if (target.id === "esp-idf") {
+        prompter.addRunMessage?.(
+          "Registering Honch SDK component (git submodule)",
+        );
+        const install = installEspIdfHonchSubmodule(options.installDir);
+        verification.push(install.message);
+        prompter.addRunMessage?.(install.message);
+      }
       prompter.addRunMessage?.("Building Honch SDK installation prompt");
       const prompt = buildAgentPrompt({
         targetId: target.id,
@@ -139,6 +152,16 @@ export async function runWorkflow(
       });
       agentRan = true;
       verification.push("agent run completed");
+      for (const result of verifyFirmwareInstall(
+        target.id,
+        options.installDir,
+        undefined,
+        projectApiKey,
+      )) {
+        const line = formatVerificationOutcome(result);
+        verification.push(line);
+        prompter.addRunMessage?.(line);
+      }
       prompter.completeStep?.("agent", "agent install completed");
     } else {
       prompter.setStep?.("agent", "dry run selected");
@@ -288,4 +311,10 @@ async function requiredInput(
 function normalizeDefault(value: string, fallback: string) {
   const normalized = value.trim();
   return normalized.length > 0 ? normalized : fallback;
+}
+
+function formatVerificationOutcome(outcome: VerificationOutcome): string {
+  const marker =
+    outcome.status === "passed" ? "✓" : outcome.status === "failed" ? "✗" : "•";
+  return `${marker} ${outcome.label}: ${outcome.detail}`;
 }
