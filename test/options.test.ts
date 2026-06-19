@@ -41,6 +41,15 @@ describe("parseOptions", () => {
     expect(options.deviceModel).toBe("ActionCam");
   });
 
+  it("does not accept a static firmware version from flags or environment", () => {
+    expect(
+      parseOptions(["--firmware-version", "1.2.3"], {}),
+    ).not.toHaveProperty("firmwareVersion");
+    expect(
+      parseOptions([], { HONCH_WIZARD_FIRMWARE_VERSION: "1.2.3" }),
+    ).not.toHaveProperty("firmwareVersion");
+  });
+
   it("runs the agent by default and opts out with --dry-run", () => {
     expect(parseOptions([], {}).runAgent).toBe(true);
     expect(parseOptions(["--dry-run"], {}).runAgent).toBe(false);

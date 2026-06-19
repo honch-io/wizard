@@ -26,7 +26,6 @@ export type WizardSummary = {
   projectName?: string;
   captureHost?: string;
   deviceModel?: string;
-  firmwareVersion?: string;
   runMode?: string;
   reportPath?: string;
   branch?: string;
@@ -314,7 +313,6 @@ function promptTitle(prompt: string) {
   if (prompt.startsWith("Organization")) return "Organization";
   if (prompt.startsWith("Project")) return "Honch project";
   if (prompt.startsWith("Device")) return "Device profile";
-  if (prompt.startsWith("Firmware")) return "Firmware version";
   if (prompt.startsWith("Capture")) return "Capture endpoint";
   return "Wizard input";
 }

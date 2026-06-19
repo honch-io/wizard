@@ -28,7 +28,6 @@ node dist/bin.mjs \
   --project-name Local \
   --project-api-key honch_test \
   --device-model TestDevice \
-  --firmware-version 0.0.1 \
   --yes
 ```
 
@@ -50,8 +49,9 @@ node dist/bin.mjs \
 
 The platform must be configured with its Anthropic provider credentials. The
 wizard asks for Honch login/signup, organization, project, device model,
-firmware version, capture host, and final confirmation before the agent mutates
-the target project.
+capture host, and final confirmation before the agent mutates the target
+project. Firmware version is sourced from the target project's own version
+definition during integration, not entered into the wizard.
 
 ## Commands
 
@@ -74,7 +74,6 @@ bun run format:check
 | `HONCH_WIZARD_AUTH_TOKEN` | Existing Honch platform bearer token |
 | `HONCH_WIZARD_CAPTURE_HOST` | Capture host written into SDK config |
 | `HONCH_WIZARD_DEVICE_MODEL` | Device model used by the SDK install |
-| `HONCH_WIZARD_FIRMWARE_VERSION` | Firmware version used by the SDK install |
 | `HONCH_WIZARD_PROJECT_NAME` | Project name for local/offline testing |
 | `HONCH_WIZARD_PROJECT_API_KEY` | Project API key for local/offline testing |
 | `HONCH_WIZARD_RUN_AGENT` | Set to `1` to run Claude Agent SDK through platform proxy |

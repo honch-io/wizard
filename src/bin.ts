@@ -21,7 +21,6 @@ Options:
   --auth-token <token>    Existing Honch platform bearer token
   --capture-host <url>    Capture host for SDK configuration
   --device-model <name>   Device model to configure
-  --firmware-version <v>  Firmware version to configure
   --project-name <name>   Honch project name for local/offline testing
   --project-api-key <key> Honch project API key for local/offline testing
   --dry-run, -n           Preview the plan without running the agent or changing files

@@ -3,7 +3,6 @@ export type SetupReportInput = {
   projectName: string;
   captureHost: string;
   deviceModel: string;
-  firmwareVersion: string;
   agentRan: boolean;
   verification: string[];
   branch?: string;
@@ -32,7 +31,6 @@ Claude's work was committed on branch \`${input.branch}\`.
 - Honch project: ${input.projectName}
 - Capture host: ${input.captureHost}
 - Device model: ${input.deviceModel}
-- Firmware version: ${input.firmwareVersion}
 - Agent execution: ${input.agentRan ? "ran" : "not run"}${input.branch ? `\n- Branch: ${input.branch}` : ""}
 
 ## Verification

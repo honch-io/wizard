@@ -8,7 +8,6 @@ describe("buildSetupReport", () => {
       projectName: "Action Camera",
       captureHost: "https://capture.honch.io",
       deviceModel: "ActionCam X1",
-      firmwareVersion: "1.2.3",
       agentRan: false,
       verification: ["dry run: no files modified"],
     });
@@ -16,6 +15,7 @@ describe("buildSetupReport", () => {
     expect(report).toContain("# Honch Setup Report");
     expect(report).toContain("ESP-IDF");
     expect(report).toContain("ActionCam X1");
+    expect(report).not.toContain("Firmware version:");
     expect(report).toContain("dry run: no files modified");
   });
 });

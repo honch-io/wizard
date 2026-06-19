@@ -110,12 +110,10 @@ export async function runWorkflow(
       prompter,
     );
     prompter.setSummary?.({ deviceModel });
-    const firmwareVersion = await requiredInput(
-      options.firmwareVersion,
-      "Firmware version:",
-      prompter,
-    );
-    prompter.setSummary?.({ firmwareVersion });
+    // Firmware version is intentionally NOT collected here. It's a per-release
+    // value the project already tracks in its own code; the agent wires Honch's
+    // firmware_version to that source so it updates without re-running the
+    // wizard (see the agent prompt).
     const captureHost =
       options.captureHost ??
       normalizeDefault(
@@ -202,7 +200,6 @@ export async function runWorkflow(
         projectApiKeyRef,
         captureHost,
         deviceModel,
-        firmwareVersion,
       });
       prompter.addRunMessage?.(
         "Handing off to Claude — press esc to pause",
@@ -308,7 +305,6 @@ export async function runWorkflow(
       projectName: project.name,
       captureHost,
       deviceModel,
-      firmwareVersion,
       agentRan,
       verification,
       branch: installReverted ? undefined : branch,

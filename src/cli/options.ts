@@ -17,7 +17,6 @@ export type CliOptions = {
   authToken?: string;
   captureHost: string;
   deviceModel?: string;
-  firmwareVersion?: string;
   projectName?: string;
   projectApiKey?: string;
   runAgent: boolean;
@@ -69,10 +68,6 @@ export function parseOptions(argv: string[], env: Env): CliOptions {
     deviceModel:
       stringFlag(flags, "device-model") ??
       env.HONCH_WIZARD_DEVICE_MODEL ??
-      undefined,
-    firmwareVersion:
-      stringFlag(flags, "firmware-version") ??
-      env.HONCH_WIZARD_FIRMWARE_VERSION ??
       undefined,
     projectName:
       stringFlag(flags, "project-name") ??

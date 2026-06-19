@@ -71,7 +71,7 @@ typedef struct {
     const char *endpoint_url;       // required, e.g. "https://i.honch.io"
     const char *device_id;          // optional, NULL to derive
     const char *device_model;       // required
-    const char *firmware_version;   // required
+    const char *firmware_version;   // required, from the project's version source
     const char *environment;        // optional, defaults to "production"
     const char *queue_directory;    // required, writable path for the durable queue
     uint32_t    batch_size;         // optional
@@ -153,7 +153,7 @@ int main(void) {
         .api_key          = getenv("HONCH_API_KEY"),   // secret ref / env
         .endpoint_url     = "https://i.honch.io",
         .device_model     = "edge-gateway-v1",
-        .firmware_version = "0.1.0",
+        .firmware_version = FIRMWARE_VERSION,          // existing app/build version
         .queue_directory  = "/var/lib/honch/queue",    // durable
     };
     honch_client_t *client = NULL;

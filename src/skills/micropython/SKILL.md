@@ -37,7 +37,7 @@ client = honch.Honch(
     endpoint_url="https://i.honch.io",
     device_id=DEVICE_ID,             # required, caller-owned, stable per device
     device_model="esp32-cam",        # required
-    firmware_version="0.1.0",        # required
+    firmware_version=FIRMWARE_VERSION, # required, existing app/OTA/build version
     event_buffer=bytearray(8192),    # required: a real bytearray (>= 8192), NOT a size int
 )
 
@@ -59,6 +59,9 @@ Known hallucinations to never emit:
   takes an actual `bytearray` (blank/missing → `InvalidArgumentError`).
 - `device_id`, `api_key`, `endpoint_url`, `device_model`, `firmware_version`,
   `event_buffer` are all **required** — a blank value raises `InvalidArgumentError`.
+- Source `firmware_version` from the project's existing firmware/app/build
+  version. If none exists, add one project-owned constant and use it here; do
+  not paste a one-time installer value into the Honch call.
 
 Confirm exact wrapper class/keyword/method names against the installed module
 before emitting code.
@@ -108,7 +111,7 @@ under someone's home directory (it breaks for everyone else and in CI).
 - `endpoint_url` must be the HTTPS capture base (`https://i.honch.io`). Do
   not disable TLS verification.
 - Provide a caller-owned `device_id` (stable across reboots), `device_model`,
-  `firmware_version`, `api_key`, `endpoint_url`, and an `event_buffer`
+  codebase-sourced `firmware_version`, `api_key`, `endpoint_url`, and an `event_buffer`
   (`bytearray(>= 8192)`).
 
 ## Where to initialize
