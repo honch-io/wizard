@@ -9,8 +9,18 @@ wire the SDK in with an AI agent, showing you every code change live.
 npx -y honcho-wizard
 ```
 
+…or via [honch.dev](https://honch.dev):
+
+```sh
+curl -fsSL https://honch.dev | sh
+```
+
 That's it. It opens your browser to sign in (and remembers you next time), then
 handles everything else — no manual project picking.
+
+> Both run the same wizard. Today the `curl` path just bootstraps `npx`, so it
+> still needs Node — in the future we'll ship a standalone compiled binary so
+> `curl | sh` works without a Node toolchain.
 
 ## What it does
 
