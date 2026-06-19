@@ -14,7 +14,7 @@ describe("TuiPrompter", () => {
     const prompt = prompter.getSnapshot().currentPrompt;
 
     expect(prompt?.kind).toBe("select");
-    expect(prompt?.title).toBe("Choose SDK target");
+    expect(prompt?.title).toBe("Select your SDK");
     expect(prompt?.options.map((option) => option.value)).toEqual([
       "esp-idf",
       "c-posix",
@@ -25,6 +25,22 @@ describe("TuiPrompter", () => {
 
     prompter.answer("c-posix");
     await expect(answer).resolves.toBe("c-posix");
+  });
+
+  it("badges and pre-selects the recommended SDK target", () => {
+    const prompter = new TuiPrompter({});
+
+    void prompter.question("SDK target (esp-idf, c-posix, micropython):", {
+      recommend: { value: "micropython", source: "detected" },
+    });
+    const prompt = prompter.getSnapshot().currentPrompt;
+
+    expect(prompt?.defaultValue).toBe("micropython");
+    const recommended = prompt?.options.find((o) => o.value === "micropython");
+    expect(recommended?.badge).toBe("(detected)");
+    expect(prompt?.options.filter((o) => o.badge).map((o) => o.value)).toEqual([
+      "micropython",
+    ]);
   });
 
   it("tracks progress and summary state for the app", () => {

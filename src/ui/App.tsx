@@ -1,5 +1,5 @@
 import { Box, Text, useInput } from "ink";
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import type { CliOptions } from "../cli/options.js";
 import type {
   PromptRequest,
@@ -164,10 +164,73 @@ function PromptView({
   prompt: PromptRequest;
   onAnswer: (value: string) => void;
 }) {
+  if (prompt.kind === "welcome") {
+    return <WelcomeView width={width} prompt={prompt} onAnswer={onAnswer} />;
+  }
   if (prompt.kind === "select" || prompt.kind === "confirm") {
     return <Picker width={width} prompt={prompt} onAnswer={onAnswer} />;
   }
   return <TextInput width={width} prompt={prompt} onAnswer={onAnswer} />;
+}
+
+function WelcomeView({
+  width,
+  prompt,
+  onAnswer,
+}: {
+  width: number;
+  prompt: PromptRequest;
+  onAnswer: (value: string) => void;
+}) {
+  const full = prompt.message;
+  const [shown, setShown] = useState(0);
+  const done = shown >= full.length;
+
+  useEffect(() => {
+    if (done) return;
+    const timer = setInterval(
+      () => setShown((current) => Math.min(current + 2, full.length)),
+      16,
+    );
+    return () => clearInterval(timer);
+  }, [done, full.length]);
+
+  useInput((_input, key) => {
+    if (key.return) {
+      if (done) onAnswer("");
+      else setShown(full.length);
+    }
+  });
+
+  return (
+    <Box flexDirection="column">
+      <Text>
+        <Text color={COLORS.accent}>◉</Text>
+        <Text bold color={COLORS.value}>
+          {"  "}Welcome
+        </Text>
+      </Text>
+      <Box height={1} />
+      <Text color={COLORS.value} wrap="wrap">
+        {full.slice(0, shown)}
+        {done ? "" : "▏"}
+      </Text>
+      {done ? (
+        <Box flexDirection="column" marginTop={1}>
+          <Text color={COLORS.label}>Here's what I found:</Text>
+          {(prompt.lines ?? []).map((line) => (
+            <Text key={line}>
+              <Text color={COLORS.success}>·</Text>{" "}
+              <Text color={COLORS.value}>{truncate(line, width - 2)}</Text>
+            </Text>
+          ))}
+          <Box marginTop={1}>
+            <Text color={COLORS.help}>press enter to continue ›</Text>
+          </Box>
+        </Box>
+      ) : null}
+    </Box>
+  );
 }
 
 function Picker({
@@ -179,7 +242,13 @@ function Picker({
   prompt: PromptRequest;
   onAnswer: (value: string) => void;
 }) {
-  const [focused, setFocused] = useState(0);
+  const initial = prompt.defaultValue
+    ? Math.max(
+        prompt.options.findIndex((o) => o.value === prompt.defaultValue),
+        0,
+      )
+    : 0;
+  const [focused, setFocused] = useState(initial);
 
   useInput((_input, key) => {
     if (key.upArrow) {
@@ -219,6 +288,9 @@ function Picker({
               {" "}
               {option.label}
             </Text>
+            {option.badge ? (
+              <Text color={COLORS.success}> {option.badge}</Text>
+            ) : null}
           </Text>
         );
       })}
@@ -382,9 +454,9 @@ function stepColor(status: WizardStep["status"]) {
 function timelineLabel(step: WizardStep) {
   switch (step.id) {
     case "scan":
-      return "Scan project";
+      return "Welcome";
     case "target":
-      return "Detect SDK";
+      return "Select SDK";
     case "auth":
       return "Connect";
     case "project":

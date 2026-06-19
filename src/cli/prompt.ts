@@ -36,15 +36,27 @@ export type PromptOption = {
   label: string;
   value: string;
   hint?: string;
+  badge?: string;
 };
 
 export type PromptRequest = {
   id: number;
   title: string;
   message: string;
-  kind: "text" | "password" | "select" | "confirm";
+  kind: "text" | "password" | "select" | "confirm" | "welcome";
   options: PromptOption[];
   defaultValue?: string;
+  lines?: string[];
+};
+
+export type Recommendation = {
+  value: string;
+  source: "detected" | "recommended";
+};
+
+export type QuestionOptions = {
+  sensitive?: boolean;
+  recommend?: Recommendation;
 };
 
 export type TuiSnapshot = {
@@ -57,8 +69,9 @@ export type TuiSnapshot = {
 };
 
 export type Prompter = {
-  question(prompt: string, options?: { sensitive?: boolean }): Promise<string>;
+  question(prompt: string, options?: QuestionOptions): Promise<string>;
   confirm(prompt: string): Promise<boolean>;
+  welcome?(config: { body: string; lines: string[] }): Promise<void>;
   close(): void;
   cancel?(message?: string): void;
   setStep?(id: WizardStepId, detail?: string): void;
@@ -107,11 +120,27 @@ export class TuiPrompter implements Prompter {
 
   getSnapshot = () => this.snapshot;
 
-  question(prompt: string, options?: { sensitive?: boolean }): Promise<string> {
+  question(prompt: string, options?: QuestionOptions): Promise<string> {
     return new Promise((resolve, reject) => {
-      const request = this.buildRequest(prompt, options?.sensitive ?? false);
+      const request = this.buildRequest(prompt, options ?? {});
       this.pending = { resolve, reject };
       this.update({ currentPrompt: request });
+    });
+  }
+
+  welcome(config: { body: string; lines: string[] }): Promise<void> {
+    return new Promise((resolve) => {
+      this.pending = { resolve: () => resolve(), reject: () => resolve() };
+      this.update({
+        currentPrompt: {
+          id: ++this.promptId,
+          title: "Welcome",
+          message: config.body,
+          kind: "welcome",
+          options: [],
+          lines: config.lines,
+        },
+      });
     });
   }
 
@@ -202,19 +231,27 @@ export class TuiPrompter implements Prompter {
     // Keep listeners alive until Ink unmounts the app.
   }
 
-  private buildRequest(prompt: string, sensitive: boolean): PromptRequest {
+  private buildRequest(
+    prompt: string,
+    options: QuestionOptions,
+  ): PromptRequest {
     const normalized = prompt.replace(/:$/, "");
 
     if (prompt.startsWith("SDK target")) {
+      const recommend = options.recommend;
       return {
         id: ++this.promptId,
-        title: "Choose SDK target",
-        message: "Pick the firmware environment the agent should install into.",
+        title: "Select your SDK",
+        message: recommend
+          ? "Which SDK should I set up? I've suggested one based on your project."
+          : "Which SDK should I set up?",
         kind: "select",
+        defaultValue: recommend?.value,
         options: (Object.keys(SDK_TARGETS) as SdkTargetId[]).map((id) => ({
           label: SDK_TARGETS[id].label,
           value: id,
           hint: SDK_TARGETS[id].verificationHint,
+          badge: recommend?.value === id ? `(${recommend.source})` : undefined,
         })),
       };
     }
@@ -223,7 +260,7 @@ export class TuiPrompter implements Prompter {
       id: ++this.promptId,
       title: promptTitle(normalized),
       message: normalized,
-      kind: sensitive ? "password" : "text",
+      kind: options.sensitive ? "password" : "text",
       options: [],
       defaultValue: prompt.startsWith("Capture host")
         ? "https://capture.honch.io"

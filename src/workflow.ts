@@ -42,6 +42,18 @@ export async function runWorkflow(
   try {
     prompter.setStep?.("scan", "reading project files");
     const scan = scanProject(options.installDir);
+    const findings =
+      scan.detectedTargets.length > 0
+        ? scan.detectedTargets.map(
+            (target) => `Detected a ${target.label} project`,
+          )
+        : ["No SDK auto-detected — you can pick one on the next screen."];
+    if (prompter.welcome && !options.yes) {
+      await prompter.welcome({
+        body: "Hey — welcome to the Honch installer! I'll wire the Honch SDK into your project in a few quick steps. First, I took a look around to see what you're working with.",
+        lines: findings,
+      });
+    }
     prompter.completeStep?.(
       "scan",
       scan.detectedTargets.length > 0
@@ -199,11 +211,17 @@ async function resolveTarget(
   prompter: Prompter,
 ): Promise<SdkTarget> {
   if (requested) return SDK_TARGETS[requested];
-  if (detected.length === 1) return detected[0];
+  const recommendedId = detected[0]?.id ?? "esp-idf";
   const answer = await prompter.question(
     `SDK target (${Object.keys(SDK_TARGETS).join(", ")}):`,
+    {
+      recommend: {
+        value: recommendedId,
+        source: detected.length > 0 ? "detected" : "recommended",
+      },
+    },
   );
-  return SDK_TARGETS[answer as SdkTargetId] ?? SDK_TARGETS["esp-idf"];
+  return SDK_TARGETS[answer as SdkTargetId] ?? SDK_TARGETS[recommendedId];
 }
 
 async function resolveAuth(
