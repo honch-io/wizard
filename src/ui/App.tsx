@@ -20,9 +20,15 @@ const COLORS = {
   rule: "#2d3545",
 } as const;
 
-const WIDTH = 76;
-const SIDEBAR_WIDTH = 22;
-const MAIN_WIDTH = 48;
+const SIDEBAR_WIDTH = 18;
+
+/** Adapt to the terminal width, clamped to a readable range. */
+function layout() {
+  const cols = Math.min(Math.max(process.stdout.columns ?? 80, 64), 96);
+  const inner = cols - 4; // outer paddingX={2}
+  const main = Math.max(inner - SIDEBAR_WIDTH - 3, 34); // gutter + left rule
+  return { inner, main };
+}
 
 export function App({
   options,
@@ -38,6 +44,7 @@ export function App({
     prompter.getSnapshot,
   );
   const prompt = snapshot.currentPrompt;
+  const { inner, main } = layout();
 
   useInput((input, key) => {
     if (key.ctrl && input.toLowerCase() === "c") {
@@ -47,17 +54,24 @@ export function App({
 
   return (
     <Box flexDirection="column" paddingX={2} paddingY={1}>
-      <Header />
-      <Box height={1} />
       <Box gap={2}>
         <Sidebar
           options={options}
           steps={snapshot.steps}
           summary={snapshot.summary}
         />
-        <Text color={COLORS.rule}>{verticalRule(26)}</Text>
-        <Box width={MAIN_WIDTH} flexDirection="column">
+        <Box
+          flexDirection="column"
+          width={main}
+          borderStyle="single"
+          borderColor={COLORS.rule}
+          borderTop={false}
+          borderRight={false}
+          borderBottom={false}
+          paddingLeft={2}
+        >
           <MainArea
+            width={main - 3}
             activeStep={activeStepLabel(snapshot.steps)}
             prompt={prompt}
             completed={snapshot.completed}
@@ -66,31 +80,11 @@ export function App({
             messages={snapshot.runMessages}
             onAnswer={(value) => prompter.answer(value)}
           />
-          <Box height={2} />
-          <InstallPlan activeStep={activeStepLabel(snapshot.steps)} />
         </Box>
       </Box>
       <Box height={1} />
-      <Text color={COLORS.rule}>{rule(WIDTH)}</Text>
-      <Text color={COLORS.help}>↑/↓ navigate | enter select | ctrl+c exit</Text>
-    </Box>
-  );
-}
-
-function Header() {
-  return (
-    <Box flexDirection="column" width={WIDTH}>
-      <Text>
-        <Text bold color={COLORS.accent}>
-          HONCHO
-        </Text>
-        <Text bold color={COLORS.value}>
-          {" "}
-          WIZARD
-        </Text>
-        <Text color={COLORS.help}> AI SDK Installer</Text>
-      </Text>
-      <Text color={COLORS.rule}>{rule(WIDTH)}</Text>
+      <Text color={COLORS.rule}>{rule(inner)}</Text>
+      <Text color={COLORS.help}>↑/↓ move · enter select · ctrl+c exit</Text>
     </Box>
   );
 }
@@ -106,49 +100,30 @@ function Sidebar({
 }) {
   return (
     <Box width={SIDEBAR_WIDTH} flexDirection="column">
-      <Timeline steps={steps} />
-      <Box height={2} />
-      <Text bold color={COLORS.secondary}>
-        Project
-      </Text>
-      <Fact label="Path" value={displayPath(options.installDir)} />
-      <Fact label="SDK" value={summary.sdkTarget ?? "Detecting"} />
-      <Fact label="Target" value={summary.deviceModel ?? "Pending"} />
-      <Fact label="Mode" value={summary.runMode ?? "Dry Run"} />
-    </Box>
-  );
-}
-
-function Timeline({ steps }: { steps: WizardStep[] }) {
-  return (
-    <Box flexDirection="column">
-      {steps.map((step, index) => (
-        <Box key={step.id} flexDirection="column">
-          <Text>
-            <Text color={stepColor(step.status)}>{stepGlyph(step.status)}</Text>
-            <Text
-              bold={step.status === "active"}
-              color={step.status === "active" ? COLORS.accent : COLORS.value}
-              dimColor={step.status === "pending"}
-            >
-              {" "}
-              {timelineLabel(step)}
-            </Text>
+      {steps.map((step) => (
+        <Text key={step.id}>
+          <Text color={stepColor(step.status)}>{stepGlyph(step.status)}</Text>
+          <Text
+            bold={step.status === "active"}
+            color={step.status === "active" ? COLORS.accent : COLORS.value}
+            dimColor={step.status === "pending"}
+          >
+            {" "}
+            {timelineLabel(step)}
           </Text>
-          {step.status === "active" ? (
-            <Text color={COLORS.help}>│ In progress</Text>
-          ) : index < steps.length - 1 ? (
-            <Text color={step.status === "done" ? COLORS.success : COLORS.rule}>
-              │
-            </Text>
-          ) : null}
-        </Box>
+        </Text>
       ))}
+      <Box height={1} />
+      <Fact label="Path" value={displayPath(options.installDir)} />
+      <Fact label="SDK" value={summary.sdkTarget ?? "—"} />
+      <Fact label="Device" value={summary.deviceModel ?? "—"} />
+      <Fact label="Mode" value={summary.runMode ?? "dry run"} />
     </Box>
   );
 }
 
 function MainArea({
+  width,
   activeStep,
   prompt,
   completed,
@@ -157,6 +132,7 @@ function MainArea({
   messages,
   onAnswer,
 }: {
+  width: number;
   activeStep: string;
   prompt?: PromptRequest;
   completed?: boolean;
@@ -166,30 +142,40 @@ function MainArea({
   onAnswer: (value: string) => void;
 }) {
   if (error) return <ErrorView message={error} />;
-  if (completed) return <DoneView reportPath={reportPath} />;
+  if (completed) return <DoneView width={width} reportPath={reportPath} />;
   if (prompt)
-    return <PromptView key={prompt.id} prompt={prompt} onAnswer={onAnswer} />;
-  return <RunView activeStep={activeStep} messages={messages} />;
+    return (
+      <PromptView
+        key={prompt.id}
+        width={width}
+        prompt={prompt}
+        onAnswer={onAnswer}
+      />
+    );
+  return <RunView activeStep={activeStep} messages={messages} width={width} />;
 }
 
 function PromptView({
+  width,
   prompt,
   onAnswer,
 }: {
+  width: number;
   prompt: PromptRequest;
   onAnswer: (value: string) => void;
 }) {
   if (prompt.kind === "select" || prompt.kind === "confirm") {
-    return <Picker prompt={prompt} onAnswer={onAnswer} />;
+    return <Picker width={width} prompt={prompt} onAnswer={onAnswer} />;
   }
-
-  return <TextInput prompt={prompt} onAnswer={onAnswer} />;
+  return <TextInput width={width} prompt={prompt} onAnswer={onAnswer} />;
 }
 
 function Picker({
+  width,
   prompt,
   onAnswer,
 }: {
+  width: number;
   prompt: PromptRequest;
   onAnswer: (value: string) => void;
 }) {
@@ -212,42 +198,45 @@ function Picker({
     }
   });
 
+  const hint = prompt.options[focused]?.hint;
+
   return (
     <Box flexDirection="column">
       <StepHeading title={mainTitle(prompt)} />
       <Box height={1} />
-      <Text color={COLORS.help}>{mainDescription(prompt)}</Text>
-      <Box height={2} />
+      <Text color={COLORS.help} wrap="wrap">
+        {mainDescription(prompt)}
+      </Text>
+      <Box height={1} />
       {prompt.options.map((option, index) => {
         const active = index === focused;
         return (
           <Text key={option.value}>
             <Text color={active ? COLORS.accent : COLORS.neutral}>
-              {active ? ">" : " "}
+              {active ? "›" : " "}
             </Text>
-            <Text
-              bold={active}
-              color={active ? COLORS.value : COLORS.neutral}
-              dimColor={!active}
-            >
+            <Text bold={active} color={active ? COLORS.value : COLORS.neutral}>
               {" "}
               {option.label}
             </Text>
-            {option.hint ? (
-              <Text color={COLORS.help}> {truncate(option.hint, 28)}</Text>
-            ) : null}
           </Text>
         );
       })}
-      <HelperInfo />
+      {hint ? (
+        <Box marginTop={1}>
+          <Text color={COLORS.help}>{truncate(hint, width)}</Text>
+        </Box>
+      ) : null}
     </Box>
   );
 }
 
 function TextInput({
+  width,
   prompt,
   onAnswer,
 }: {
+  width: number;
   prompt: PromptRequest;
   onAnswer: (value: string) => void;
 }) {
@@ -272,20 +261,14 @@ function TextInput({
 
   return (
     <Box flexDirection="column">
-      <StepHeading title={mainTitle(prompt)} />
+      <StepHeading title={inputLabel(prompt)} />
       <Box height={1} />
-      <Text color={COLORS.help}>{mainDescription(prompt)}</Text>
-      <Box height={2} />
-      <Text bold color={COLORS.secondary}>
-        {inputLabel(prompt)}
-      </Text>
       <Text>
-        <Text color={COLORS.secondary}>{">"}</Text>{" "}
+        <Text color={COLORS.secondary}>{"›"}</Text>{" "}
         <Text color={COLORS.value}>{visibleValue}</Text>
-        <Text color={COLORS.value}>_</Text>
+        <Text color={COLORS.accent}>▏</Text>
       </Text>
-      <Text color={COLORS.secondary}>{rule(44)}</Text>
-      <HelperInfo />
+      <Text color={COLORS.rule}>{rule(Math.min(width, 40))}</Text>
     </Box>
   );
 }
@@ -302,115 +285,35 @@ function StepHeading({ title }: { title: string }) {
   );
 }
 
-function HelperInfo() {
-  return (
-    <Box flexDirection="column" marginTop={2}>
-      <Text color={COLORS.help}>
-        <Text color={COLORS.secondary}>lock</Text> Credentials are encrypted
-      </Text>
-      <Text color={COLORS.help}>
-        <Text color={COLORS.secondary}>sync</Text> Project will sync
-        automatically
-      </Text>
-      <Text color={COLORS.help}>
-        <Text color={COLORS.secondary}>zap </Text> Account can be changed later
-      </Text>
-    </Box>
-  );
-}
-
-function InstallPlan({ activeStep }: { activeStep: string }) {
-  return (
-    <Box flexDirection="column">
-      <Text bold color={COLORS.secondary}>
-        What happens next?
-      </Text>
-      <Box height={1} />
-      <PlanLine
-        items={[
-          ["auth", "1 Authenticate"],
-          ["project", "2 Register Project"],
-        ]}
-        activeStep={activeStep}
-      />
-      <PlanLine
-        items={[
-          ["config", "3 Configure Device"],
-          ["agent", "4 Install AI Runtime"],
-        ]}
-        activeStep={activeStep}
-      />
-      <PlanLine
-        items={[["report", "5 Generate Report"]]}
-        activeStep={activeStep}
-      />
-      <Box height={1} />
-      <Text>
-        <Text color={COLORS.help}>Estimated time: </Text>
-        <Text color={COLORS.success}>~45 seconds</Text>
-      </Text>
-    </Box>
-  );
-}
-
-function PlanLine({
-  items,
-  activeStep,
-}: {
-  items: Array<[string, string]>;
-  activeStep: string;
-}) {
-  return (
-    <Text>
-      {items.map(([id, text], index) => (
-        <Text key={id}>
-          {index > 0 ? <Arrow /> : null}
-          <PlanItem active={activeStep === id} text={text} />
-        </Text>
-      ))}
-    </Text>
-  );
-}
-
-function PlanItem({ active, text }: { active: boolean; text: string }) {
-  return (
-    <Text color={active ? COLORS.secondary : COLORS.neutral} bold={active}>
-      {text}
-    </Text>
-  );
-}
-
-function Arrow() {
-  return <Text color={COLORS.neutral}> → </Text>;
-}
-
 function RunView({
   activeStep,
   messages,
+  width,
 }: {
   activeStep: string;
   messages: Array<{ id: number; text: string }>;
+  width: number;
 }) {
   const isAgent = activeStep === "agent";
   return (
     <Box flexDirection="column">
       <StepHeading
-        title={
-          isAgent ? "Claude is installing Honch" : "Preparing Honcho install"
-        }
+        title={isAgent ? "Claude is installing Honch" : "Preparing install"}
       />
       <Box height={1} />
       {messages.length === 0 ? (
         <Text color={COLORS.help}>
           {isAgent
-            ? "Waiting for Claude to inspect the project..."
-            : "Analyzing project and preparing setup..."}
+            ? "Waiting for Claude to inspect the project…"
+            : "Analyzing project and preparing setup…"}
         </Text>
       ) : (
         messages.map((message) => (
           <Text key={message.id}>
-            <Text color={COLORS.accent}>~</Text>{" "}
-            <Text color={COLORS.value}>{message.text}</Text>
+            <Text color={COLORS.accent}>›</Text>{" "}
+            <Text color={COLORS.value}>
+              {truncate(message.text, width - 2)}
+            </Text>
           </Text>
         ))
       )}
@@ -418,14 +321,22 @@ function RunView({
   );
 }
 
-function DoneView({ reportPath }: { reportPath?: string }) {
+function DoneView({
+  width,
+  reportPath,
+}: {
+  width: number;
+  reportPath?: string;
+}) {
   return (
     <Box flexDirection="column">
-      <StepHeading title="Setup flow complete" />
+      <Text bold color={COLORS.success}>
+        ✓ Setup flow complete
+      </Text>
       <Box height={1} />
       <Text color={COLORS.help}>Report generated at</Text>
       <Text color={COLORS.value}>
-        {truncate(reportPath ?? "honch-setup-report.md", 70)}
+        {truncate(reportPath ?? "honch-setup-report.md", width)}
       </Text>
     </Box>
   );
@@ -435,10 +346,12 @@ function ErrorView({ message }: { message: string }) {
   return (
     <Box flexDirection="column">
       <Text bold color={COLORS.failure}>
-        Wizard failed
+        ✗ Wizard failed
       </Text>
       <Box height={1} />
-      <Text color={COLORS.value}>{message}</Text>
+      <Text color={COLORS.value} wrap="wrap">
+        {message}
+      </Text>
     </Box>
   );
 }
@@ -446,9 +359,9 @@ function ErrorView({ message }: { message: string }) {
 function Fact({ label, value }: { label: string; value?: string }) {
   return (
     <Text>
-      <Text color={COLORS.label}>{label.padEnd(9)}</Text>
+      <Text color={COLORS.label}>{label.padEnd(7)}</Text>
       <Text color={value ? COLORS.value : COLORS.neutral}>
-        {truncate(value ?? "Pending", 12)}
+        {truncate(value ?? "—", SIDEBAR_WIDTH - 7)}
       </Text>
     </Text>
   );
@@ -468,18 +381,22 @@ function stepColor(status: WizardStep["status"]) {
 
 function timelineLabel(step: WizardStep) {
   switch (step.id) {
+    case "scan":
+      return "Scan project";
     case "target":
       return "Detect SDK";
     case "auth":
-      return "Connect account";
+      return "Connect";
     case "project":
-      return "Register project";
+      return "Project";
     case "config":
-      return "Configure device";
+      return "Configure";
+    case "confirm":
+      return "Confirm";
     case "agent":
-      return "Install AI runtime";
+      return "Install";
     case "report":
-      return "Generate report";
+      return "Report";
     default:
       return step.label;
   }
@@ -505,21 +422,19 @@ function inputLabel(prompt: PromptRequest) {
 
 function displayPath(path: string) {
   const home = process.env.HOME;
-  if (home && path.startsWith(home)) {
-    return `~${path.slice(home.length) || "/"}`;
-  }
-  return path;
-}
-
-function verticalRule(height: number) {
-  return Array.from({ length: height }, () => "│").join("\n");
+  const shown =
+    home && path.startsWith(home) ? `~${path.slice(home.length) || "/"}` : path;
+  // Prefer the trailing segment when it would otherwise be truncated away.
+  if (shown.length <= SIDEBAR_WIDTH - 7) return shown;
+  const tail = shown.split("/").filter(Boolean).pop() ?? shown;
+  return tail;
 }
 
 function rule(width: number) {
-  return "─".repeat(width);
+  return "─".repeat(Math.max(width, 0));
 }
 
 function truncate(value: string, maxLength: number) {
-  if (value.length <= maxLength) return value;
-  return `${value.slice(0, maxLength - 3)}...`;
+  if (maxLength <= 1 || value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength - 1)}…`;
 }
