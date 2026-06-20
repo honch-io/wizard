@@ -617,7 +617,7 @@ function DoneView({
         </Text>
         <Box height={1} />
         <Text color={COLORS.help} wrap="wrap">
-          Your project is back to how it was before the install. Run honcho
+          Your project is back to how it was before the install. Run honch
           again whenever you're ready.
         </Text>
       </Box>
@@ -754,7 +754,7 @@ function CancelledView() {
       </Text>
       <Box height={1} />
       <Text color={COLORS.help} wrap="wrap">
-        No further changes will be made. Run honcho again any time to pick up
+        No further changes will be made. Run honch again any time to pick up
         where you left off.
       </Text>
     </Box>

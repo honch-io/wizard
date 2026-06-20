@@ -11,14 +11,14 @@ import {
 
 describe("local tools", () => {
   it("detects package managers", () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "honcho-tools-"));
+    const dir = mkdtempSync(path.join(tmpdir(), "honch-tools-"));
     writeFileSync(path.join(dir, "bun.lock"), "");
 
     expect(detectPackageManager(dir)).toEqual(["bun"]);
   });
 
   it("writes secret refs into env files without returning values", () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "honcho-env-"));
+    const dir = mkdtempSync(path.join(tmpdir(), "honch-env-"));
     const vault = createSecretVault();
     const secretRef = vault.put("project key", "honch_secret");
 

@@ -28,7 +28,7 @@ const OAUTH_PORTS = [8239, 8238, 8240, 8237, 8236, 8235] as const;
 /** Default time to wait for the user to finish the browser flow. */
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_SCOPE = "read:projects";
-const CLIENT_NAME = "Honcho Wizard";
+const CLIENT_NAME = "Honch Wizard";
 
 export interface BrowserLoginOptions {
   /** Platform API base URL (backend), e.g. https://api.honch.io. */
@@ -67,7 +67,7 @@ function errorHtml(message: string): string {
 <body style="font-family:system-ui,sans-serif;text-align:center;padding:48px">
 <h2>Login failed</h2>
 <p>${message}</p>
-<p>Return to your terminal and run <code>honcho</code> again.</p>
+<p>Return to your terminal and run <code>honch</code> again.</p>
 </body></html>`;
 }
 
@@ -333,7 +333,7 @@ export function loginViaBrowser(
         finish(() =>
           reject(
             new Error(
-              "Login failed: state parameter mismatch (possible CSRF). Please run honcho again.",
+              "Login failed: state parameter mismatch (possible CSRF). Please run honch again.",
             ),
           ),
         );
@@ -403,7 +403,7 @@ export function loginViaBrowser(
               finish(() =>
                 reject(
                   new Error(
-                    "Login timed out after 5 minutes. Run honcho to try again.",
+                    "Login timed out after 5 minutes. Run honch to try again.",
                   ),
                 ),
               );

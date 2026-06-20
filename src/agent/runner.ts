@@ -49,9 +49,9 @@ export function buildAgentOptions(input: Omit<AgentRunInput, "prompt">) {
       "Grep",
       "LS",
       "Bash",
-      "mcp__honcho-tools__detect_package_manager",
-      "mcp__honcho-tools__check_env_keys",
-      "mcp__honcho-tools__set_env_values",
+      "mcp__honch-tools__detect_package_manager",
+      "mcp__honch-tools__check_env_keys",
+      "mcp__honch-tools__set_env_values",
     ],
     env: {
       ...safeProcessEnv(),

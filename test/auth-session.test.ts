@@ -66,7 +66,7 @@ describe("auth session persistence", () => {
 });
 
 function useTempSessionFile() {
-  const dir = mkdtempSync(path.join(tmpdir(), "honcho-wizard-session-"));
+  const dir = mkdtempSync(path.join(tmpdir(), "honch-wizard-session-"));
   tempDirs.push(dir);
   const file = path.join(dir, "session.json");
   process.env.HONCH_WIZARD_SESSION_FILE = file;
