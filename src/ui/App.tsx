@@ -4,7 +4,6 @@ import type { CliOptions } from "../cli/options.js";
 import type {
   PromptRequest,
   RunMessage,
-  RunMessageKind,
   TuiPrompter,
   WizardStep,
   WizardSummary,
@@ -74,20 +73,21 @@ export function App({
     !snapshot.completed &&
     !snapshot.error &&
     !snapshot.cancelled;
-  const footer =
-    snapshot.completed && snapshot.summary.reportPath
+  // A finished report or a surfaced error is a terminal screen the user just
+  // dismisses; only a live run can be cancelled.
+  const dismissable = Boolean(snapshot.completed) || Boolean(snapshot.error);
+  const footer = snapshot.error
+    ? "press enter to exit"
+    : snapshot.completed && snapshot.summary.reportPath
       ? reportFooterHint(snapshot.summary.reportPath)
       : `↑/↓ move · enter select${installing ? " · esc stop Claude" : ""} · ctrl+c exit`;
 
   useInput((input, key) => {
     if (key.ctrl && input.toLowerCase() === "c") {
-      // On the finished report, ctrl+c is just "I'm done" — exit cleanly.
-      if (snapshot.completed) onExit();
+      // On a terminal screen, ctrl+c is just "I'm done" — exit cleanly.
+      if (dismissable) onExit();
       else onCancel();
-    } else if (
-      snapshot.completed &&
-      (input.toLowerCase() === "q" || key.return)
-    ) {
+    } else if (dismissable && (input.toLowerCase() === "q" || key.return)) {
       onExit();
     } else if (key.escape) {
       prompter.interrupt();
@@ -133,6 +133,7 @@ export function App({
             reverted={snapshot.summary.reverted}
             integrated={snapshot.summary.integrated}
             messages={snapshot.runMessages}
+            transientStatus={snapshot.transientStatus}
             onAnswer={(value) => prompter.answer(value)}
           />
         </Box>
@@ -195,6 +196,7 @@ function MainArea({
   reverted,
   integrated,
   messages,
+  transientStatus,
   onAnswer,
 }: {
   width: number;
@@ -211,6 +213,7 @@ function MainArea({
   reverted?: boolean;
   integrated?: boolean;
   messages: RunMessage[];
+  transientStatus?: string;
   onAnswer: (value: string) => void;
 }) {
   if (cancelled) return <CancelledView />;
@@ -241,6 +244,7 @@ function MainArea({
     <RunView
       activeStep={activeStep}
       messages={messages}
+      transientStatus={transientStatus}
       width={width}
       height={height}
     />
@@ -280,8 +284,10 @@ function WelcomeView({
 
   useEffect(() => {
     if (done) return;
+    // Reveal 3 chars per tick (50% faster than the original 2) for a snappier
+    // welcome typewriter without changing the frame cadence.
     const timer = setInterval(
-      () => setShown((current) => Math.min(current + 2, full.length)),
+      () => setShown((current) => Math.min(current + 3, full.length)),
       12,
     );
     return () => clearInterval(timer);
@@ -464,31 +470,192 @@ function Spinner() {
   return <Text color={COLORS.accent}>{STAR_FRAMES[frame]}</Text>;
 }
 
-function runGlyph(kind: RunMessageKind): { glyph: string; color: string } {
-  switch (kind) {
-    case "assistant":
-      return { glyph: "✻", color: COLORS.accent };
-    case "error":
-      return { glyph: "✗", color: COLORS.failure };
-    case "status":
-      return { glyph: "•", color: COLORS.secondary };
-    default:
-      return { glyph: "›", color: COLORS.neutral };
+/** Seconds elapsed since `active` became true, ticking up by 1 each second. */
+function useElapsed(active: boolean) {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    setSeconds(0);
+    const timer = setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => clearInterval(timer);
+  }, [active]);
+  return seconds;
+}
+
+function formatElapsed(seconds: number) {
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return `${minutes}:${rest.toString().padStart(2, "0")}`;
+}
+
+type InlineSegment = { text: string; code?: boolean; bold?: boolean };
+
+/** Split a line into plain / `code` / **bold** runs (code wins over bold). */
+function parseInline(text: string): InlineSegment[] {
+  const segments: InlineSegment[] = [];
+  for (const part of text.split(/(`[^`]+`)/)) {
+    if (!part) continue;
+    if (part.length >= 2 && part.startsWith("`") && part.endsWith("`")) {
+      segments.push({ text: part.slice(1, -1), code: true });
+      continue;
+    }
+    for (const run of part.split(/(\*\*[^*]+\*\*|__[^_]+__)/)) {
+      if (!run) continue;
+      const bold =
+        run.length >= 4 &&
+        ((run.startsWith("**") && run.endsWith("**")) ||
+          (run.startsWith("__") && run.endsWith("__")));
+      segments.push(bold ? { text: run.slice(2, -2), bold: true } : { text: run });
+    }
   }
+  return segments;
+}
+
+/** Render one line of inline markdown — bold emphasized, `code` colored. */
+function InlineText({ text }: { text: string }) {
+  return (
+    <>
+      {parseInline(text).map((segment, index) => (
+        <Text
+          key={`${index}-${segment.text}`}
+          color={segment.code ? COLORS.success : COLORS.value}
+          bold={segment.bold}
+        >
+          {segment.text}
+        </Text>
+      ))}
+    </>
+  );
+}
+
+/** Render Claude's assistant prose as markdown: headings, bullets, code, text. */
+function AgentMarkdown({ text }: { text: string }) {
+  let inCode = false;
+  return (
+    <>
+      {text.split("\n").map((line, index) => {
+        const key = `l${index}`;
+        if (/^\s*```/.test(line)) {
+          inCode = !inCode;
+          return null;
+        }
+        if (inCode) {
+          return (
+            <Text key={key} color={COLORS.success}>{`  ${line.trimEnd()}`}</Text>
+          );
+        }
+        const trimmed = line.trim();
+        if (!trimmed) return <Text key={key}> </Text>;
+        const heading = /^#{1,6}\s+(.*)$/.exec(trimmed);
+        if (heading) {
+          return (
+            <Text key={key} bold color={COLORS.secondary} wrap="wrap">
+              {heading[1]}
+            </Text>
+          );
+        }
+        const bullet = /^[-*]\s+(.*)$/.exec(trimmed);
+        if (bullet) {
+          return (
+            <Text key={key} wrap="wrap">
+              <Text color={COLORS.accent}>• </Text>
+              <InlineText text={bullet[1]} />
+            </Text>
+          );
+        }
+        const numbered = /^(\d+)\.\s+(.*)$/.exec(trimmed);
+        if (numbered) {
+          return (
+            <Text key={key} wrap="wrap">
+              <Text color={COLORS.accent}>{`${numbered[1]}. `}</Text>
+              <InlineText text={numbered[2]} />
+            </Text>
+          );
+        }
+        return (
+          <Text key={key} wrap="wrap">
+            <InlineText text={line} />
+          </Text>
+        );
+      })}
+    </>
+  );
+}
+
+/** Tool calls and errors hang off a turn as a tree; status notes do not. */
+function isConnectorKind(kind: RunMessage["kind"]) {
+  return kind === "tool" || kind === "error";
+}
+
+/** One entry in the run log — an assistant turn, or a tool/status/error note. */
+export function RunMessageView({
+  message,
+  first,
+  lastInGroup,
+}: {
+  message: RunMessage;
+  first: boolean;
+  /** True when no further connector line follows — caps the group with `⎿`. */
+  lastInGroup: boolean;
+}) {
+  if (message.kind === "assistant") {
+    // Filled marker on the turn; prose hangs indented two columns beneath it,
+    // with a blank line separating consecutive turns.
+    return (
+      <Box flexDirection="row" marginTop={first ? 0 : 1}>
+        <Text bold color={COLORS.accent}>
+          {"⏺ "}
+        </Text>
+        <Box flexGrow={1} flexDirection="column">
+          <AgentMarkdown text={message.text} />
+        </Box>
+      </Box>
+    );
+  }
+  // Wizard status notes are quiet, plain dim lines — they aren't Claude's
+  // actions, so they don't get the tool-tree connector (which would dangle off
+  // nothing). Only real tool calls and errors read as a branch under a turn.
+  if (message.kind === "status" || message.kind === "info") {
+    return (
+      <Box flexDirection="row">
+        <Text color={COLORS.help} dimColor wrap="truncate">
+          {`  ${message.text}`}
+        </Text>
+      </Box>
+    );
+  }
+  // Box-drawing trunk/cap so the group reads as one connected line: earlier
+  // lines use the vertical `│`, and the last line caps it with the rounded
+  // `╰`, whose vertical stroke joins the trunk seamlessly.
+  const connector = lastInGroup ? "╰" : "│";
+  return (
+    <Box flexDirection="row">
+      <Text
+        color={message.kind === "error" ? COLORS.failure : COLORS.neutral}
+        dimColor={message.kind === "tool"}
+        wrap="truncate"
+      >
+        {`  ${connector} ${message.text}`}
+      </Text>
+    </Box>
+  );
 }
 
 function RunView({
   activeStep,
   messages,
+  transientStatus,
   width,
   height,
 }: {
   activeStep: string;
   messages: RunMessage[];
+  transientStatus?: string;
   width: number;
   height: number;
 }) {
   const isAgent = activeStep === "agent";
+  const elapsed = useElapsed(isAgent);
   const budget = Math.max(height - 4, 4);
   const total = messages.length;
   // Offset from the newest line: 0 follows the tail; ↑/↓ scrolls the history.
@@ -510,9 +677,18 @@ function RunView({
   let start = end;
   for (let i = end - 1; i >= 0; i -= 1) {
     const message = messages[i];
+    // Assistant prose spans multiple explicit lines, each of which wraps — count
+    // rows per line (plus one for the blank line that separates turns) so the
+    // visible window never over- or under-fills.
     const rows =
       message.kind === "assistant"
-        ? Math.max(1, Math.ceil(message.text.length / textWidth))
+        ? 1 +
+          message.text
+            .split("\n")
+            .reduce(
+              (sum, line) => sum + Math.max(1, Math.ceil(line.length / textWidth)),
+              0,
+            )
         : 1;
     if (used + rows > budget && start < end) break;
     used += rows;
@@ -521,13 +697,16 @@ function RunView({
   const windowed = messages.slice(start, end);
 
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" flexGrow={1}>
       <Text>
         {isAgent ? <Spinner /> : <Text color={COLORS.accent}>◉</Text>}
         <Text bold color={COLORS.value}>
           {"  "}
           {isAgent ? "Claude is installing Honch" : "Preparing install"}
         </Text>
+        {isAgent ? (
+          <Text color={COLORS.label}>{`  ·  ${formatElapsed(elapsed)}`}</Text>
+        ) : null}
       </Text>
       <Box height={1} />
       {total === 0 ? (
@@ -541,24 +720,19 @@ function RunView({
           {start > 0 ? (
             <Text color={COLORS.help}>↑ {start} earlier</Text>
           ) : null}
-          {windowed.map((message) => {
-            const { glyph, color } = runGlyph(message.kind);
-            const wrapText = message.kind === "assistant";
+          {windowed.map((message, index) => {
+            // A connector line caps with `⎿` when the next message isn't part
+            // of the same tool group (or there is none); otherwise `│`.
+            const next = messages[start + index + 1];
+            const lastInGroup =
+              !next || !isConnectorKind(next.kind);
             return (
-              <Box key={message.id} flexDirection="row">
-                <Text color={color}>{glyph} </Text>
-                <Box flexGrow={1}>
-                  <Text
-                    color={wrapText ? COLORS.value : COLORS.neutral}
-                    dimColor={message.kind === "tool"}
-                    wrap={wrapText ? "wrap" : "truncate"}
-                  >
-                    {wrapText
-                      ? message.text
-                      : truncate(message.text, textWidth)}
-                  </Text>
-                </Box>
-              </Box>
+              <RunMessageView
+                key={message.id}
+                message={message}
+                first={index === 0}
+                lastInGroup={lastInGroup}
+              />
             );
           })}
           {total - end > 0 ? (
@@ -566,6 +740,14 @@ function RunView({
           ) : null}
         </Box>
       )}
+      {transientStatus ? (
+        <>
+          <Box flexGrow={1} />
+          <Text color={COLORS.secondary}>
+            <Spinner /> <Text dimColor>{transientStatus}</Text>
+          </Text>
+        </>
+      ) : null}
     </Box>
   );
 }
@@ -761,16 +943,55 @@ function CancelledView() {
   );
 }
 
+/** Turn a raw failure string into a calm, human-readable screen. Quota/rate
+ * limits read as an "expected" amber notice, not a red crash. */
+function describeFailure(message: string): {
+  title: string;
+  tone: "limit" | "error";
+  lines: string[];
+} {
+  const lower = message.toLowerCase();
+  if (lower.includes("budget") && lower.includes("token")) {
+    return {
+      title: "Daily install limit reached",
+      tone: "limit",
+      lines: [
+        "You've used today's free Honch wizard budget.",
+        "Anything done so far is saved — try again tomorrow, or follow the setup report to finish by hand.",
+      ],
+    };
+  }
+  if (
+    lower.includes("429") ||
+    lower.includes("rate limit") ||
+    lower.includes("rate-limit")
+  ) {
+    return {
+      title: "Claude is busy right now",
+      tone: "limit",
+      lines: [
+        "Claude's API is rate-limited or briefly unavailable.",
+        "Give it a minute, then run honch again.",
+      ],
+    };
+  }
+  return { title: "Wizard failed", tone: "error", lines: [message] };
+}
+
 function ErrorView({ message }: { message: string }) {
+  const { title, tone, lines } = describeFailure(message);
+  const color = tone === "limit" ? COLORS.accent : COLORS.failure;
   return (
     <Box flexDirection="column">
-      <Text bold color={COLORS.failure}>
-        ✗ Wizard failed
+      <Text bold color={color}>
+        {tone === "limit" ? "⏳" : "✗"} {title}
       </Text>
       <Box height={1} />
-      <Text color={COLORS.value} wrap="wrap">
-        {message}
-      </Text>
+      {lines.map((line) => (
+        <Text key={line} color={COLORS.value} wrap="wrap">
+          {line}
+        </Text>
+      ))}
     </Box>
   );
 }

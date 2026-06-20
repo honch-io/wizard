@@ -68,14 +68,23 @@ describe("TuiPrompter", () => {
     });
   });
 
-  it("splits multiline run messages for live agent output", () => {
+  it("keeps a multiline run message as one block under a single marker", () => {
     const prompter = new TuiPrompter({});
 
     prompter.addRunMessage("Edit main/app_main.c\nhonch_init(&config);");
 
     expect(
       prompter.getSnapshot().runMessages.map((message) => message.text),
-    ).toEqual(["Edit main/app_main.c", "honch_init(&config);"]);
+    ).toEqual(["Edit main/app_main.c\nhonch_init(&config);"]);
+  });
+
+  it("collapses an exact consecutive duplicate run message", () => {
+    const prompter = new TuiPrompter({});
+
+    prompter.addRunMessage("Reading CMakeLists.txt", "tool");
+    prompter.addRunMessage("Reading CMakeLists.txt", "tool");
+
+    expect(prompter.getSnapshot().runMessages).toHaveLength(1);
   });
 
   it("marks sensitive questions as password prompts", async () => {

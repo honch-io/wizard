@@ -21,7 +21,9 @@ export type AgentRunResult = {
 };
 
 export type AgentRunEvent = {
-  kind: "assistant" | "tool" | "status" | "error";
+  // "retry" is transient — it updates a single pinned line instead of adding
+  // a new run-log entry, so retry storms don't spam the log.
+  kind: "assistant" | "tool" | "status" | "error" | "retry";
   text: string;
 };
 
@@ -35,7 +37,10 @@ export function buildAgentOptions(input: Omit<AgentRunInput, "prompt">) {
     model: HONCH_AGENT_MODEL,
     permissionMode: "acceptEdits" as const,
     mcpServers: input.mcpServers,
-    includePartialMessages: true,
+    // Render the final `assistant` message once, in full. Partial streaming
+    // deltas (`stream_event`) re-emit the same text and, combined with the
+    // assistant block, produced duplicated + truncated lines in the run log.
+    includePartialMessages: false,
     ...(input.abortController
       ? { abortController: input.abortController }
       : {}),
@@ -74,8 +79,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       const id = (message as { session_id?: string }).session_id;
       if (id) sessionId = id;
 
-      const event = renderAgentEvent(message);
-      if (event) input.onEvent?.(event);
+      for (const event of agentEventsFor(message)) input.onEvent?.(event);
 
       if (message.type === "assistant") {
         for (const content of message.message.content) {
@@ -91,63 +95,60 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
   return { messages, sessionId };
 }
 
-export function renderAgentEvent(
-  message: SDKMessage,
-): AgentRunEvent | undefined {
+/**
+ * Translate one SDK message into the run-log events to display. An assistant
+ * turn can carry several content blocks (prose plus tool calls), so this
+ * returns them in order. Text blocks are emitted in full — no first-line
+ * truncation — and partial streaming deltas are intentionally not consumed, so
+ * each piece of Claude's output appears exactly once.
+ */
+export function agentEventsFor(message: SDKMessage): AgentRunEvent[] {
+  const events: AgentRunEvent[] = [];
+
   if (message.type === "assistant") {
     for (const content of message.message.content) {
-      if (content.type === "tool_use") {
-        const text = formatToolUse(content.name, content.input);
-        return text ? { kind: "tool", text } : undefined;
-      }
       if (content.type === "text") {
-        const text = firstMeaningfulLine(content.text);
-        if (text) return { kind: "assistant", text };
+        const text = content.text.trim();
+        if (text) events.push({ kind: "assistant", text });
+      } else if (content.type === "tool_use") {
+        const text = formatToolUse(content.name, content.input);
+        if (text) events.push({ kind: "tool", text });
       }
     }
-  }
-
-  if (message.type === "stream_event") {
-    const event = message.event;
-    if (event.type === "content_block_delta") {
-      const delta = event.delta;
-      if (delta.type === "text_delta") {
-        const text = firstMeaningfulLine(delta.text);
-        if (text) return { kind: "assistant", text };
-      }
-    }
+    return events;
   }
 
   if (message.type === "system") {
     if (message.subtype === "api_retry") {
-      return {
-        kind: "status",
-        text: `Retrying Claude API request ${message.attempt}/${message.max_retries}`,
-      };
-    }
-    if (message.subtype === "permission_denied") {
-      return {
+      events.push({
+        kind: "retry",
+        text: `Reconnecting to Claude — attempt ${message.attempt} of ${message.max_retries}`,
+      });
+    } else if (message.subtype === "permission_denied") {
+      events.push({
         kind: "error",
         text: `Denied ${message.tool_name}: ${message.message}`,
-      };
+      });
     }
+    return events;
   }
 
   if (message.type === "tool_progress") {
-    return {
+    events.push({
       kind: "status",
       text: `${message.tool_name} running for ${Math.round(message.elapsed_time_seconds)}s`,
-    };
+    });
+    return events;
   }
 
   if (message.type === "result" && message.subtype !== "success") {
-    return {
+    events.push({
       kind: "error",
       text: message.errors[0] ?? "Claude returned an error result",
-    };
+    });
   }
 
-  return undefined;
+  return events;
 }
 
 /**
@@ -207,13 +208,6 @@ function basename(filePath: string): string {
 
 function truncate(value: string, max: number): string {
   return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
-}
-
-function firstMeaningfulLine(text: string) {
-  return text
-    .split("\n")
-    .map((line) => line.trim())
-    .find((line) => line.length > 0);
 }
 
 function stringValue(value: unknown) {

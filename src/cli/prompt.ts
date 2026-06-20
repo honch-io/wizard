@@ -72,6 +72,9 @@ export type TuiSnapshot = {
   summary: WizardSummary;
   currentPrompt?: PromptRequest;
   runMessages: RunMessage[];
+  /** A single transient line pinned at the bottom of the run view (e.g. API
+   * retries), updated in place rather than appended to the log. */
+  transientStatus?: string;
   error?: string;
   completed?: boolean;
   cancelled?: boolean;
@@ -88,6 +91,7 @@ export type Prompter = {
   completeStep?(id: WizardStepId, detail?: string): void;
   setSummary?(summary: Partial<WizardSummary>): void;
   addRunMessage?(message: string, kind?: RunMessageKind): void;
+  setTransientStatus?(message?: string): void;
   onInterrupt?(handler: () => void): void;
   finish?(summary: Partial<WizardSummary>): void;
   fail?(message: string): void;
@@ -222,6 +226,7 @@ export class TuiPrompter implements Prompter {
     this.update({
       steps: this.computeSteps(id, "active", detail),
       runMessages: [],
+      transientStatus: undefined,
       currentPrompt: undefined,
     });
   }
@@ -235,18 +240,30 @@ export class TuiPrompter implements Prompter {
   }
 
   addRunMessage(message: string, kind: RunMessageKind = "info") {
-    const lines = message
+    // Keep a message as one entry — including multi-line agent prose — so the
+    // run view renders it as a single block under one marker (RunView wraps and
+    // budgets rows per line) instead of one bullet per line. Trim trailing
+    // whitespace on each line but preserve the internal newlines.
+    const text = message
       .split("\n")
       .map((line) => line.trimEnd())
-      .filter((line) => line.length > 0);
-    const next = [...this.snapshot.runMessages];
-    for (const text of lines) {
-      // Streaming text deltas re-emit the same first line repeatedly; collapse
-      // consecutive duplicates so the log stays readable.
-      if (next[next.length - 1]?.text === text) continue;
-      next.push({ id: ++this.runMessageId, text, kind });
-    }
-    this.update({ runMessages: next.slice(-500) });
+      .join("\n")
+      .trim();
+    if (!text) return;
+    const last = this.snapshot.runMessages[this.snapshot.runMessages.length - 1];
+    // Collapse an exact repeat of the previous line (defensive — the agent
+    // runner now emits each block once).
+    if (last?.text === text && last.kind === kind) return;
+    const next = [
+      ...this.snapshot.runMessages,
+      { id: ++this.runMessageId, text, kind },
+    ];
+    // A real log line means progress resumed, so any retry banner is stale.
+    this.update({ runMessages: next.slice(-500), transientStatus: undefined });
+  }
+
+  setTransientStatus(message?: string) {
+    this.update({ transientStatus: message });
   }
 
   finish(summary: Partial<WizardSummary>) {

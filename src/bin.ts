@@ -1,10 +1,17 @@
 #!/usr/bin/env node
+import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { render } from "ink";
 import React from "react";
 import { parseOptions } from "./cli/options.js";
 import { TuiPrompter } from "./cli/prompt.js";
 import { SDK_TARGETS } from "./sdk/targets.js";
 import { App } from "./ui/App.js";
+import { promptForUpdate } from "./ui/update-prompt.js";
+import { commandString } from "./update/action.js";
+import { dismissVersion } from "./update/cache.js";
+import { getUpgradeVersion } from "./update/check.js";
 import { runWorkflow } from "./workflow.js";
 
 const options = parseOptions(process.argv.slice(2), process.env);
@@ -38,35 +45,20 @@ const prompter = new TuiPrompter({
 
 const useTui = Boolean(process.stdin.isTTY && process.stdout.isTTY);
 
-if (useTui) {
-  process.stdout.write("\x1b[2J\x1b[3J\x1b[H");
-}
-
 let shuttingDown = false;
-const instance = useTui
-  ? render(
-      React.createElement(App, {
-        options,
-        prompter,
-        onCancel: handleSigint,
-        onExit: handleExit,
-      }),
-      {
-        exitOnCtrlC: false,
-      },
-    )
-  : undefined;
+let failed = false;
+let instance: ReturnType<typeof render> | undefined;
 
 function unmount() {
   instance?.unmount();
 }
 
-/** Clean exit after the user dismisses the completed report. */
+/** Clean exit after the user dismisses the completed report or error screen. */
 function handleExit() {
   if (shuttingDown) return;
   shuttingDown = true;
   unmount();
-  process.exit(0);
+  process.exit(failed ? 1 : 0);
 }
 
 function handleSigint() {
@@ -86,6 +78,56 @@ function handleSigint() {
 }
 
 process.once("SIGINT", handleSigint);
+
+/** Read this CLI's own version from the package manifest beside the bundle. */
+function selfVersion(): string {
+  try {
+    const pkgPath = fileURLToPath(new URL("../package.json", import.meta.url));
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { version?: unknown };
+    return typeof pkg.version === "string" ? pkg.version : "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+/**
+ * On an interactive launch, offer an in-place update when a newer release is
+ * published — mirroring Codex. "Update now" runs the package manager with
+ * inherited stdio, then exits so the user relaunches into the new version.
+ */
+async function maybeOfferUpdate(): Promise<void> {
+  if (!useTui) return;
+
+  const current = selfVersion();
+  let info: Awaited<ReturnType<typeof getUpgradeVersion>>;
+  try {
+    info = await getUpgradeVersion({ currentVersion: current });
+  } catch {
+    return; // never block startup on the update check
+  }
+  if (!info) return;
+
+  const choice = await promptForUpdate(current, info);
+  if (choice === "skip") {
+    dismissVersion(info.latestVersion);
+    return;
+  }
+  if (choice !== "update") return;
+
+  const cmd = commandString(info.action);
+  process.stdout.write(`\nUpdating Honch via \`${cmd}\`…\n\n`);
+  const result = spawnSync(info.action.command, info.action.args, {
+    stdio: "inherit",
+  });
+  if (result.status === 0) {
+    process.stdout.write(
+      `\n🎉 Updated to ${info.latestVersion}! Run \`honch\` again.\n`,
+    );
+    process.exit(0);
+  }
+  process.stdout.write(`\n✗ Update failed. Run it yourself:\n  ${cmd}\n`);
+  process.exit(1);
+}
 
 async function main() {
   try {
@@ -107,16 +149,41 @@ async function main() {
   } catch (error) {
     process.off("SIGINT", handleSigint);
     if (shuttingDown) return;
-    prompter.fail?.((error as Error).message);
-    await delay(250);
+    const message = (error as Error).message;
+    failed = true;
+    prompter.fail?.(message);
+    if (useTui) {
+      // Leave the dismissable error screen up; the user presses enter to exit
+      // (handleExit). Writing to stderr here bled into the TUI footer.
+      return;
+    }
+    process.stderr.write(`Honch failed: ${message}\n`);
     unmount();
-    process.stderr.write(`Honch failed: ${(error as Error).message}\n`);
     process.exitCode = 1;
   }
 }
 
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+async function start() {
+  // The update prompt renders its own Ink app and unmounts before the wizard
+  // mounts, so the two never fight over the terminal.
+  await maybeOfferUpdate();
+
+  if (useTui) {
+    process.stdout.write("\x1b[2J\x1b[3J\x1b[H");
+    instance = render(
+      React.createElement(App, {
+        options,
+        prompter,
+        onCancel: handleSigint,
+        onExit: handleExit,
+      }),
+      {
+        exitOnCtrlC: false,
+      },
+    );
+  }
+
+  await main();
 }
 
-void main();
+void start();

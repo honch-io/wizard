@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAgentOptions, renderAgentEvent } from "../src/agent/runner.js";
+import { agentEventsFor, buildAgentOptions } from "../src/agent/runner.js";
 import { createSecretVault } from "../src/secrets/vault.js";
 import { createLocalToolsServer } from "../src/tools/mcp-server.js";
 
@@ -20,7 +20,7 @@ describe("buildAgentOptions", () => {
     expect(options.cwd).toBe("/tmp/project");
     expect(options.model).toBe("claude-opus-4-8");
     expect(options).not.toHaveProperty("fallbackModel");
-    expect(options.includePartialMessages).toBe(true);
+    expect(options.includePartialMessages).toBe(false);
     expect(options.mcpServers).toHaveProperty("honch-tools");
     expect(options.env).toEqual(
       expect.objectContaining({
@@ -33,7 +33,7 @@ describe("buildAgentOptions", () => {
   });
 
   it("renders edit tool events as a friendly action line", () => {
-    const event = renderAgentEvent({
+    const events = agentEventsFor({
       type: "assistant",
       message: {
         content: [
@@ -50,12 +50,12 @@ describe("buildAgentOptions", () => {
       },
     } as never);
 
-    expect(event).toEqual({ kind: "tool", text: "Editing app_main.c" });
+    expect(events).toEqual([{ kind: "tool", text: "Editing app_main.c" }]);
   });
 
   it("drops echo noise and labels file inspection", () => {
     const make = (command: string) =>
-      renderAgentEvent({
+      agentEventsFor({
         type: "assistant",
         message: {
           content: [
@@ -64,10 +64,44 @@ describe("buildAgentOptions", () => {
         },
       } as never);
 
-    expect(make('echo "---"')).toBeUndefined();
-    expect(make("cat components/honch/main/app_main.c")).toEqual({
-      kind: "tool",
-      text: "Inspecting app_main.c",
-    });
+    expect(make('echo "---"')).toEqual([]);
+    expect(make("cat components/honch/main/app_main.c")).toEqual([
+      { kind: "tool", text: "Inspecting app_main.c" },
+    ]);
+  });
+
+  it("emits each content block of an assistant turn in full, with no duplication", () => {
+    const events = agentEventsFor({
+      type: "assistant",
+      message: {
+        content: [
+          {
+            type: "text",
+            text: "I'll wire in the Honch SDK.\nFirst I'll read the build files.",
+          },
+          { type: "tool_use", id: "t", name: "Read", input: { file_path: "CMakeLists.txt" } },
+        ],
+      },
+    } as never);
+
+    expect(events).toEqual([
+      {
+        kind: "assistant",
+        text: "I'll wire in the Honch SDK.\nFirst I'll read the build files.",
+      },
+      { kind: "tool", text: "Reading CMakeLists.txt" },
+    ]);
+  });
+
+  it("does not render streaming partial deltas (they duplicate the final block)", () => {
+    expect(
+      agentEventsFor({
+        type: "stream_event",
+        event: {
+          type: "content_block_delta",
+          delta: { type: "text_delta", text: "I'll wire" },
+        },
+      } as never),
+    ).toEqual([]);
   });
 });

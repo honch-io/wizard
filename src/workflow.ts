@@ -240,7 +240,11 @@ export async function runWorkflow(
           abortController: abort,
           llmBaseUrl: `${options.apiBaseUrl.replace(/\/+$/, "")}/api/wizard/llm`,
           onEvent: (event) => {
-            prompter.addRunMessage?.(event.text, event.kind);
+            if (event.kind === "retry") {
+              prompter.setTransientStatus?.(event.text);
+            } else {
+              prompter.addRunMessage?.(event.text, event.kind);
+            }
           },
           mcpServers: {
             "honch-tools": createLocalToolsServer({
