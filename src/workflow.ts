@@ -131,7 +131,8 @@ export async function runWorkflow(
     // wires Honch's firmware_version to that source); the capture host is
     // defaulted by the SDK, so the agent leaves it unset.
     const projectApiKey =
-      project.apiKey ?? (await prompter.question("Project API key:"));
+      project.apiKey ??
+      (await prompter.question("Project API key:", { sensitive: true }));
     const projectApiKeyRef = vault.put("Honch project API key", projectApiKey);
     prompter.completeStep?.("config", "device settings ready");
 

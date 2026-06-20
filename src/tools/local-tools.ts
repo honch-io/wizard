@@ -1,4 +1,11 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  readFileSync,
+  realpathSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import type { SecretVault } from "../secrets/vault.js";
 
@@ -62,7 +69,10 @@ export function setEnvValues(
   const next = Array.from(byKey.entries())
     .map(([key, value]) => `${key}=${value}`)
     .join("\n");
-  writeFileSync(envPath, `${next}\n`);
+  // Env files hold the project API key — keep them owner-only. writeFileSync's
+  // mode only applies on create, so chmod afterwards to tighten existing files.
+  writeFileSync(envPath, `${next}\n`, { mode: 0o600 });
+  chmodSync(envPath, 0o600);
 
   return {
     keys: Object.keys(values),
@@ -76,10 +86,28 @@ function resolveEnvValue(value: EnvValue, secretVault: SecretVault) {
 }
 
 function resolveSafePath(workingDirectory: string, filePath: string) {
-  const resolved = path.resolve(workingDirectory, filePath);
-  const root = path.resolve(workingDirectory);
-  if (resolved !== root && !resolved.startsWith(`${root}${path.sep}`)) {
-    throw new Error(`Path escapes working directory: ${filePath}`);
+  // Reject absolute inputs outright — env files are always project-relative.
+  if (path.isAbsolute(filePath)) {
+    throw new Error(`Path must be relative to the project: ${filePath}`);
   }
-  return resolved;
+  // Resolve the project root through symlinks so the containment check compares
+  // real paths, not lexical ones.
+  const root = realpathSync(path.resolve(workingDirectory));
+  const target = path.resolve(root, filePath);
+
+  // Resolve the target's real parent directory. A symlinked parent (e.g.
+  // `config -> /etc`) would otherwise pass a lexical check and let the write
+  // land outside the project.
+  const parent = path.dirname(target);
+  const realParent = existsSync(parent) ? realpathSync(parent) : parent;
+  if (realParent !== root && !realParent.startsWith(`${root}${path.sep}`)) {
+    throw new Error(`Path escapes the project: ${filePath}`);
+  }
+
+  const safePath = path.join(realParent, path.basename(target));
+  // Never follow a symlink at the final component (e.g. `.env -> ~/.ssh/x`).
+  if (existsSync(safePath) && lstatSync(safePath).isSymbolicLink()) {
+    throw new Error(`Refusing to follow a symlink: ${filePath}`);
+  }
+  return safePath;
 }

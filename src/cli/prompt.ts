@@ -319,8 +319,24 @@ export function createPrompter(): Prompter {
   const rl = createInterface({ input, output });
 
   return {
-    async question(prompt) {
-      return rl.question(`${prompt} `);
+    async question(prompt, options) {
+      if (!options?.sensitive) return rl.question(`${prompt} `);
+      // Mask secret input: write the prompt, then suppress character echo until
+      // the user submits (newline passes through). Restores echo afterwards.
+      output.write(`${prompt} `);
+      const rlAny = rl as unknown as {
+        _writeToOutput?: (chunk: string) => void;
+      };
+      const restore = rlAny._writeToOutput;
+      rlAny._writeToOutput = (chunk: string) => {
+        if (chunk.includes("\n") || chunk.includes("\r"))
+          restore?.call(rl, chunk);
+      };
+      try {
+        return await rl.question("");
+      } finally {
+        rlAny._writeToOutput = restore;
+      }
     },
     async select(config) {
       const list = config.options
