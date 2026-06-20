@@ -6,7 +6,7 @@ import { scanProject } from "../src/project/scan.js";
 
 describe("scanProject", () => {
   it("reads target detection files from disk", () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "honcho-scan-"));
+    const dir = mkdtempSync(path.join(tmpdir(), "honch-scan-"));
     writeFileSync(
       path.join(dir, "CMakeLists.txt"),
       "project(camera C)\nadd_executable(camera main.c)",

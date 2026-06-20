@@ -243,7 +243,7 @@ export async function runWorkflow(
             prompter.addRunMessage?.(event.text, event.kind);
           },
           mcpServers: {
-            "honcho-tools": createLocalToolsServer({
+            "honch-tools": createLocalToolsServer({
               workingDirectory: options.installDir,
               secretVault: vault,
             }),

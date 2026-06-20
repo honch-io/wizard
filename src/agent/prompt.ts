@@ -49,7 +49,7 @@ Required workflow:
    - Avoid broad refactors, unrelated formatting churn, generated artifact churn, or changes outside the install path.
 3. Configure Honch safely.
    - Never write the raw project API key into source code.
-   - Use the project API key secret ref with the local Honcho MCP env tools when writing environment/config values.
+   - Use the project API key secret ref with the local Honch MCP env tools when writing environment/config values.
    - Prefer environment/config files over hardcoded constants where the target platform supports them.
    - Preserve existing user-owned config values unless they are clearly Honch-specific placeholders.
 4. Wire the SDK into the application lifecycle.

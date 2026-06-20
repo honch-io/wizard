@@ -12,10 +12,10 @@ export function createLocalToolsServer(input: {
   secretVault: SecretVault;
 }) {
   return createSdkMcpServer({
-    name: "honcho-tools",
+    name: "honch-tools",
     version: "0.1.0",
     instructions:
-      "Local Honcho tools. Use these for package manager detection and environment file writes. Do not read or write .env files directly.",
+      "Local Honch tools. Use these for package manager detection and environment file writes. Do not read or write .env files directly.",
     tools: [
       tool(
         "detect_package_manager",

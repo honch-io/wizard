@@ -1,8 +1,8 @@
-# Honcho
+# Honch
 
 **Agent-powered installer for the [Honch](https://honch.io) SDK.**
 
-`honcho` scans your project, connects your Honch account, and wires the right
+`honch` scans your project, connects your Honch account, and wires the right
 Honch SDK into your codebase for you — ESP-IDF, C/POSIX, MicroPython, Arduino,
 or a React Native relay. It runs as an interactive terminal UI and finishes with
 a setup report you can review.
@@ -13,33 +13,33 @@ Run it straight from npm — no install needed:
 
 ```sh
 # npm
-npx @honch/honcho
+npx @honch/start
 
 # bun
-bunx @honch/honcho
+bunx @honch/start
 ```
 
 By default it sets up the SDK in the current directory. Point it somewhere else
 with `--install-dir`:
 
 ```sh
-npx @honch/honcho --install-dir /path/to/your/project
+npx @honch/start --install-dir /path/to/your/project
 ```
 
 ## Install globally
 
 ```sh
 # npm
-npm install -g @honch/honcho
+npm install -g @honch/start
 
 # bun
-bun add -g @honch/honcho
+bun add -g @honch/start
 ```
 
 Then run it anywhere:
 
 ```sh
-honcho
+honch
 ```
 
 > Requires **Node.js ≥ 22**. Bun works too — `bunx` / `bun add -g` fetch and
@@ -64,7 +64,7 @@ Use `--dry-run` (`-n`) to walk the flow and generate the setup report without
 running the agent or touching your files:
 
 ```sh
-npx @honch/honcho --dry-run
+npx @honch/start --dry-run
 ```
 
 ## Options

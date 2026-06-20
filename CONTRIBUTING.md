@@ -1,6 +1,6 @@
 # Contributing
 
-Honcho Wizard currently depends on unreleased platform support. Before testing
+Honch Wizard currently depends on unreleased platform support. Before testing
 agent installs, make sure the local platform repo is checked out to:
 
 ```sh
@@ -34,7 +34,7 @@ bun install
 bun run build
 
 node dist/bin.mjs \
-  --install-dir /private/tmp/honcho-wizard-target \
+  --install-dir /private/tmp/honch-wizard-target \
   --api-base-url http://localhost:3001 \
   --run-agent
 ```

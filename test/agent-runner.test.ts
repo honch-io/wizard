@@ -10,7 +10,7 @@ describe("buildAgentOptions", () => {
       platformToken: "wizard-token",
       llmBaseUrl: "https://app.honch.io/api/wizard/llm",
       mcpServers: {
-        "honcho-tools": createLocalToolsServer({
+        "honch-tools": createLocalToolsServer({
           workingDirectory: "/tmp/project",
           secretVault: createSecretVault(),
         }),
@@ -21,7 +21,7 @@ describe("buildAgentOptions", () => {
     expect(options.model).toBe("claude-opus-4-8");
     expect(options).not.toHaveProperty("fallbackModel");
     expect(options.includePartialMessages).toBe(true);
-    expect(options.mcpServers).toHaveProperty("honcho-tools");
+    expect(options.mcpServers).toHaveProperty("honch-tools");
     expect(options.env).toEqual(
       expect.objectContaining({
         ANTHROPIC_BASE_URL: "https://app.honch.io/api/wizard/llm",

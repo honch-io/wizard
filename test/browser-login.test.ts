@@ -33,7 +33,7 @@ function oauthFetcher(accessToken: string): {
         new Response(
           JSON.stringify({
             client_id: "honch_client_123",
-            client_name: "Honcho Wizard",
+            client_name: "Honch Wizard",
             redirect_uris: calls.at(-1)?.body.redirect_uris,
             scope: calls.at(-1)?.body.scope,
             token_endpoint_auth_method: "none",
@@ -86,7 +86,7 @@ describe("loginViaBrowser", () => {
     expect(calls).toHaveLength(2);
     expect(calls[0].url).toBe("https://api.honch.io/api/oauth/register");
     expect(calls[0].body).toMatchObject({
-      client_name: "Honcho Wizard",
+      client_name: "Honch Wizard",
       scope: "read:projects",
       token_endpoint_auth_method: "none",
     });
@@ -279,7 +279,7 @@ function oauthFetcherWithTokenResponse(response: Response): {
         new Response(
           JSON.stringify({
             client_id: "honch_client_123",
-            client_name: "Honcho Wizard",
+            client_name: "Honch Wizard",
             redirect_uris: body.redirect_uris,
             scope: body.scope,
             token_endpoint_auth_method: "none",

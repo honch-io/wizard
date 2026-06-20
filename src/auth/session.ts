@@ -57,7 +57,7 @@ export function saveAuthSession(input: {
 function sessionFile() {
   return (
     process.env.HONCH_WIZARD_SESSION_FILE ??
-    path.join(homedir(), ".config", "honcho-wizard", "session.json")
+    path.join(homedir(), ".config", "honch-wizard", "session.json")
   );
 }
 

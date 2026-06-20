@@ -10,7 +10,7 @@ import { runWorkflow } from "./workflow.js";
 const options = parseOptions(process.argv.slice(2), process.env);
 
 if (options.help) {
-  process.stdout.write(`honcho
+  process.stdout.write(`honch
 
 Agent-powered Honch SDK setup.
 
@@ -110,7 +110,7 @@ async function main() {
     prompter.fail?.((error as Error).message);
     await delay(250);
     unmount();
-    process.stderr.write(`Honcho failed: ${(error as Error).message}\n`);
+    process.stderr.write(`Honch failed: ${(error as Error).message}\n`);
     process.exitCode = 1;
   }
 }
