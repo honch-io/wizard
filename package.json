@@ -1,6 +1,6 @@
 {
-  "name": "@honch/honcho",
-  "version": "2.1.0",
+  "name": "@honch/start",
+  "version": "2.1.1",
   "type": "module",
   "description": "Agent-powered Honch SDK setup wizard",
   "license": "MIT",
@@ -26,7 +26,7 @@
     "access": "public"
   },
   "bin": {
-    "honcho": "dist/bin.mjs"
+    "honch": "dist/bin.mjs"
   },
   "files": [
     "dist",
