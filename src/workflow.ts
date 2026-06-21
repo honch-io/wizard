@@ -2,6 +2,7 @@ import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { buildAgentPrompt } from "./agent/prompt.js";
 import { runAgent } from "./agent/runner.js";
+import { analyticsDisabled, buildAnalyticsPayload } from "./analytics.js";
 import {
   type BrowserLoginResult,
   loginViaBrowser,
@@ -73,6 +74,7 @@ export async function runWorkflow(
   const platformClient =
     deps.platformClient ?? new PlatformClient(options.apiBaseUrl);
   const vault = createSecretVault();
+  const startedAt = Date.now();
 
   try {
     prompter.setStep?.("scan", "reading project files");
@@ -394,16 +396,37 @@ export async function runWorkflow(
       });
     }
 
+    const outcome: "success" | "failed" | "reverted" = installReverted
+      ? "reverted"
+      : integrated === false
+        ? "failed"
+        : "success";
+
+    // Coarse install-experience analytics: on by default for authenticated
+    // (online) runs, disclosed in the README, opt out via HONCH_WIZARD_NO_ANALYTICS.
+    // Best-effort — never blocks or fails the wizard.
+    if (auth.accessToken && !analyticsDisabled()) {
+      try {
+        await platformClient.sendAnalytics(
+          auth.accessToken,
+          buildAnalyticsPayload({
+            target: target.id,
+            outcome,
+            agentRan,
+            durationMs: Date.now() - startedAt,
+          }),
+        );
+      } catch {
+        // Swallow analytics delivery failures.
+      }
+    }
+
     // Opt-in feedback — only on a real, interactive, authenticated run, and only
     // if the user picks a rating (Skip sends nothing).
     if (options.runAgent && auth.accessToken && !options.yes) {
       await collectFeedback(prompter, platformClient, auth.accessToken, {
         target: target.id,
-        outcome: installReverted
-          ? "reverted"
-          : integrated === false
-            ? "failed"
-            : "success",
+        outcome,
       });
     }
 
