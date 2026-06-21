@@ -259,6 +259,8 @@ export async function runWorkflow(
       // Snapshot the project right before Claude touches it so the user can
       // revert its work if they pause the run.
       const snapshot = snapshotProject(options.installDir);
+      // Anchor the run timer once; it survives a pause/resume from here on.
+      prompter.markAgentStart?.();
 
       let sessionId: string | undefined;
       let nextPrompt = prompt;

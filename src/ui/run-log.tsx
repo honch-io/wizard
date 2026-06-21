@@ -22,15 +22,21 @@ function Spinner() {
   return <Text color={COLORS.accent}>{STAR_FRAMES[frame]}</Text>;
 }
 
-/** Seconds elapsed since `active` became true, ticking up by 1 each second. */
-function useElapsed(active: boolean) {
-  const [seconds, setSeconds] = useState(0);
+/** Seconds elapsed since `startedAt` (epoch ms), ticking once a second. Derived
+ * from the timestamp rather than a local counter, so a pause/resume that
+ * remounts the run view keeps the original elapsed time instead of resetting. */
+function useElapsed(startedAt?: number) {
+  const [seconds, setSeconds] = useState(() =>
+    startedAt ? Math.max(0, Math.floor((Date.now() - startedAt) / 1000)) : 0,
+  );
   useEffect(() => {
-    if (!active) return;
-    setSeconds(0);
-    const timer = setInterval(() => setSeconds((s) => s + 1), 1000);
+    if (!startedAt) return;
+    const tick = () =>
+      setSeconds(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
+    tick();
+    const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
-  }, [active]);
+  }, [startedAt]);
   return seconds;
 }
 
@@ -213,6 +219,7 @@ export function RunView({
   transientStatus,
   changedFiles,
   usageTokens,
+  agentStartedAt,
   width,
   height,
 }: {
@@ -221,11 +228,12 @@ export function RunView({
   transientStatus?: string;
   changedFiles: { path: string; op: "create" | "edit" }[];
   usageTokens: number;
+  agentStartedAt?: number;
   width: number;
   height: number;
 }) {
   const isAgent = activeStep === "agent";
-  const elapsed = useElapsed(isAgent);
+  const elapsed = useElapsed(agentStartedAt);
   const panelRows = changedFiles.length
     ? Math.min(changedFiles.length, 6) + 1
     : 0;

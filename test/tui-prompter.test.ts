@@ -98,6 +98,19 @@ describe("TuiPrompter", () => {
     expect(prompter.getSnapshot().usageTokens).toBe(0);
   });
 
+  it("anchors the agent clock once and keeps it across a resume", () => {
+    const prompter = new TuiPrompter({});
+
+    prompter.markAgentStart();
+    const startedAt = prompter.getSnapshot().agentStartedAt;
+    expect(typeof startedAt).toBe("number");
+
+    // A resume re-enters the agent step; the clock must not restart.
+    prompter.setStep("agent", "resuming Claude");
+    prompter.markAgentStart();
+    expect(prompter.getSnapshot().agentStartedAt).toBe(startedAt);
+  });
+
   it("marks sensitive questions as password prompts", async () => {
     const prompter = new TuiPrompter({});
 

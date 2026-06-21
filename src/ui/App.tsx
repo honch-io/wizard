@@ -125,6 +125,7 @@ export function App({
             messages={snapshot.runMessages}
             changedFiles={snapshot.changedFiles}
             usageTokens={snapshot.usageTokens}
+            agentStartedAt={snapshot.agentStartedAt}
             transientStatus={snapshot.transientStatus}
             onAnswer={(value) => prompter.answer(value)}
           />
@@ -190,6 +191,7 @@ function MainArea({
   messages,
   changedFiles,
   usageTokens,
+  agentStartedAt,
   transientStatus,
   onAnswer,
 }: {
@@ -209,6 +211,7 @@ function MainArea({
   messages: RunMessage[];
   changedFiles: { path: string; op: "create" | "edit" }[];
   usageTokens: number;
+  agentStartedAt?: number;
   transientStatus?: string;
   onAnswer: (value: string) => void;
 }) {
@@ -242,6 +245,7 @@ function MainArea({
       messages={messages}
       changedFiles={changedFiles}
       usageTokens={usageTokens}
+      agentStartedAt={agentStartedAt}
       transientStatus={transientStatus}
       width={width}
       height={height}

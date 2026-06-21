@@ -78,6 +78,10 @@ export type TuiSnapshot = {
   /** Cumulative tokens the agent has consumed during the current step, for the
    * live usage meter. Summed per assistant turn; reset on a new step. */
   usageTokens: number;
+  /** Wall-clock start of the agent run (epoch ms), set once when Claude first
+   * starts. The elapsed timer is derived from this so it survives a pause/
+   * resume (which remounts the run view) instead of restarting from zero. */
+  agentStartedAt?: number;
   /** A single transient line pinned at the bottom of the run view (e.g. API
    * retries), updated in place rather than appended to the log. */
   transientStatus?: string;
@@ -99,6 +103,7 @@ export type Prompter = {
   addRunMessage?(message: string, kind?: RunMessageKind): void;
   setChangedFile?(path: string, op: "create" | "edit"): void;
   addUsage?(tokens: number): void;
+  markAgentStart?(): void;
   setTransientStatus?(message?: string): void;
   onInterrupt?(handler: () => void): void;
   finish?(summary: Partial<WizardSummary>): void;
@@ -289,6 +294,13 @@ export class TuiPrompter implements Prompter {
   addUsage(tokens: number) {
     if (!Number.isFinite(tokens) || tokens <= 0) return;
     this.update({ usageTokens: this.snapshot.usageTokens + tokens });
+  }
+
+  /** Start the agent clock once. Idempotent, so resuming after a pause keeps
+   * counting from the original start instead of resetting to zero. */
+  markAgentStart() {
+    if (this.snapshot.agentStartedAt) return;
+    this.update({ agentStartedAt: Date.now() });
   }
 
   setTransientStatus(message?: string) {
