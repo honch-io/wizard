@@ -58,7 +58,6 @@ describe("workflow deliberate cancel", () => {
         "Cancelled",
         "--project-api-key",
         "honch_test_key",
-        "--no-save-config",
       ],
       { HONCH_WIZARD_DRY_RUN: "1" },
     );

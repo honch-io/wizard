@@ -1,23 +1,15 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { parseOptions } from "../src/cli/options.js";
 import type { Prompter, WizardSummary } from "../src/cli/prompt.js";
-import { loadHonchConfig } from "../src/config/honch-config.js";
 import type { SdkTargetId } from "../src/sdk/targets.js";
 import { runWorkflow } from "../src/workflow.js";
 
 const tempDirs: string[] = [];
 
-beforeEach(() => {
-  const dir = mkdtempSync(path.join(tmpdir(), "honch-scaffold-registry-"));
-  tempDirs.push(dir);
-  process.env.HONCH_WIZARD_PROJECTS_FILE = path.join(dir, "projects.json");
-});
-
 afterEach(() => {
-  delete process.env.HONCH_WIZARD_PROJECTS_FILE;
   for (const dir of tempDirs.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -112,21 +104,5 @@ describe("workflow scaffold wiring", () => {
 
     expect(calls).toEqual([]);
     expect(summary().tempProject).toBeUndefined();
-  });
-
-  it("Try Honch does not persist config for the throwaway temp dir", async () => {
-    const cwd = makeTempDir();
-    const calls: ScaffoldCall[] = [];
-    const scaffold = async (dir: string, target: SdkTargetId) => {
-      calls.push({ dir, target });
-      return { files: ["main.c"] };
-    };
-
-    const { prompter } = stubPrompter(["c-posix"]);
-    await runWorkflow(localDryRun(cwd, ["--try"]), { prompter, scaffold });
-
-    // No registry entry should be written for the temp scratch dir or the cwd.
-    expect(loadHonchConfig(calls[0].dir)).toBeUndefined();
-    expect(loadHonchConfig(cwd)).toBeUndefined();
   });
 });

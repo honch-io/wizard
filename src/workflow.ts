@@ -20,7 +20,6 @@ import {
   type Prompter,
   WizardCancelledError,
 } from "./cli/prompt.js";
-import { writeHonchConfig } from "./config/honch-config.js";
 import { collectFeedback } from "./feedback.js";
 import { installEspIdfHonchSubmodule } from "./firmware/esp-idf-install.js";
 import {
@@ -105,14 +104,9 @@ export async function runWorkflow(
     let scaffoldNote: string | undefined;
     let tryMode = false;
     const detected = scan.detectedTargets[0];
-    // The welcome's "Continue with …" candidate: a remembered-config target if
-    // we have one, otherwise the detected SDK. A remembered target pre-selects
-    // here but (unlike an explicit --target) does NOT skip the welcome.
-    const remembered = options.target ? SDK_TARGETS[options.target] : undefined;
-    const preferred = remembered ?? detected;
 
     let target: SdkTarget;
-    if (options.targetExplicit || options.yes) {
+    if (options.target || options.yes) {
       // Non-interactive: honor the requested target (or the detected one) and
       // install into the cwd — never re-point or scaffold.
       target = await resolveTarget(
@@ -139,18 +133,18 @@ export async function runWorkflow(
       };
       const choice = await prompter.select({
         title: "Welcome to Honch",
-        message: preferred
-          ? `I looked around ${options.installDir} and ${detected ? `detected ${detected.label}` : `you previously set up ${preferred.label} here`}. What would you like to do?`
+        message: detected
+          ? `I looked around ${options.installDir} and detected ${detected.label}. What would you like to do?`
           : `I looked around ${options.installDir} but didn't detect an SDK. Trying Honch in a scratch project is the easiest way to start.`,
-        // With a preferred SDK (detected or remembered), lead with continuing it.
-        // With nothing, a scratch project is almost always right, so default to it.
-        defaultValue: preferred ? "continue" : "try",
-        options: preferred
+        // With a detected SDK, lead with continuing it. With nothing, a scratch
+        // project is almost always right, so default to it.
+        defaultValue: detected ? "continue" : "try",
+        options: detected
           ? [
               {
-                label: `Continue with ${preferred.label}`,
+                label: `Continue with ${detected.label}`,
                 value: "continue",
-                badge: detected ? "(detected)" : "(remembered)",
+                badge: "(detected)",
               },
               { label: "Choose a different SDK", value: "different" },
               tryOption,
@@ -160,8 +154,8 @@ export async function runWorkflow(
               { label: "Choose an SDK to install here", value: "different" },
             ],
       });
-      if (choice === "continue" && preferred) {
-        target = preferred;
+      if (choice === "continue" && detected) {
+        target = detected;
       } else if (choice === "try") {
         ({ target, scaffoldNote } = await runTryPath(
           scan.detectedTargets,
@@ -487,18 +481,6 @@ export async function runWorkflow(
       ...(tryMode ? { tempProject: installDir } : {}),
     });
     prompter.completeStep?.("report", reportPath);
-
-    // Never persist config for a Try run — it would write a junk registry entry
-    // keyed to the throwaway temp dir.
-    if (options.saveConfig && !tryMode) {
-      writeHonchConfig(installDir, {
-        target: target.id,
-        deviceModel,
-        projectId: project.id,
-        projectName: project.name,
-        apiBaseUrl: options.apiBaseUrl,
-      });
-    }
 
     const outcome: "success" | "failed" | "reverted" = installReverted
       ? "reverted"

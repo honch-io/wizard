@@ -1,9 +1,5 @@
 import path from "node:path";
 import { z } from "zod";
-import {
-  loadHonchConfig,
-  loadHonchConfigFromPath,
-} from "../config/honch-config.js";
 import type { SdkTargetId } from "../sdk/targets.js";
 
 const targetSchema = z.enum([
@@ -25,13 +21,8 @@ export type CliOptions = {
   runAgent: boolean;
   yes: boolean;
   help: boolean;
-  saveConfig: boolean;
   /** Scaffold a starter project (for an empty dir) before installing. */
   tryMode: boolean;
-  /** True only when the target came from an explicit `--target` flag or env var
-   * (not from remembered config). A remembered target pre-selects the welcome
-   * choice but must NOT skip the interactive welcome screen. */
-  targetExplicit?: boolean;
 };
 
 type Env = Record<string, string | undefined>;
@@ -52,37 +43,24 @@ export function parseOptions(argv: string[], env: Env): CliOptions {
     }
   }
 
-  // Resolve installDir first — it's the key for this project's remembered config.
   const installDir = path.resolve(
     stringFlag(flags, "install-dir") ??
       env.HONCH_WIZARD_INSTALL_DIR ??
       process.cwd(),
   );
 
-  // Prior answers for this project come from the user-dir registry (keyed by
-  // installDir). `--config <path>` / HONCH_WIZARD_CONFIG instead reads an
-  // explicit standalone file (a committed/CI config), bypassing the registry.
-  const configPathOverride =
-    stringFlag(flags, "config") ?? env.HONCH_WIZARD_CONFIG;
-  const fileConfig = configPathOverride
-    ? loadHonchConfigFromPath(configPathOverride)
-    : loadHonchConfig(installDir);
-
-  // An explicit flag/env target means "use this, skip the SDK prompt"; a target
-  // that only comes from remembered config should pre-select, not skip.
-  const explicitTarget = stringFlag(flags, "target") ?? env.HONCH_WIZARD_TARGET;
-  const rawTarget = explicitTarget ?? fileConfig?.target ?? undefined;
+  // The target comes only from an explicit `--target` flag or env var; an
+  // explicit target means "use this, skip the SDK prompt".
+  const rawTarget = stringFlag(flags, "target") ?? env.HONCH_WIZARD_TARGET;
   const target = rawTarget ? targetSchema.parse(rawTarget) : undefined;
 
   return {
     apiBaseUrl:
       stringFlag(flags, "api-base-url") ??
       env.HONCH_WIZARD_API_BASE_URL ??
-      fileConfig?.apiBaseUrl ??
       "https://api.honch.io",
     installDir,
     target,
-    targetExplicit: Boolean(explicitTarget),
     authToken:
       stringFlag(flags, "auth-token") ??
       env.HONCH_WIZARD_AUTH_TOKEN ??
@@ -90,12 +68,10 @@ export function parseOptions(argv: string[], env: Env): CliOptions {
     deviceModel:
       stringFlag(flags, "device-model") ??
       env.HONCH_WIZARD_DEVICE_MODEL ??
-      fileConfig?.deviceModel ??
       undefined,
     projectName:
       stringFlag(flags, "project-name") ??
       env.HONCH_WIZARD_PROJECT_NAME ??
-      fileConfig?.projectName ??
       undefined,
     projectApiKey:
       stringFlag(flags, "project-api-key") ??
@@ -108,11 +84,6 @@ export function parseOptions(argv: string[], env: Env): CliOptions {
     yes: booleanFlag(flags, "yes") || env.HONCH_WIZARD_YES === "1",
     help: booleanFlag(flags, "help"),
     tryMode: booleanFlag(flags, "try") || env.HONCH_WIZARD_TRY === "1",
-    // Write honch.config.json by default; --no-save-config or env var disables it.
-    saveConfig: !(
-      booleanFlag(flags, "no-save-config") ||
-      env.HONCH_WIZARD_NO_SAVE_CONFIG === "1"
-    ),
   };
 }
 
@@ -129,7 +100,6 @@ function booleanFlagName(arg: string) {
   if (arg === "--yes" || arg === "-y") return "yes";
   if (arg === "--help" || arg === "-h") return "help";
   if (arg === "--dry-run" || arg === "-n") return "dry-run";
-  if (arg === "--no-save-config") return "no-save-config";
   if (arg === "--try") return "try";
   return undefined;
 }

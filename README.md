@@ -94,8 +94,6 @@ npx @honch/start --dry-run
 | `--device-model <name>` | Device model to configure |
 | `--project-name <name>` | Honch project name (local/offline testing) |
 | `--project-api-key <key>` | Honch project API key (local/offline testing) |
-| `--config <path>` | Read config from an explicit file you maintain (e.g. a committed CI config) instead of the remembered settings |
-| `--no-save-config` | Don't remember this run's settings |
 | `--try` | Skip straight to "Try Honch": scaffold a starter project (from `honch-io/starters`) into a temporary scratch folder |
 | `--dry-run`, `-n` | Preview the plan without running the agent or changing files |
 | `--yes`, `-y` | Skip confirmation prompts when inputs are complete |
@@ -103,23 +101,9 @@ npx @honch/start --dry-run
 
 Every flag has an environment-variable equivalent (`HONCH_WIZARD_*`), e.g.
 `HONCH_WIZARD_INSTALL_DIR`, `HONCH_WIZARD_TARGET`, `HONCH_WIZARD_AUTH_TOKEN`,
-`HONCH_WIZARD_DEVICE_MODEL`, `HONCH_WIZARD_CONFIG`, `HONCH_WIZARD_NO_SAVE_CONFIG`,
-`HONCH_WIZARD_TRY`, `HONCH_WIZARD_YES`, `HONCH_WIZARD_DRY_RUN`,
-`HONCH_WIZARD_NO_ANALYTICS`.
-
-## Reproducible / CI installs
-
-The wizard remembers each project's non-secret choices (target, device model,
-project name/id, API base URL — **never tokens or API keys**) in
-`~/.config/honch-wizard/projects.json`, keyed by the project's path. **Nothing is
-written into your project.** Later runs in the same directory reuse those answers
-instead of re-prompting; `--no-save-config` (or `HONCH_WIZARD_NO_SAVE_CONFIG=1`)
-skips remembering.
-
-For unattended/CI installs, supply the values explicitly — flags, `HONCH_WIZARD_*`
-env vars, or a standalone config file you maintain and point at with
-`--config <path>` (or `HONCH_WIZARD_CONFIG`). Each value resolves with the
-precedence **CLI flag > env var > config > prompt**.
+`HONCH_WIZARD_DEVICE_MODEL`, `HONCH_WIZARD_TRY`, `HONCH_WIZARD_YES`,
+`HONCH_WIZARD_DRY_RUN`, `HONCH_WIZARD_NO_ANALYTICS`. Each value resolves with the
+precedence **CLI flag > env var > prompt**.
 
 ## The welcome screen
 

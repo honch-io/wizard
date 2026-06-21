@@ -1,37 +1,5 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { parseOptions } from "../src/cli/options.js";
-import {
-  type HonchConfig,
-  writeHonchConfig,
-} from "../src/config/honch-config.js";
-
-const tempDirs: string[] = [];
-
-afterEach(() => {
-  for (const dir of tempDirs.splice(0)) {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-function makeTempDir() {
-  const dir = mkdtempSync(path.join(tmpdir(), "honch-options-"));
-  tempDirs.push(dir);
-  return dir;
-}
-
-// Remember a project's config in the user-dir registry (keyed by project path),
-// the same place a real run persists it.
-function writeTempConfig(dir: string, config: HonchConfig) {
-  writeHonchConfig(dir, config);
-}
-
-// Write a standalone config file for the explicit `--config <path>` opt-in.
-function writeConfigAt(filePath: string, config: Record<string, unknown>) {
-  writeFileSync(filePath, JSON.stringify(config, null, 2));
-}
 
 describe("parseOptions", () => {
   it("uses flags before environment defaults", () => {
@@ -91,152 +59,51 @@ describe("parseOptions", () => {
     );
   });
 
-  describe("config file layering", () => {
-    beforeEach(() => {
-      // Isolate each test's remembered-config registry to a throwaway file.
-      const dir = makeTempDir();
-      process.env.HONCH_WIZARD_PROJECTS_FILE = path.join(dir, "projects.json");
-    });
-
-    afterEach(() => {
-      delete process.env.HONCH_WIZARD_PROJECTS_FILE;
-    });
-
-    it("config supplies target when no flag or env var is set", () => {
-      const dir = makeTempDir();
-      writeTempConfig(dir, { target: "micropython" });
-
-      const options = parseOptions(["--install-dir", dir], {});
-
-      expect(options.target).toBe("micropython");
-    });
-
-    it("a --target flag overrides config", () => {
-      const dir = makeTempDir();
-      writeTempConfig(dir, { target: "micropython" });
-
-      const options = parseOptions(
-        ["--install-dir", dir, "--target", "esp-idf"],
-        {},
-      );
-
-      expect(options.target).toBe("esp-idf");
-    });
-
-    it("an env var overrides config, and a flag overrides the env var", () => {
-      const dir = makeTempDir();
-      writeTempConfig(dir, { target: "micropython" });
-
-      const withEnv = parseOptions(["--install-dir", dir], {
+  describe("flag / env / default precedence", () => {
+    it("falls back to env vars when no flag is set", () => {
+      const options = parseOptions([], {
         HONCH_WIZARD_TARGET: "c-posix",
-      });
-      expect(withEnv.target).toBe("c-posix");
-
-      const withFlag = parseOptions(
-        ["--install-dir", dir, "--target", "arduino"],
-        { HONCH_WIZARD_TARGET: "c-posix" },
-      );
-      expect(withFlag.target).toBe("arduino");
-    });
-
-    it("config supplies apiBaseUrl when no flag or env var is set", () => {
-      const dir = makeTempDir();
-      writeTempConfig(dir, { apiBaseUrl: "https://staging.honch.io" });
-
-      const options = parseOptions(["--install-dir", dir], {});
-
-      expect(options.apiBaseUrl).toBe("https://staging.honch.io");
-    });
-
-    it("an env var overrides a config apiBaseUrl", () => {
-      const dir = makeTempDir();
-      writeTempConfig(dir, { apiBaseUrl: "https://staging.honch.io" });
-
-      const options = parseOptions(["--install-dir", dir], {
         HONCH_WIZARD_API_BASE_URL: "https://env.honch.io",
-      });
-
-      expect(options.apiBaseUrl).toBe("https://env.honch.io");
-    });
-
-    it("an env var overrides a config deviceModel", () => {
-      const dir = makeTempDir();
-      writeTempConfig(dir, { deviceModel: "ConfigCam" });
-
-      const options = parseOptions(["--install-dir", dir], {
         HONCH_WIZARD_DEVICE_MODEL: "EnvCam",
+        HONCH_WIZARD_PROJECT_NAME: "EnvCam project",
       });
 
+      expect(options.target).toBe("c-posix");
+      expect(options.apiBaseUrl).toBe("https://env.honch.io");
       expect(options.deviceModel).toBe("EnvCam");
+      expect(options.projectName).toBe("EnvCam project");
     });
 
-    it("config apiBaseUrl is overridden by flag", () => {
-      const dir = makeTempDir();
-      writeTempConfig(dir, { apiBaseUrl: "https://staging.honch.io" });
-
+    it("a flag overrides the env var", () => {
       const options = parseOptions(
-        ["--install-dir", dir, "--api-base-url", "https://custom.honch.io"],
-        {},
+        [
+          "--target",
+          "arduino",
+          "--api-base-url",
+          "https://custom.honch.io",
+          "--device-model",
+          "FlagCam",
+        ],
+        {
+          HONCH_WIZARD_TARGET: "c-posix",
+          HONCH_WIZARD_API_BASE_URL: "https://env.honch.io",
+          HONCH_WIZARD_DEVICE_MODEL: "EnvCam",
+        },
       );
 
+      expect(options.target).toBe("arduino");
       expect(options.apiBaseUrl).toBe("https://custom.honch.io");
+      expect(options.deviceModel).toBe("FlagCam");
     });
 
-    it("config supplies deviceModel and projectName when not in flags or env", () => {
-      const dir = makeTempDir();
-      writeTempConfig(dir, {
-        deviceModel: "ActionCam",
-        projectName: "MyCam",
-      });
-
-      const options = parseOptions(["--install-dir", dir], {});
-
-      expect(options.deviceModel).toBe("ActionCam");
-      expect(options.projectName).toBe("MyCam");
+    it("apiBaseUrl defaults to production when nothing is set", () => {
+      expect(parseOptions([], {}).apiBaseUrl).toBe("https://api.honch.io");
     });
 
-    it("--config flag overrides the config file location", () => {
-      const dir = makeTempDir();
-      const configPath = path.join(dir, "custom-config.json");
-      writeConfigAt(configPath, { target: "c-posix" });
-      // no honch.config.json in installDir — only the custom path should be read
-      const installDir = makeTempDir();
-
-      const options = parseOptions(
-        ["--install-dir", installDir, "--config", configPath],
-        {},
-      );
-
-      expect(options.target).toBe("c-posix");
-    });
-
-    it("HONCH_WIZARD_CONFIG env overrides the config file location", () => {
-      const dir = makeTempDir();
-      const configPath = path.join(dir, "env-config.json");
-      writeConfigAt(configPath, { target: "react-native-relay" });
-      const installDir = makeTempDir();
-
-      const options = parseOptions(["--install-dir", installDir], {
-        HONCH_WIZARD_CONFIG: configPath,
-      });
-
-      expect(options.target).toBe("react-native-relay");
-    });
-
-    it("--config flag overrides HONCH_WIZARD_CONFIG env", () => {
-      const dir = makeTempDir();
-      const flagConfigPath = path.join(dir, "flag-config.json");
-      const envConfigPath = path.join(dir, "env-config.json");
-      writeConfigAt(flagConfigPath, { target: "c-posix" });
-      writeConfigAt(envConfigPath, { target: "micropython" });
-      const installDir = makeTempDir();
-
-      const options = parseOptions(
-        ["--install-dir", installDir, "--config", flagConfigPath],
-        { HONCH_WIZARD_CONFIG: envConfigPath },
-      );
-
-      expect(options.target).toBe("c-posix");
+    it("target and deviceModel are undefined when neither flag nor env is set", () => {
+      const options = parseOptions([], {});
+      expect(options.target).toBeUndefined();
+      expect(options.deviceModel).toBeUndefined();
     });
   });
 });
