@@ -137,9 +137,15 @@ export function agentEventsFor(message: SDKMessage): AgentRunEvent[] {
 
   if (message.type === "system") {
     if (message.subtype === "api_retry") {
+      // Lead with the reassuring action; only mention the attempt count from the
+      // second attempt on (the UI dims it), so a single blip reads as routine.
+      const suffix =
+        message.attempt >= 2
+          ? `  (attempt ${message.attempt} of ${message.max_retries})`
+          : "";
       events.push({
         kind: "retry",
-        text: `Reconnecting to Claude — attempt ${message.attempt} of ${message.max_retries}`,
+        text: `Reconnecting to Claude…${suffix}`,
       });
     } else if (message.subtype === "permission_denied") {
       events.push({

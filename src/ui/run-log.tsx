@@ -2,7 +2,7 @@ import { Box, Text, useInput } from "ink";
 import { useEffect, useState } from "react";
 import type { RunMessage } from "../cli/prompt.js";
 import { basename } from "../util/text.js";
-import { COLORS } from "./theme.js";
+import { COLORS, GLYPHS } from "./theme.js";
 
 const STAR_FRAMES = ["✶", "✷", "✸", "✹", "✺", "✹", "✸", "✷"];
 
@@ -47,6 +47,28 @@ function formatElapsed(seconds: number) {
 function formatTokens(tokens: number) {
   if (tokens < 1000) return `${tokens}`;
   return `${(tokens / 1000).toFixed(1)}k`;
+}
+
+/** Label each changed file by basename, but when two entries collapse to the
+ * same basename, show enough trailing path segments to tell them apart (e.g.
+ * `app/main.c` vs `lib/main.c`) instead of two bare `main.c` lines. */
+function disambiguateFiles(
+  files: { path: string; op: "create" | "edit" }[],
+): { path: string; op: "create" | "edit"; label: string }[] {
+  const counts = new Map<string, number>();
+  for (const file of files) {
+    const base = basename(file.path);
+    counts.set(base, (counts.get(base) ?? 0) + 1);
+  }
+  return files.map((file) => {
+    const base = basename(file.path);
+    if ((counts.get(base) ?? 0) <= 1) return { ...file, label: base };
+    // Ambiguous basename — show the last two segments for context.
+    const segments = file.path.replace(/\/+$/, "").split("/");
+    const label =
+      segments.length >= 2 ? segments.slice(-2).join("/") : file.path;
+    return { ...file, label };
+  });
 }
 
 type InlineSegment = { text: string; code?: boolean; bold?: boolean };
@@ -239,23 +261,32 @@ export function RunView({
   // total is the pre-run baseline plus this run's tokens. Without a budget,
   // fall back to a raw token count.
   const hasBudget = typeof tokenBudget === "number" && tokenBudget > 0;
+  const dailyUsed = (tokensUsedBaseline ?? 0) + usageTokens;
   const usagePct = hasBudget
-    ? Math.min(
-        100,
-        Math.round(
-          (((tokensUsedBaseline ?? 0) + usageTokens) / tokenBudget) * 100,
-        ),
-      )
+    ? Math.min(100, Math.round((dailyUsed / tokenBudget) * 100))
     : 0;
+  // Show the absolute used/budget alongside the percentage when there's room —
+  // it makes the meter legible without doing the math in your head.
+  const showAbsolute = hasBudget && width >= 56;
   const usageLabel = hasBudget
-    ? `${usagePct}% of daily limit`
+    ? `${usagePct}% of daily budget${
+        showAbsolute
+          ? ` (${formatTokens(dailyUsed)}/${formatTokens(tokenBudget)})`
+          : ""
+      }`
     : usageTokens > 0
       ? `${formatTokens(usageTokens)} tokens`
       : undefined;
-  const usageColor =
-    hasBudget && usagePct >= 90 ? COLORS.failure : COLORS.label;
+  // Amber warning at ≥75%, red at ≥90% — escalating as the budget runs low.
+  const usageColor = !hasBudget
+    ? COLORS.label
+    : usagePct >= 90
+      ? COLORS.failure
+      : usagePct >= 75
+        ? COLORS.warning
+        : COLORS.label;
   const panelRows = changedFiles.length
-    ? Math.min(changedFiles.length, 6) + 1
+    ? Math.min(changedFiles.length, 6) + 1 + (changedFiles.length > 6 ? 1 : 0)
     : 0;
   const budget = Math.max(height - 4 - panelRows, 4);
   const total = messages.length;
@@ -301,7 +332,11 @@ export function RunView({
   return (
     <Box flexDirection="column" flexGrow={1}>
       <Text>
-        {isAgent ? <Spinner /> : <Text color={COLORS.accent}>◉</Text>}
+        {isAgent ? (
+          <Spinner />
+        ) : (
+          <Text color={COLORS.accent}>{GLYPHS.heading}</Text>
+        )}
         <Text bold color={COLORS.value}>
           {"  "}
           {isAgent ? "Claude is installing Honch" : "Preparing install"}
@@ -319,16 +354,23 @@ export function RunView({
           <Text dimColor color={COLORS.label}>
             Changed files
           </Text>
-          {changedFiles.slice(-6).map((file) => (
-            <Text
-              key={file.path}
-              color={file.op === "create" ? COLORS.success : COLORS.accent}
-              wrap="truncate"
-            >
-              {file.op === "create" ? "+ " : "~ "}
-              {basename(file.path)}
+          {disambiguateFiles(changedFiles)
+            .slice(-6)
+            .map((file) => (
+              <Text
+                key={file.path}
+                color={file.op === "create" ? COLORS.success : COLORS.accent}
+                wrap="truncate"
+              >
+                {file.op === "create" ? "+ " : "~ "}
+                {file.label}
+              </Text>
+            ))}
+          {changedFiles.length > 6 ? (
+            <Text dimColor color={COLORS.label}>
+              +{changedFiles.length - 6} more
             </Text>
-          ))}
+          ) : null}
         </Box>
       ) : null}
       {total === 0 ? (

@@ -47,4 +47,33 @@ describe("buildSetupReport", () => {
 
     expect(report).not.toContain("## Outcome");
   });
+
+  it("tailors Next Steps to kick-the-tires guidance for a Try run", () => {
+    const report = buildSetupReport({
+      targetLabel: "C/POSIX",
+      projectName: "Scratch",
+      deviceModel: "pc1",
+      agentRan: true,
+      integrated: true,
+      tryMode: true,
+      verification: ["agent run completed"],
+    });
+
+    expect(report).toContain("temporary scratch project");
+    // Ship-readiness guidance is wrong for a scratch run.
+    expect(report).not.toContain("before shipping");
+  });
+
+  it("keeps ship-readiness Next Steps for a real integrated install", () => {
+    const report = buildSetupReport({
+      targetLabel: "ESP-IDF",
+      projectName: "Action Camera",
+      deviceModel: "ActionCam X1",
+      agentRan: true,
+      integrated: true,
+      verification: ["agent run completed"],
+    });
+
+    expect(report).toContain("before shipping");
+  });
 });

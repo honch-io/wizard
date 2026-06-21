@@ -16,17 +16,28 @@ import {
   visibleReportLines,
 } from "./report-view.js";
 import { RunView } from "./run-log.js";
-import { COLORS } from "./theme.js";
+import { COLORS, GLYPHS } from "./theme.js";
 
 const SIDEBAR_WIDTH = 24;
+/** Below this width the sidebar + main area can't both stay usable, so we hide
+ * the sidebar and give the whole row to the main content. */
+const NARROW_THRESHOLD = 60;
+/** Below this width even the main area is cramped; show a resize nudge. */
+const TINY_THRESHOLD = 40;
 
 /** Fit to the live terminal size. */
 function layout() {
-  const cols = Math.max(process.stdout.columns ?? 80, 48);
+  const rawCols = process.stdout.columns ?? 80;
+  const cols = Math.max(rawCols, 24);
   const rows = Math.max(process.stdout.rows ?? 24, 12);
   const inner = cols - 4; // outer paddingX={2}
-  const main = Math.max(inner - SIDEBAR_WIDTH - 3, 30); // gutter + left rule
-  return { inner, main, rows };
+  const narrow = rawCols < NARROW_THRESHOLD;
+  const tiny = rawCols < TINY_THRESHOLD;
+  // When narrow, drop the sidebar and reclaim its width for the main column.
+  const main = narrow
+    ? Math.max(inner, 16)
+    : Math.max(inner - SIDEBAR_WIDTH - 3, 30); // gutter + left rule
+  return { inner, main, rows, narrow, tiny };
 }
 
 export function App({
@@ -56,25 +67,33 @@ export function App({
     };
   }, []);
 
-  const { inner, main, rows } = layout();
+  const { inner, main, rows, narrow, tiny } = layout();
   const installing =
     activeStepLabel(snapshot.steps) === "agent" &&
     !prompt &&
     !snapshot.completed &&
     !snapshot.error &&
     !snapshot.cancelled;
-  // A finished report or a surfaced error is a terminal screen the user just
-  // dismisses; only a live run can be cancelled.
-  const dismissable = Boolean(snapshot.completed) || Boolean(snapshot.error);
+  // A finished report, a surfaced error, or a deliberate cancel is a terminal
+  // screen the user just dismisses; only a live run/prompt can be cancelled.
+  const dismissable =
+    Boolean(snapshot.completed) ||
+    Boolean(snapshot.error) ||
+    Boolean(snapshot.cancelled);
+  // Honest, context-aware footer: only advertise keys that work on THIS screen.
   const footer = snapshot.error
     ? "press enter to exit"
-    : snapshot.completed &&
-        (snapshot.summary.reportPath || snapshot.summary.tempProject)
-      ? reportFooterHint(
-          snapshot.summary.reportPath,
-          snapshot.summary.tempProject,
-        )
-      : `↑/↓ move · enter select${installing ? " · esc stop Claude" : ""} · ctrl+c exit`;
+    : snapshot.cancelled
+      ? "press enter to exit"
+      : snapshot.completed &&
+          (snapshot.summary.reportPath || snapshot.summary.tempProject)
+        ? reportFooterHint(
+            snapshot.summary.reportPath,
+            snapshot.summary.tempProject,
+          )
+        : installing
+          ? "↑/↓ scroll · esc pause · ctrl+c cancel"
+          : "↑/↓ move · enter select · ctrl+c cancel";
 
   useInput((input, key) => {
     if (key.ctrl && input.toLowerCase() === "c") {
@@ -84,7 +103,14 @@ export function App({
     } else if (dismissable && (input.toLowerCase() === "q" || key.return)) {
       onExit();
     } else if (key.escape) {
-      prompter.interrupt();
+      if (installing) {
+        // During the live run, ESC pauses Claude (the agent interrupt handler).
+        prompter.interrupt();
+      } else if (prompt) {
+        // During a (non-run) prompt, ESC is a deliberate cancel — land on the
+        // calm CancelledView rather than dangling or appearing to fail.
+        onCancel();
+      }
     }
   });
 
@@ -97,23 +123,28 @@ export function App({
       paddingBottom={0}
     >
       <Box gap={2} flexGrow={1}>
-        <Sidebar
-          options={options}
-          steps={snapshot.steps}
-          summary={snapshot.summary}
-        />
+        {narrow ? null : (
+          <Sidebar
+            options={options}
+            steps={snapshot.steps}
+            summary={snapshot.summary}
+          />
+        )}
         <Box
           flexDirection="column"
           width={main}
-          borderStyle="single"
+          borderStyle={narrow ? undefined : "single"}
           borderColor={COLORS.rule}
           borderTop={false}
           borderRight={false}
           borderBottom={false}
-          paddingLeft={2}
+          paddingLeft={narrow ? 0 : 2}
         >
+          {tiny ? (
+            <Text color={COLORS.help}>resize for a better view</Text>
+          ) : null}
           <MainArea
-            width={main - 3}
+            width={narrow ? main : main - 3}
             height={rows - 3}
             activeStep={activeStepLabel(snapshot.steps)}
             prompt={prompt}
@@ -178,7 +209,7 @@ function Sidebar({
         />
         <Fact label="SDK" value={summary.sdkTarget ?? "—"} />
         <Fact label="Device" value={summary.deviceModel ?? "—"} />
-        <Fact label="Mode" value={summary.runMode ?? "dry run"} />
+        <Fact label="Mode" value={summary.runMode ?? "Preview (dry run)"} />
       </Box>
     </Box>
   );
@@ -395,6 +426,11 @@ function TextInput({
         <Text color={COLORS.accent}>▏</Text>
       </Text>
       <Text color={COLORS.rule}>{rule(Math.min(width, 40))}</Text>
+      {prompt.kind === "password" ? (
+        <Text color={COLORS.help} dimColor>
+          (input hidden)
+        </Text>
+      ) : null}
     </Box>
   );
 }
@@ -402,7 +438,7 @@ function TextInput({
 function StepHeading({ title }: { title: string }) {
   return (
     <Text>
-      <Text color={COLORS.accent}>◉</Text>
+      <Text color={COLORS.accent}>{GLYPHS.heading}</Text>
       <Text bold color={COLORS.value}>
         {"  "}
         {title}
@@ -439,7 +475,7 @@ function DoneView({
   );
   const notInstalled = integrated === false;
   const headerRows =
-    (branch ? 8 : 5) + (notInstalled ? 1 : 0) + (tempProject ? 2 : 0);
+    (branch ? 8 : 5) + (notInstalled ? 1 : 0) + (tempProject ? 3 : 0);
   const reportHeight = Math.max(height - headerRows, 4);
   const [scroll, setScroll] = useState(0);
   const windowed = visibleReportLines(lines, reportHeight, scroll);
@@ -459,7 +495,7 @@ function DoneView({
     return (
       <Box flexDirection="column">
         <Text bold color={COLORS.neutral}>
-          ↩ Reverted Claude's changes
+          {GLYPHS.reverted} Reverted Claude's changes
         </Text>
         <Box height={1} />
         <Text color={COLORS.help} wrap="wrap">
@@ -469,12 +505,20 @@ function DoneView({
       </Box>
     );
   }
+  // Outcome-specific success header. Try mode and a real integrated install each
+  // get concrete copy; a dry run / non-git run (integrated undefined) stays
+  // neutral; the not-installed case keeps its amber warning.
+  const successHeader = tempProject
+    ? "Honch is running in your scratch project"
+    : integrated === true
+      ? "Honch is installed"
+      : "Setup flow complete";
   return (
     <Box flexDirection="column">
       {notInstalled ? (
         <Box flexDirection="column">
           <Text bold color={COLORS.accent}>
-            ⚠ Honch was not installed
+            {GLYPHS.warn} Honch was not installed
           </Text>
           <Text color={COLORS.help} wrap="wrap">
             Claude didn't change any files in this project — see the report
@@ -483,7 +527,7 @@ function DoneView({
         </Box>
       ) : (
         <Text bold color={COLORS.success}>
-          ✓ Setup flow complete
+          {GLYPHS.success} {successHeader}
         </Text>
       )}
       <Box height={1} />
@@ -491,6 +535,10 @@ function DoneView({
         <Box flexDirection="column">
           <Text color={COLORS.help}>Tried Honch in a temporary project at</Text>
           <Text color={COLORS.value}>{truncate(tempProject, width)}</Text>
+          <Text color={COLORS.help} wrap="wrap">
+            This is a temporary scratch project — copy it somewhere permanent to
+            keep it.
+          </Text>
           <Box height={1} />
         </Box>
       ) : null}
@@ -603,7 +651,7 @@ function CancelledView() {
   return (
     <Box flexDirection="column">
       <Text bold color={COLORS.neutral}>
-        ◌ Wizard cancelled
+        {GLYPHS.cancelled} Wizard cancelled
       </Text>
       <Box height={1} />
       <Text color={COLORS.help} wrap="wrap">
@@ -615,8 +663,9 @@ function CancelledView() {
 }
 
 /** Turn a raw failure string into a calm, human-readable screen. Quota/rate
- * limits read as an "expected" amber notice, not a red crash. */
-function describeFailure(message: string): {
+ * limits read as an "expected" amber notice, not a red crash. Exported for
+ * tests; not used outside this module. */
+export function describeFailure(message: string): {
   title: string;
   tone: "limit" | "error";
   lines: string[];
@@ -646,6 +695,44 @@ function describeFailure(message: string): {
       ],
     };
   }
+  if (
+    lower.includes("enotfound") ||
+    lower.includes("econnrefused") ||
+    lower.includes("econnreset") ||
+    lower.includes("etimedout") ||
+    lower.includes("network") ||
+    lower.includes("fetch failed") ||
+    lower.includes("offline") ||
+    lower.includes("getaddrinfo")
+  ) {
+    return {
+      title: "Can't reach Honch",
+      tone: "limit",
+      lines: [
+        "Can't reach Honch — check your connection and try again.",
+        "Nothing was changed; run honch again once you're back online.",
+      ],
+    };
+  }
+  if (
+    lower.includes("401") ||
+    lower.includes("403") ||
+    lower.includes("unauthorized") ||
+    lower.includes("forbidden") ||
+    lower.includes("token expired") ||
+    lower.includes("expired") ||
+    lower.includes("authentication") ||
+    lower.includes("auth failed")
+  ) {
+    return {
+      title: "Sign-in expired",
+      tone: "limit",
+      lines: [
+        "Your Honch sign-in expired or was rejected.",
+        "Run honch again to sign in fresh.",
+      ],
+    };
+  }
   return { title: "Wizard failed", tone: "error", lines: [message] };
 }
 
@@ -655,7 +742,7 @@ function ErrorView({ message }: { message: string }) {
   return (
     <Box flexDirection="column">
       <Text bold color={color}>
-        {tone === "limit" ? "⏳" : "✗"} {title}
+        {tone === "limit" ? GLYPHS.limit : GLYPHS.error} {title}
       </Text>
       <Box height={1} />
       {lines.map((line) => (
@@ -679,9 +766,9 @@ function Fact({ label, value }: { label: string; value?: string }) {
 }
 
 function stepGlyph(status: WizardStep["status"]) {
-  if (status === "done") return "✓";
-  if (status === "active") return "●";
-  return "○";
+  if (status === "done") return GLYPHS.stepDone;
+  if (status === "active") return GLYPHS.stepActive;
+  return GLYPHS.stepPending;
 }
 
 function stepColor(status: WizardStep["status"]) {
@@ -725,10 +812,26 @@ function displayPath(path: string) {
   const home = process.env.HOME;
   const shown =
     home && path.startsWith(home) ? `~${path.slice(home.length) || "/"}` : path;
-  // Prefer the trailing segment when it would otherwise be truncated away.
-  if (shown.length <= SIDEBAR_WIDTH - 7) return shown;
-  const tail = shown.split("/").filter(Boolean).pop() ?? shown;
-  return tail;
+  const max = SIDEBAR_WIDTH - 7;
+  if (shown.length <= max) return shown;
+  // Middle-ellipsis: keep the leading anchor (e.g. "~/dev") AND the trailing
+  // folder, collapsing the middle, so two same-named dirs stay distinguishable
+  // (e.g. "~/dev/…/firmware") instead of both showing as just "firmware".
+  return middleEllipsis(shown, max);
+}
+
+/** Collapse the middle of a path with "…", preserving its first segment and its
+ * leaf so distinct deep paths don't render identically. */
+function middleEllipsis(value: string, max: number) {
+  if (value.length <= max || max < 5) return truncate(value, max);
+  const segments = value.split("/");
+  const leaf = segments[segments.length - 1] ?? value;
+  const head = segments[0] || "/";
+  const candidate = `${head}/…/${leaf}`;
+  if (candidate.length <= max) return candidate;
+  // Even head + leaf is too long — keep the leaf, ellipsize its front.
+  const keep = Math.max(max - 2, 1);
+  return `…/${leaf.slice(Math.max(leaf.length - keep, 0))}`;
 }
 
 function rule(width: number) {

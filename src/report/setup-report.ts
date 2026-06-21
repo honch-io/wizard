@@ -10,7 +10,35 @@ export type SetupReportInput = {
   verification: string[];
   branch?: string;
   baseBranch?: string;
+  /** True when this was a "Try Honch" scratch-project run, so Next Steps give
+   * kick-the-tires guidance instead of ship-readiness checks. */
+  tryMode?: boolean;
 };
+
+/** Tailor the closing "Next Steps" to the run's mode. A Try/scratch run gets
+ * kick-the-tires guidance; ship-readiness checks only make sense for a real
+ * integrated install. A dry run / no-change run stays generic. */
+function nextSteps(input: SetupReportInput): string[] {
+  if (input.tryMode) {
+    return [
+      "Skim the files Claude added to see how Honch wires in.",
+      "Build and run the scratch project to watch events flow.",
+      "Copy this folder somewhere permanent if you want to keep experimenting — it's a temporary scratch project.",
+    ];
+  }
+  const integrated = input.agentRan && input.integrated !== false;
+  if (integrated) {
+    return [
+      "Review the SDK integration changes before committing them in the client project.",
+      "Run the target project's normal build and firmware checks.",
+      "Confirm production TLS trust, connectivity ownership, and queue durability before shipping.",
+    ];
+  }
+  return [
+    "Review the SDK integration changes before committing them in the client project.",
+    "Run the target project's normal build and firmware checks.",
+  ];
+}
 
 export function buildSetupReport(input: SetupReportInput) {
   const base = input.baseBranch ?? "your previous branch";
@@ -53,8 +81,8 @@ ${input.verification.map((line) => `- ${line}`).join("\n")}
 
 ${branchSection}## Next Steps
 
-- Review the SDK integration changes before committing them in the client project.
-- Run the target project's normal build and firmware checks.
-- Confirm production TLS trust, connectivity ownership, and queue durability before shipping.
+${nextSteps(input)
+  .map((line) => `- ${line}`)
+  .join("\n")}
 `;
 }

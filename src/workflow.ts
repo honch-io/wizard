@@ -15,7 +15,11 @@ import {
   saveAuthSession,
 } from "./auth/session.js";
 import type { CliOptions } from "./cli/options.js";
-import { createPrompter, type Prompter } from "./cli/prompt.js";
+import {
+  createPrompter,
+  type Prompter,
+  WizardCancelledError,
+} from "./cli/prompt.js";
 import { writeHonchConfig } from "./config/honch-config.js";
 import { collectFeedback } from "./feedback.js";
 import { installEspIdfHonchSubmodule } from "./firmware/esp-idf-install.js";
@@ -123,30 +127,34 @@ export async function runWorkflow(
       ));
       tryMode = true;
     } else {
+      const tryOption = {
+        label: "Try Honch in a scratch project",
+        value: "try",
+        hint: "no setup — I'll scaffold a throwaway project to play in",
+      };
       const choice = await prompter.select({
         title: "Welcome to Honch",
-        message: `I looked around ${options.installDir} and detected ${detected ? detected.label : "no SDK"}. What would you like to do?`,
-        defaultValue: detected ? "continue" : "different",
-        options: [
-          ...(detected
-            ? [
-                {
-                  label: `Continue with ${detected.label}`,
-                  value: "continue",
-                  badge: "(detected)",
-                },
-              ]
-            : []),
-          {
-            label: detected ? "Choose a different SDK" : "Choose an SDK",
-            value: "different",
-          },
-          {
-            label: "Try Honch in a scratch project",
-            value: "try",
-            hint: "no setup — I'll scaffold a temp project",
-          },
-        ],
+        message: detected
+          ? `I looked around ${options.installDir} and detected ${detected.label}. What would you like to do?`
+          : `I looked around ${options.installDir} but didn't detect an SDK. Trying Honch in a scratch project is the easiest way to start.`,
+        // With a detected SDK, lead with continuing it. With nothing detected,
+        // a scratch project is almost always the right move, so default to it
+        // and order it first.
+        defaultValue: detected ? "continue" : "try",
+        options: detected
+          ? [
+              {
+                label: `Continue with ${detected.label}`,
+                value: "continue",
+                badge: "(detected)",
+              },
+              { label: "Choose a different SDK", value: "different" },
+              tryOption,
+            ]
+          : [
+              tryOption,
+              { label: "Choose an SDK to install here", value: "different" },
+            ],
       });
       if (choice === "continue" && detected) {
         target = detected;
@@ -214,8 +222,7 @@ export async function runWorkflow(
     // wires Honch's firmware_version to that source); the capture host is
     // defaulted by the SDK, so the agent leaves it unset.
     const projectApiKey =
-      project.apiKey ??
-      (await prompter.question("Project API key:", { sensitive: true }));
+      project.apiKey ?? (await requiredSecret("Project API key:", prompter));
     const projectApiKeyRef = vault.put("Honch project API key", projectApiKey);
     prompter.completeStep?.("config", "device settings ready");
 
@@ -226,6 +233,10 @@ export async function runWorkflow(
     const revertable = target.id === "esp-idf" || gitRepo;
     const canBranch = options.runAgent && gitRepo && hasCommits(installDir);
 
+    // What the user is signing up for, on every confirm path.
+    const expectations =
+      "\n\nClaude will edit files here and run build checks — usually 1-3 minutes, and it counts against your daily install budget.";
+
     let branch: string | undefined;
     let baseBranch: string | undefined;
     let installReverted = false;
@@ -235,7 +246,7 @@ export async function runWorkflow(
       const desired = availableBranchName(installDir, "honch/setup");
       const choice = await prompter.select({
         title: "Review install plan",
-        message: `Install the Honch ${target.label} SDK into the project at ${installDir}?`,
+        message: `Install the Honch ${target.label} SDK into the project at ${installDir}?${expectations}`,
         defaultValue: "branch",
         options: [
           { label: "Work on a new branch", value: "branch", hint: desired },
@@ -244,7 +255,10 @@ export async function runWorkflow(
         ],
       });
       if (choice === "cancel") {
-        throw new Error("Wizard cancelled before project mutation");
+        prompter.cancel?.("Wizard cancelled before project mutation");
+        throw new WizardCancelledError(
+          "Wizard cancelled before project mutation",
+        );
       }
       if (choice === "branch") branch = desired;
     } else {
@@ -253,10 +267,13 @@ export async function runWorkflow(
           ? "\n\n⚠ This folder isn't a git repo, so Claude's changes can't be auto-reverted. Run `git init` first if you want that safety net."
           : "";
       const confirmed = await prompter.confirm(
-        `Install the Honch ${target.label} SDK into the project at ${installDir}?${warning}`,
+        `Install the Honch ${target.label} SDK into the project at ${installDir}?${expectations}${warning}`,
       );
       if (!confirmed) {
-        throw new Error("Wizard cancelled before project mutation");
+        prompter.cancel?.("Wizard cancelled before project mutation");
+        throw new WizardCancelledError(
+          "Wizard cancelled before project mutation",
+        );
       }
       track("wizard_confirmed");
     }
@@ -430,9 +447,9 @@ export async function runWorkflow(
       prompter.completeStep?.(
         "agent",
         outcome === "completed"
-          ? "agent install completed"
+          ? "install completed"
           : outcome === "kept"
-            ? "stopped — changes kept"
+            ? "paused — changes kept"
             : "reverted",
       );
     } else {
@@ -453,6 +470,7 @@ export async function runWorkflow(
       verification,
       branch: installReverted ? undefined : branch,
       baseBranch,
+      tryMode,
     });
     const reportPath = path.join(installDir, "honch-setup-report.md");
     writeFileSync(reportPath, report);
@@ -495,7 +513,10 @@ export async function runWorkflow(
       }),
     );
 
-    if (options.runAgent && !options.yes) {
+    // Only ask for feedback after a successful/kept install — never after a bad
+    // outcome (reverted or no-change failure), where it would read as tone-deaf.
+    // This runs after the report step completes, so the user has seen the result.
+    if (options.runAgent && !options.yes && outcome === "success") {
       await collectFeedback(
         prompter,
         { target: target.id, outcome },
@@ -771,11 +792,11 @@ async function resolveInterruption(
   verification: string[],
 ): Promise<"continue" | "revert" | "keep"> {
   const choice = await prompter.select({
-    title: "Claude paused",
+    title: "Paused — what next?",
     message: "What would you like to do?",
     defaultValue: "continue",
     options: [
-      { label: "Continue — let Claude keep working", value: "continue" },
+      { label: "Resume — let Claude keep working", value: "continue" },
       ...(snapshot
         ? [{ label: "Revert to before Claude's work", value: "revert" }]
         : []),
@@ -824,6 +845,16 @@ async function requiredInput(
   prompter: Prompter,
 ) {
   return value ?? prompter.question(prompt);
+}
+
+/** Ask for a sensitive value, re-asking until the user enters something
+ * non-empty. We don't validate the format — just guard against an accidental
+ * empty submit that would fail deeper in the install. */
+async function requiredSecret(prompt: string, prompter: Prompter) {
+  while (true) {
+    const value = (await prompter.question(prompt, { sensitive: true })).trim();
+    if (value) return value;
+  }
 }
 
 function formatVerificationOutcome(outcome: VerificationOutcome): string {

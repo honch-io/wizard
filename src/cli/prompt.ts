@@ -1,6 +1,16 @@
 import { stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
 
+/** Thrown when the user deliberately cancels the wizard (chose "Cancel" on the
+ * install plan, or pressed ESC during a prompt). bin.ts treats this as a clean
+ * exit landing on the calm CancelledView — never the red "failed" screen. */
+export class WizardCancelledError extends Error {
+  constructor(message = "Wizard cancelled") {
+    super(message);
+    this.name = "WizardCancelledError";
+  }
+}
+
 export type WizardStepId =
   | "scan"
   | "target"
@@ -121,13 +131,13 @@ export type Prompter = {
 };
 
 const INITIAL_STEPS: WizardStep[] = [
-  { id: "scan", label: "Scan project", status: "pending" },
-  { id: "target", label: "SDK target", status: "pending" },
-  { id: "auth", label: "Honch auth", status: "pending" },
+  { id: "scan", label: "Welcome", status: "pending" },
+  { id: "target", label: "Select SDK", status: "pending" },
+  { id: "auth", label: "Connect", status: "pending" },
   { id: "project", label: "Project", status: "pending" },
-  { id: "config", label: "SDK config", status: "pending" },
+  { id: "config", label: "Configure", status: "pending" },
   { id: "confirm", label: "Confirm", status: "pending" },
-  { id: "agent", label: "AI install", status: "pending" },
+  { id: "agent", label: "Install", status: "pending" },
   { id: "report", label: "Report", status: "pending" },
 ];
 
@@ -408,8 +418,14 @@ export function createPrompter(): Prompter {
       }
     },
     async select(config) {
+      // Mirror the TUI: show each option's badge (e.g. "(detected)") inline and
+      // its hint on a dim second line, so the readline path is at parity.
       const list = config.options
-        .map((option, index) => `  ${index + 1}) ${option.label}`)
+        .map((option, index) => {
+          const badge = option.badge ? ` ${option.badge}` : "";
+          const hint = option.hint ? `\n       ${option.hint}` : "";
+          return `  ${index + 1}) ${option.label}${badge}${hint}`;
+        })
         .join("\n");
       const answer = (
         await rl.question(`${config.message}\n${list}\n> `)
@@ -427,8 +443,11 @@ export function createPrompter(): Prompter {
       );
     },
     async confirm(prompt) {
-      const answer = await rl.question(`${prompt} [y/N] `);
-      return answer.trim().toLowerCase() === "y";
+      // Align with the TUI, which pre-selects "Install Honch": default to yes on
+      // a bare enter, so the two front-ends agree on the safe-but-expected path.
+      const answer = await rl.question(`${prompt} [Y/n] `);
+      const normalized = answer.trim().toLowerCase();
+      return normalized === "" || normalized === "y" || normalized === "yes";
     },
     close() {
       rl.close();

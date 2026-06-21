@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { render } from "ink";
 import React from "react";
 import { parseOptions } from "./cli/options.js";
-import { TuiPrompter } from "./cli/prompt.js";
+import { TuiPrompter, WizardCancelledError } from "./cli/prompt.js";
 import { SDK_TARGETS } from "./sdk/targets.js";
 import { App } from "./ui/App.js";
 import { promptForUpdate } from "./ui/update-prompt.js";
@@ -47,7 +47,7 @@ Environment variables:
 
 const prompter = new TuiPrompter({
   sdkTarget: options.target ? SDK_TARGETS[options.target].label : undefined,
-  runMode: options.runAgent ? "agent install" : "dry run",
+  runMode: options.runAgent ? "Install" : "Preview (dry run)",
 });
 
 const useTui = Boolean(process.stdin.isTTY && process.stdout.isTTY);
@@ -159,6 +159,20 @@ async function main() {
     process.off("SIGINT", handleSigint);
     if (shuttingDown) return;
     const message = (error as Error).message;
+    // A deliberate cancel is NOT a failure: the prompter has already flipped to
+    // the calm CancelledView, so land there cleanly instead of the red screen.
+    const cancelled =
+      error instanceof WizardCancelledError || prompter.getSnapshot().cancelled;
+    if (cancelled) {
+      if (useTui) {
+        // Leave the CancelledView up; q/enter dismisses it (handleExit, exit 0).
+        return;
+      }
+      process.stdout.write("\nWizard cancelled.\n");
+      unmount();
+      process.exitCode = 0;
+      return;
+    }
     failed = true;
     prompter.fail?.(message);
     if (useTui) {
