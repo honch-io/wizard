@@ -1,24 +1,42 @@
 name: Release
 
-# Publish to npm whenever a version tag is pushed, e.g. `git tag v2.0.2 && git push origin v2.0.2`.
+# Two ways to ship @honch/start, both publishing to npm:
+#
+#   1. One button (recommended): Actions → Release → "Run workflow" → pick a
+#      bump (patch/minor/major). It bumps package.json, commits + tags on main,
+#      and publishes — no local edits needed.
+#   2. Manual tag: `npm version <x>` locally then push the `vX.Y.Z` tag. The tag
+#      must match package.json (checked below).
 on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Semver bump to release
+        type: choice
+        options: [patch, minor, major]
+        default: patch
   push:
     tags:
       - "v*"
 
+# Needed so the workflow_dispatch run can push the version commit + tag.
+permissions:
+  contents: write
+
 jobs:
-  publish:
-    name: Publish to npm
+  release:
+    name: Release to npm
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
-      # Sets up Node 22 and writes an .npmrc that authenticates `npm publish`
-      # using the NODE_AUTH_TOKEN env var below.
+      # Node 22 + an .npmrc that authenticates `npm publish` via NODE_AUTH_TOKEN.
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -27,7 +45,22 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # Button path: bump package.json, commit, tag, and push to main. The tag
+      # is pushed with GITHUB_TOKEN, which intentionally does NOT re-trigger the
+      # `push: tags` event — so this never double-publishes.
+      - name: Bump, commit, and tag
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          npm version "$BUMP" -m "chore(release): @honch/start@%s"
+          git push --follow-tags origin HEAD:main
+
+      # Manual-tag path: the pushed tag must match package.json.
       - name: Verify tag matches package.json version
+        if: github.event_name == 'push'
         run: |
           TAG="${GITHUB_REF_NAME#v}"
           PKG="$(node -p "require('./package.json').version")"
@@ -35,11 +68,12 @@ jobs:
             echo "::error::Tag v$TAG does not match package.json version $PKG"
             exit 1
           fi
-          echo "Publishing @honch/start@$PKG"
 
       # `npm publish` runs prepublishOnly (typecheck + test + build) first, so a
       # broken build never reaches the registry.
       - name: Publish
-        run: npm publish --access public
+        run: |
+          echo "Publishing @honch/start@$(node -p "require('./package.json').version")"
+          npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
