@@ -3,6 +3,7 @@ import {
   query,
   type SDKMessage,
 } from "@anthropic-ai/claude-agent-sdk";
+import { basename } from "../util/text.js";
 
 export type AgentRunInput = {
   cwd: string;
@@ -255,10 +256,6 @@ function formatBashCommand(command?: string): string | undefined {
   const inspect = /^(?:cat|head|tail)\s+(?:-\S+\s+)*"?([^\s"|]+)/.exec(trimmed);
   if (inspect) return `Inspecting ${basename(inspect[1])}`;
   return `$ ${truncate(trimmed, 56)}`;
-}
-
-function basename(filePath: string): string {
-  return filePath.replace(/\/+$/, "").split("/").pop() || filePath;
 }
 
 function truncate(value: string, max: number): string {

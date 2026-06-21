@@ -19,8 +19,6 @@ export type WizardStep = {
 };
 
 export type WizardSummary = {
-  targetProject?: string;
-  platformApi?: string;
   sdkTarget?: string;
   authMode?: string;
   projectName?: string;
@@ -36,6 +34,10 @@ export type WizardSummary = {
   /** When set, the install ran in "Try Honch" mode and scaffolded into this
    * temporary scratch project directory. */
   tempProject?: string;
+  /** The directory the install is actually targeting. In Try mode this is the
+   * temp scratch dir; otherwise it matches the cwd. The sidebar renders it so
+   * the path reflects where the work lands. */
+  installDir?: string;
 };
 
 export type PromptOption = {
@@ -389,9 +391,15 @@ export function createPrompter(): Prompter {
         _writeToOutput?: (chunk: string) => void;
       };
       const restore = rlAny._writeToOutput;
+      // The echo suppression hangs off readline's private `_writeToOutput`. If
+      // it isn't a function (different/newer readline internals), skip the
+      // custom masking and read normally rather than crashing on `.call`.
+      if (typeof restore !== "function") {
+        return await rl.question("");
+      }
       rlAny._writeToOutput = (chunk: string) => {
         if (chunk.includes("\n") || chunk.includes("\r"))
-          restore?.call(rl, chunk);
+          restore.call(rl, chunk);
       };
       try {
         return await rl.question("");

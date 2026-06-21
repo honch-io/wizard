@@ -19,4 +19,16 @@ describe("scanProject", () => {
     );
     expect(scan.files["CMakeLists.txt"]).toContain("project(camera C)");
   });
+
+  it("throws a friendly error when the install dir is missing", () => {
+    const missing = path.join(
+      tmpdir(),
+      `honch-scan-missing-${Date.now()}`,
+      "nope",
+    );
+
+    expect(() => scanProject(missing)).toThrow(
+      /Couldn't read the project directory .* check the path and permissions\./,
+    );
+  });
 });

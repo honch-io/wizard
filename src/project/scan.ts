@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import {
   detectSdkTargets,
@@ -30,7 +30,6 @@ export type ProjectScan = {
   root: string;
   files: ProjectFiles;
   detectedTargets: SdkTarget[];
-  dirtyGit: boolean;
 };
 
 export function scanProject(root: string): ProjectScan {
@@ -41,7 +40,6 @@ export function scanProject(root: string): ProjectScan {
     root,
     files,
     detectedTargets: detectSdkTargets(files),
-    dirtyGit: existsSync(path.join(root, ".git")),
   };
 }
 
@@ -53,11 +51,33 @@ function collectFiles(
 ) {
   if (depth > 3) return;
 
-  for (const entry of readdirSync(dir)) {
+  let entries: string[];
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    // Only the top-level read is fatal — a missing/unreadable --install-dir is a
+    // user-facing path/permission problem worth a clear message. Deeper dirs are
+    // skipped non-fatally below via the per-entry stat guard.
+    if (dir === root) {
+      throw new Error(
+        `Couldn't read the project directory ${dir} — check the path and permissions.`,
+      );
+    }
+    return;
+  }
+
+  for (const entry of entries) {
     if (SKIP_DIRS.has(entry)) continue;
     const fullPath = path.join(dir, entry);
     const relativePath = path.relative(root, fullPath);
-    const stat = statSync(fullPath);
+    let stat: ReturnType<typeof statSync>;
+    try {
+      stat = statSync(fullPath);
+    } catch {
+      // A single unreadable entry (e.g. a dangling symlink or a permission
+      // hole) shouldn't sink the whole scan — skip it.
+      continue;
+    }
 
     if (stat.isDirectory()) {
       collectFiles(root, fullPath, files, depth + 1);

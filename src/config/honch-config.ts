@@ -72,5 +72,7 @@ export function writeHonchConfig(
   const registry = readRegistry();
   registry[path.resolve(installDir)] = config;
   mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-  writeFileSync(file, `${JSON.stringify(registry, null, 2)}\n`);
+  writeFileSync(file, `${JSON.stringify(registry, null, 2)}\n`, {
+    mode: 0o600,
+  });
 }

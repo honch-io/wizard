@@ -172,7 +172,10 @@ function Sidebar({
       </Box>
       <Box flexGrow={1} />
       <Box flexDirection="column">
-        <Fact label="Path" value={displayPath(options.installDir)} />
+        <Fact
+          label="Path"
+          value={displayPath(summary.installDir ?? options.installDir)}
+        />
         <Fact label="SDK" value={summary.sdkTarget ?? "—"} />
         <Fact label="Device" value={summary.deviceModel ?? "—"} />
         <Fact label="Mode" value={summary.runMode ?? "dry run"} />

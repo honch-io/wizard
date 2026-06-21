@@ -165,7 +165,9 @@ export async function runWorkflow(
       }
     }
 
-    prompter.setSummary?.({ sdkTarget: target.label });
+    // Reflect the resolved install dir in the sidebar — in Try mode this is the
+    // temp scratch dir, otherwise the cwd.
+    prompter.setSummary?.({ sdkTarget: target.label, installDir });
     prompter.completeStep?.("target", target.label);
     track("wizard_target_selected", { target: target.id });
 
@@ -381,6 +383,10 @@ export async function runWorkflow(
         break;
       }
 
+      // Clear the agent-loop interrupt handler so a later ESC (e.g. during the
+      // feedback prompt) doesn't fire a stale abort against the finished run.
+      prompter.onInterrupt?.(() => {});
+
       agentRan = outcome !== "reverted";
       if (outcome === "completed") {
         // Did Claude actually touch project files? The setup report it writes
@@ -460,7 +466,9 @@ export async function runWorkflow(
     });
     prompter.completeStep?.("report", reportPath);
 
-    if (options.saveConfig) {
+    // Never persist config for a Try run — it would write a junk registry entry
+    // keyed to the throwaway temp dir.
+    if (options.saveConfig && !tryMode) {
       writeHonchConfig(installDir, {
         target: target.id,
         deviceModel,
@@ -501,6 +509,21 @@ export async function runWorkflow(
   }
 }
 
+/**
+ * Build the SDK picker option list — `{label, value, hint}` per id, with the
+ * detected id (if any) badged "(detected)". Callers pass the ids in display
+ * order (resolveTarget already sorts detected-first; runTryPath passes the
+ * starter-capable ids in their own order).
+ */
+function buildTargetOptions(ids: SdkTargetId[], detectedId?: SdkTargetId) {
+  return ids.map((id) => ({
+    label: SDK_TARGETS[id].label,
+    value: id,
+    hint: SDK_TARGETS[id].verificationHint,
+    ...(id === detectedId ? { badge: "(detected)" } : {}),
+  }));
+}
+
 async function resolveTarget(
   requested: SdkTargetId | undefined,
   detected: SdkTarget[],
@@ -520,12 +543,7 @@ async function resolveTarget(
       return 0;
     },
   );
-  const options = orderedIds.map((id) => ({
-    label: SDK_TARGETS[id].label,
-    value: id,
-    hint: SDK_TARGETS[id].verificationHint,
-    ...(id === detectedTarget?.id ? { badge: "(detected)" } : {}),
-  }));
+  const options = buildTargetOptions(orderedIds, detectedTarget?.id);
 
   const answer = await prompter.select({
     title: "Select SDK",
@@ -569,12 +587,7 @@ async function runTryPath(
     title: "Try Honch",
     message: "Which SDK do you want to try?",
     ...(detectedTryable ? { defaultValue: detectedTryable } : {}),
-    options: starterIds.map((id) => ({
-      label: SDK_TARGETS[id].label,
-      value: id,
-      hint: SDK_TARGETS[id].verificationHint,
-      ...(id === detectedTryable ? { badge: "(detected)" } : {}),
-    })),
+    options: buildTargetOptions(starterIds, detectedTryable),
   });
   const target =
     SDK_TARGETS[answer as SdkTargetId] ?? SDK_TARGETS[starterIds[0]];

@@ -2,13 +2,7 @@ import { Box, render, Text, useInput } from "ink";
 import { useState } from "react";
 import { commandString } from "../update/action.js";
 import type { UpgradeInfo } from "../update/check.js";
-
-const COLORS = {
-  accent: "#ea5924",
-  value: "#d8dee9",
-  neutral: "#8b93a7",
-  help: "#a7adbb",
-} as const;
+import { COLORS } from "./theme.js";
 
 export type UpdateChoice = "update" | "skip" | "continue";
 

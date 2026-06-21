@@ -3,10 +3,7 @@ import { TuiPrompter } from "../src/cli/prompt.js";
 
 describe("TuiPrompter", () => {
   it("turns a select() call into a selectable TUI prompt", async () => {
-    const prompter = new TuiPrompter({
-      targetProject: "/tmp/client",
-      platformApi: "https://app.honch.io",
-    });
+    const prompter = new TuiPrompter({});
 
     const answer = prompter.select({
       title: "Select your SDK",
@@ -50,10 +47,7 @@ describe("TuiPrompter", () => {
   });
 
   it("tracks progress and summary state for the app", () => {
-    const prompter = new TuiPrompter({
-      targetProject: "/tmp/client",
-      platformApi: "https://app.honch.io",
-    });
+    const prompter = new TuiPrompter({});
 
     prompter.setStep("scan", "reading project files");
     prompter.setSummary({ sdkTarget: "ESP-IDF" });

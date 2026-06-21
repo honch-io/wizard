@@ -1,13 +1,10 @@
 import { Box, Text, useInput } from "ink";
 import { useEffect, useState } from "react";
 import type { RunMessage } from "../cli/prompt.js";
+import { basename } from "../util/text.js";
 import { COLORS } from "./theme.js";
 
 const STAR_FRAMES = ["✶", "✷", "✸", "✹", "✺", "✹", "✸", "✷"];
-
-function basename(filePath: string): string {
-  return filePath.replace(/\/+$/, "").split("/").pop() || filePath;
-}
 
 /** A twinkling star, à la Claude. */
 function Spinner() {

@@ -29,16 +29,23 @@ Options:
   --device-model <name>   Device model to configure
   --project-name <name>   Honch project name for local/offline testing
   --project-api-key <key> Honch project API key for local/offline testing
+  --config <path>         Read settings from an explicit config file (CI opt-in)
+  --try                   Scaffold a throwaway starter project and try Honch in it
+  --no-save-config        Don't remember this project's settings for next time
   --dry-run, -n           Preview the plan without running the agent or changing files
   --yes, -y               Skip confirmation prompts when inputs are complete
   --help, -h              Show this help
+
+Environment variables:
+  HONCH_WIZARD_NO_ANALYTICS / DO_NOT_TRACK   Opt out of install analytics
+  HONCH_NO_UPDATE_CHECK                       Skip the startup update check
+  HONCH_WIZARD_CONFIG <path>                  Same as --config
+  HONCH_WIZARD_PROJECTS_FILE <path>           Override the remembered-config registry path
 `);
   process.exit(0);
 }
 
 const prompter = new TuiPrompter({
-  targetProject: options.installDir,
-  platformApi: options.apiBaseUrl,
   sdkTarget: options.target ? SDK_TARGETS[options.target].label : undefined,
   runMode: options.runAgent ? "agent install" : "dry run",
 });
