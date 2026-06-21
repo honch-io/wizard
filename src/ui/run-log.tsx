@@ -5,6 +5,10 @@ import { COLORS } from "./theme.js";
 
 const STAR_FRAMES = ["✶", "✷", "✸", "✹", "✺", "✹", "✸", "✷"];
 
+function basename(filePath: string): string {
+  return filePath.replace(/\/+$/, "").split("/").pop() || filePath;
+}
+
 /** A twinkling star, à la Claude. */
 function Spinner() {
   const [frame, setFrame] = useState(0);
@@ -201,18 +205,23 @@ export function RunView({
   activeStep,
   messages,
   transientStatus,
+  changedFiles,
   width,
   height,
 }: {
   activeStep: string;
   messages: RunMessage[];
   transientStatus?: string;
+  changedFiles: { path: string; op: "create" | "edit" }[];
   width: number;
   height: number;
 }) {
   const isAgent = activeStep === "agent";
   const elapsed = useElapsed(isAgent);
-  const budget = Math.max(height - 4, 4);
+  const panelRows = changedFiles.length
+    ? Math.min(changedFiles.length, 6) + 1
+    : 0;
+  const budget = Math.max(height - 4 - panelRows, 4);
   const total = messages.length;
   // Offset from the newest line: 0 follows the tail; ↑/↓ scrolls the history.
   const [offset, setOffset] = useState(0);
@@ -266,6 +275,23 @@ export function RunView({
         ) : null}
       </Text>
       <Box height={1} />
+      {changedFiles.length > 0 ? (
+        <Box flexDirection="column" marginBottom={1}>
+          <Text dimColor color={COLORS.label}>
+            Changed files
+          </Text>
+          {changedFiles.slice(-6).map((file) => (
+            <Text
+              key={file.path}
+              color={file.op === "create" ? COLORS.success : COLORS.accent}
+              wrap="truncate"
+            >
+              {file.op === "create" ? "+ " : "~ "}
+              {basename(file.path)}
+            </Text>
+          ))}
+        </Box>
+      ) : null}
       {total === 0 ? (
         <Text color={COLORS.help}>
           {isAgent

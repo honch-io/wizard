@@ -281,6 +281,8 @@ export async function runWorkflow(
           onEvent: (event) => {
             if (event.kind === "retry") {
               prompter.setTransientStatus?.(event.text);
+            } else if (event.kind === "file") {
+              prompter.setChangedFile?.(event.text, event.op ?? "edit");
             } else {
               prompter.addRunMessage?.(event.text, event.kind);
             }

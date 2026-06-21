@@ -23,8 +23,10 @@ export type AgentRunResult = {
 export type AgentRunEvent = {
   // "retry" is transient — it updates a single pinned line instead of adding
   // a new run-log entry, so retry storms don't spam the log.
-  kind: "assistant" | "tool" | "status" | "error" | "retry";
+  // "file" tracks write/edit operations for the live changed-files panel.
+  kind: "assistant" | "tool" | "status" | "error" | "retry" | "file";
   text: string;
+  op?: "create" | "edit";
 };
 
 // The backend proxy pins the model server-side; this keeps the client request
@@ -113,6 +115,10 @@ export function agentEventsFor(message: SDKMessage): AgentRunEvent[] {
       } else if (content.type === "tool_use") {
         const text = formatToolUse(content.name, content.input);
         if (text) events.push({ kind: "tool", text });
+        // Emit a file event for write/edit operations so the UI can show a
+        // live "Changed files" panel. The tool event above stays unchanged.
+        const fileEvent = fileEventFor(content.name, content.input);
+        if (fileEvent) events.push(fileEvent);
       }
     }
     return events;
@@ -149,6 +155,25 @@ export function agentEventsFor(message: SDKMessage): AgentRunEvent[] {
   }
 
   return events;
+}
+
+/**
+ * Produce a `{kind:"file"}` event for tools that write or edit files, so the
+ * UI can maintain a live "Changed files" panel. Returns undefined for tools
+ * that do not mutate files (Read, Bash, etc.).
+ */
+function fileEventFor(name: string, input: unknown): AgentRunEvent | undefined {
+  const record =
+    input && typeof input === "object"
+      ? (input as Record<string, unknown>)
+      : {};
+  const file = stringValue(record.file_path);
+  if (!file) return undefined;
+
+  if (name === "Write") return { kind: "file", op: "create", text: file };
+  if (name === "Edit" || name === "MultiEdit")
+    return { kind: "file", op: "edit", text: file };
+  return undefined;
 }
 
 /**

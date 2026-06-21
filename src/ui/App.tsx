@@ -123,6 +123,7 @@ export function App({
             reverted={snapshot.summary.reverted}
             integrated={snapshot.summary.integrated}
             messages={snapshot.runMessages}
+            changedFiles={snapshot.changedFiles}
             transientStatus={snapshot.transientStatus}
             onAnswer={(value) => prompter.answer(value)}
           />
@@ -186,6 +187,7 @@ function MainArea({
   reverted,
   integrated,
   messages,
+  changedFiles,
   transientStatus,
   onAnswer,
 }: {
@@ -203,6 +205,7 @@ function MainArea({
   reverted?: boolean;
   integrated?: boolean;
   messages: RunMessage[];
+  changedFiles: { path: string; op: "create" | "edit" }[];
   transientStatus?: string;
   onAnswer: (value: string) => void;
 }) {
@@ -234,6 +237,7 @@ function MainArea({
     <RunView
       activeStep={activeStep}
       messages={messages}
+      changedFiles={changedFiles}
       transientStatus={transientStatus}
       width={width}
       height={height}

@@ -72,6 +72,9 @@ export type TuiSnapshot = {
   summary: WizardSummary;
   currentPrompt?: PromptRequest;
   runMessages: RunMessage[];
+  /** Files created or edited by the agent during the current step.
+   * Deduped by path; first op wins (create stays create even if later edited). */
+  changedFiles: { path: string; op: "create" | "edit" }[];
   /** A single transient line pinned at the bottom of the run view (e.g. API
    * retries), updated in place rather than appended to the log. */
   transientStatus?: string;
@@ -91,6 +94,7 @@ export type Prompter = {
   completeStep?(id: WizardStepId, detail?: string): void;
   setSummary?(summary: Partial<WizardSummary>): void;
   addRunMessage?(message: string, kind?: RunMessageKind): void;
+  setChangedFile?(path: string, op: "create" | "edit"): void;
   setTransientStatus?(message?: string): void;
   onInterrupt?(handler: () => void): void;
   finish?(summary: Partial<WizardSummary>): void;
@@ -126,6 +130,7 @@ export class TuiPrompter implements Prompter {
       steps: INITIAL_STEPS.map((step) => ({ ...step })),
       summary,
       runMessages: [],
+      changedFiles: [],
     };
   }
 
@@ -226,6 +231,7 @@ export class TuiPrompter implements Prompter {
     this.update({
       steps: this.computeSteps(id, "active", detail),
       runMessages: [],
+      changedFiles: [],
       transientStatus: undefined,
       currentPrompt: undefined,
     });
@@ -261,6 +267,17 @@ export class TuiPrompter implements Prompter {
     ];
     // A real log line means progress resumed, so any retry banner is stale.
     this.update({ runMessages: next.slice(-500), transientStatus: undefined });
+  }
+
+  setChangedFile(path: string, op: "create" | "edit") {
+    // Dedupe by path, preserve insertion order, first op wins.
+    const existing = this.snapshot.changedFiles.find(
+      (entry) => entry.path === path,
+    );
+    if (existing) return;
+    this.update({
+      changedFiles: [...this.snapshot.changedFiles, { path, op }],
+    });
   }
 
   setTransientStatus(message?: string) {

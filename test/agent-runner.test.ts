@@ -32,7 +32,7 @@ describe("buildAgentOptions", () => {
     expect(options.env).not.toHaveProperty("CLAUDE_CODE_OAUTH_TOKEN");
   });
 
-  it("renders edit tool events as a friendly action line", () => {
+  it("renders edit tool events as a friendly action line AND emits a file event", () => {
     const events = agentEventsFor({
       type: "assistant",
       message: {
@@ -50,7 +50,71 @@ describe("buildAgentOptions", () => {
       },
     } as never);
 
-    expect(events).toEqual([{ kind: "tool", text: "Editing app_main.c" }]);
+    // Both events must be present: the friendly tool line AND the file event.
+    expect(events).toContainEqual({ kind: "tool", text: "Editing app_main.c" });
+    expect(events).toContainEqual({
+      kind: "file",
+      op: "edit",
+      text: "main/app_main.c",
+    });
+  });
+
+  it("emits a file event with op=create for Write tool calls", () => {
+    const events = agentEventsFor({
+      type: "assistant",
+      message: {
+        content: [
+          {
+            type: "tool_use",
+            id: "toolu_2",
+            name: "Write",
+            input: {
+              file_path: "src/honch_config.h",
+              content: '#define HONCH_DEVICE_MODEL "my-device"\n',
+            },
+          },
+        ],
+      },
+    } as never);
+
+    expect(events).toContainEqual({
+      kind: "tool",
+      text: "Writing honch_config.h",
+    });
+    expect(events).toContainEqual({
+      kind: "file",
+      op: "create",
+      text: "src/honch_config.h",
+    });
+  });
+
+  it("emits a file event with op=edit for MultiEdit tool calls", () => {
+    const events = agentEventsFor({
+      type: "assistant",
+      message: {
+        content: [
+          {
+            type: "tool_use",
+            id: "toolu_3",
+            name: "MultiEdit",
+            input: {
+              file_path: "CMakeLists.txt",
+              edits: [],
+            },
+          },
+        ],
+      },
+    } as never);
+
+    expect(events).toContainEqual({
+      kind: "tool",
+      text: "Editing CMakeLists.txt",
+    });
+    expect(events).toContainEqual({
+      kind: "file",
+      op: "edit",
+      text: "CMakeLists.txt",
+    });
   });
 
   it("drops echo noise and labels file inspection", () => {
