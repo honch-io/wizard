@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { buildAgentPrompt } from "./agent/prompt.js";
 import { runAgent } from "./agent/runner.js";
@@ -34,6 +34,7 @@ import {
   snapshotProject,
 } from "./project/snapshot.js";
 import { buildSetupReport } from "./report/setup-report.js";
+import { scaffoldStarter, starterAvailable } from "./scaffold/starter.js";
 import {
   SDK_TARGETS,
   type SdkTarget,
@@ -50,11 +51,21 @@ export type WorkflowResult = {
 /** Sentinel value for the "create a new project" option. */
 const CREATE_NEW_PROJECT = "__create_new_project__";
 
+/** A project is a "Try Honch" candidate when it has no files of its own. */
+function isEmptyProject(dir: string): boolean {
+  if (!existsSync(dir)) return true;
+  return readdirSync(dir).filter((entry) => entry !== ".git").length === 0;
+}
+
 export async function runWorkflow(
   options: CliOptions,
   deps: {
     prompter?: Prompter;
     platformClient?: PlatformClient;
+    scaffold?: (
+      installDir: string,
+      target: SdkTargetId,
+    ) => Promise<{ files: string[] }>;
   } = {},
 ): Promise<WorkflowResult> {
   const prompter = deps.prompter ?? createPrompter();
@@ -90,6 +101,29 @@ export async function runWorkflow(
     );
     prompter.setSummary?.({ sdkTarget: target.label });
     prompter.completeStep?.("target", target.label);
+
+    // "Try Honch": when the project is empty, scaffold a bare starter for the
+    // chosen target so there's something to install into. `--try` forces it;
+    // otherwise we offer it. Only targets with a starter folder are eligible.
+    let scaffoldNote: string | undefined;
+    const scaffold = deps.scaffold ?? scaffoldStarter;
+    if (starterAvailable(target.id)) {
+      const wantScaffold =
+        options.tryMode ||
+        (isEmptyProject(options.installDir) &&
+          !options.yes &&
+          (await prompter.confirm(
+            `This folder is empty — scaffold a starter ${target.label} project to try Honch?`,
+          )));
+      if (wantScaffold) {
+        const { files } = await scaffold(options.installDir, target.id);
+        scaffoldNote = `scaffolded a starter ${target.label} project (${files.length} files)`;
+        prompter.completeStep?.(
+          "target",
+          `${target.label} · starter scaffolded`,
+        );
+      }
+    }
 
     prompter.setStep?.("auth", "connecting Honch account");
     const auth = await resolveAuth(options, prompter);
@@ -189,6 +223,7 @@ export async function runWorkflow(
     let integrated: boolean | undefined;
     let agentSummary: string | undefined;
     const verification: string[] = [];
+    if (scaffoldNote) verification.push(scaffoldNote);
     if (options.runAgent && wizardToken) {
       prompter.setStep?.("agent", "running Claude Agent SDK");
       if (branch) {

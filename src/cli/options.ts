@@ -26,6 +26,8 @@ export type CliOptions = {
   yes: boolean;
   help: boolean;
   saveConfig: boolean;
+  /** Scaffold a starter project (for an empty dir) before installing. */
+  tryMode: boolean;
 };
 
 type Env = Record<string, string | undefined>;
@@ -101,6 +103,7 @@ export function parseOptions(argv: string[], env: Env): CliOptions {
     ),
     yes: booleanFlag(flags, "yes") || env.HONCH_WIZARD_YES === "1",
     help: booleanFlag(flags, "help"),
+    tryMode: booleanFlag(flags, "try") || env.HONCH_WIZARD_TRY === "1",
     // Write honch.config.json by default; --no-save-config or env var disables it.
     saveConfig: !(
       booleanFlag(flags, "no-save-config") ||
@@ -123,5 +126,6 @@ function booleanFlagName(arg: string) {
   if (arg === "--help" || arg === "-h") return "help";
   if (arg === "--dry-run" || arg === "-n") return "dry-run";
   if (arg === "--no-save-config") return "no-save-config";
+  if (arg === "--try") return "try";
   return undefined;
 }
