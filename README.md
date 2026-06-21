@@ -82,8 +82,8 @@ npx @honch/start --dry-run
 | `--device-model <name>` | Device model to configure |
 | `--project-name <name>` | Honch project name (local/offline testing) |
 | `--project-api-key <key>` | Honch project API key (local/offline testing) |
-| `--config <path>` | Read the `honch.config.json` from this path instead of the install directory |
-| `--no-save-config` | Don't write `honch.config.json` after a successful run |
+| `--config <path>` | Read config from an explicit file you maintain (e.g. a committed CI config) instead of the remembered settings |
+| `--no-save-config` | Don't remember this run's settings |
 | `--dry-run`, `-n` | Preview the plan without running the agent or changing files |
 | `--yes`, `-y` | Skip confirmation prompts when inputs are complete |
 | `--help`, `-h` | Show help |
@@ -95,16 +95,17 @@ Every flag has an environment-variable equivalent (`HONCH_WIZARD_*`), e.g.
 
 ## Reproducible / CI installs
 
-A successful run writes a `honch.config.json` in the project, recording the
-non-secret choices it resolved (target, device model, project name/id, API base
-URL) — **no tokens or API keys are ever written**. Later runs read it back so
-the same install is reproducible without re-answering prompts, which makes it
-handy for CI. Each value is resolved with the precedence **CLI flag > env var >
-config file > prompt**, so the file fills in only what you haven't supplied
-explicitly.
+The wizard remembers each project's non-secret choices (target, device model,
+project name/id, API base URL — **never tokens or API keys**) in
+`~/.config/honch-wizard/projects.json`, keyed by the project's path. **Nothing is
+written into your project.** Later runs in the same directory reuse those answers
+instead of re-prompting; `--no-save-config` (or `HONCH_WIZARD_NO_SAVE_CONFIG=1`)
+skips remembering.
 
-Point at a config elsewhere with `--config <path>` (or `HONCH_WIZARD_CONFIG`),
-or skip writing one with `--no-save-config` (or `HONCH_WIZARD_NO_SAVE_CONFIG=1`).
+For unattended/CI installs, supply the values explicitly — flags, `HONCH_WIZARD_*`
+env vars, or a standalone config file you maintain and point at with
+`--config <path>` (or `HONCH_WIZARD_CONFIG`). Each value resolves with the
+precedence **CLI flag > env var > config > prompt**.
 
 ## Development
 

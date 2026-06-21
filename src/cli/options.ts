@@ -46,14 +46,16 @@ export function parseOptions(argv: string[], env: Env): CliOptions {
     }
   }
 
-  // Resolve installDir first — it determines the default config location.
+  // Resolve installDir first — it's the key for this project's remembered config.
   const installDir = path.resolve(
     stringFlag(flags, "install-dir") ??
       env.HONCH_WIZARD_INSTALL_DIR ??
       process.cwd(),
   );
 
-  // Determine the config file path (flag > env > default <installDir>/honch.config.json).
+  // Prior answers for this project come from the user-dir registry (keyed by
+  // installDir). `--config <path>` / HONCH_WIZARD_CONFIG instead reads an
+  // explicit standalone file (a committed/CI config), bypassing the registry.
   const configPathOverride =
     stringFlag(flags, "config") ?? env.HONCH_WIZARD_CONFIG;
   const fileConfig = configPathOverride

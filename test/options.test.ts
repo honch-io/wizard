@@ -1,8 +1,12 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseOptions } from "../src/cli/options.js";
+import {
+  type HonchConfig,
+  writeHonchConfig,
+} from "../src/config/honch-config.js";
 
 const tempDirs: string[] = [];
 
@@ -18,13 +22,13 @@ function makeTempDir() {
   return dir;
 }
 
-function writeTempConfig(dir: string, config: Record<string, unknown>) {
-  writeFileSync(
-    path.join(dir, "honch.config.json"),
-    JSON.stringify(config, null, 2),
-  );
+// Remember a project's config in the user-dir registry (keyed by project path),
+// the same place a real run persists it.
+function writeTempConfig(dir: string, config: HonchConfig) {
+  writeHonchConfig(dir, config);
 }
 
+// Write a standalone config file for the explicit `--config <path>` opt-in.
 function writeConfigAt(filePath: string, config: Record<string, unknown>) {
   writeFileSync(filePath, JSON.stringify(config, null, 2));
 }
@@ -88,6 +92,16 @@ describe("parseOptions", () => {
   });
 
   describe("config file layering", () => {
+    beforeEach(() => {
+      // Isolate each test's remembered-config registry to a throwaway file.
+      const dir = makeTempDir();
+      process.env.HONCH_WIZARD_PROJECTS_FILE = path.join(dir, "projects.json");
+    });
+
+    afterEach(() => {
+      delete process.env.HONCH_WIZARD_PROJECTS_FILE;
+    });
+
     it("config supplies target when no flag or env var is set", () => {
       const dir = makeTempDir();
       writeTempConfig(dir, { target: "micropython" });

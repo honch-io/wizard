@@ -1,15 +1,26 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseOptions } from "../src/cli/options.js";
 import { TuiPrompter } from "../src/cli/prompt.js";
 import { loadHonchConfig } from "../src/config/honch-config.js";
 import { runWorkflow } from "../src/workflow.js";
 
 const tempDirs: string[] = [];
+let registryFile: string;
+
+beforeEach(() => {
+  // A real run persists to ~/.config/honch-wizard/projects.json; isolate that
+  // to a throwaway file per test.
+  const dir = mkdtempSync(path.join(tmpdir(), "honch-workflow-registry-"));
+  tempDirs.push(dir);
+  registryFile = path.join(dir, "projects.json");
+  process.env.HONCH_WIZARD_PROJECTS_FILE = registryFile;
+});
 
 afterEach(() => {
+  delete process.env.HONCH_WIZARD_PROJECTS_FILE;
   for (const dir of tempDirs.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -76,9 +87,8 @@ describe("workflow config writing", () => {
     const prompter = new TuiPrompter({});
     await runWorkflow(options, { prompter });
 
-    const configPath = path.join(installDir, "honch.config.json");
     const { readFileSync } = await import("node:fs");
-    const raw = readFileSync(configPath, "utf8");
+    const raw = readFileSync(registryFile, "utf8");
     expect(raw).not.toContain("honch_secret_key");
     expect(raw).not.toContain("apiKey");
     expect(raw).not.toContain("projectApiKey");
