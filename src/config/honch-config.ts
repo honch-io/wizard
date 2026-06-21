@@ -1,20 +1,16 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
-import type { SdkTargetId } from "../sdk/targets.js";
+import { SDK_TARGETS, type SdkTargetId } from "../sdk/targets.js";
 
 const CONFIG_FILENAME = "honch.config.json";
 
+// Derive the target enum from the SDK target ids so it can't drift from the
+// real source of truth in src/sdk/targets.ts.
+const targetIds = Object.keys(SDK_TARGETS) as [SdkTargetId, ...SdkTargetId[]];
+
 const honchConfigSchema = z.object({
-  target: z
-    .enum([
-      "esp-idf",
-      "c-posix",
-      "micropython",
-      "arduino",
-      "react-native-relay",
-    ])
-    .optional(),
+  target: z.enum(targetIds).optional(),
   deviceModel: z.string().optional(),
   projectId: z.string().optional(),
   projectName: z.string().optional(),

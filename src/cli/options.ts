@@ -55,7 +55,7 @@ export function parseOptions(argv: string[], env: Env): CliOptions {
 
   // Determine the config file path (flag > env > default <installDir>/honch.config.json).
   const configPathOverride =
-    stringFlag(flags, "config") ?? env.HONCH_WIZARD_CONFIG ?? undefined;
+    stringFlag(flags, "config") ?? env.HONCH_WIZARD_CONFIG;
   const fileConfig = configPathOverride
     ? loadHonchConfigFromPath(configPathOverride)
     : loadHonchConfig(installDir);

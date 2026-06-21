@@ -134,6 +134,28 @@ describe("parseOptions", () => {
       expect(options.apiBaseUrl).toBe("https://staging.honch.io");
     });
 
+    it("an env var overrides a config apiBaseUrl", () => {
+      const dir = makeTempDir();
+      writeTempConfig(dir, { apiBaseUrl: "https://staging.honch.io" });
+
+      const options = parseOptions(["--install-dir", dir], {
+        HONCH_WIZARD_API_BASE_URL: "https://env.honch.io",
+      });
+
+      expect(options.apiBaseUrl).toBe("https://env.honch.io");
+    });
+
+    it("an env var overrides a config deviceModel", () => {
+      const dir = makeTempDir();
+      writeTempConfig(dir, { deviceModel: "ConfigCam" });
+
+      const options = parseOptions(["--install-dir", dir], {
+        HONCH_WIZARD_DEVICE_MODEL: "EnvCam",
+      });
+
+      expect(options.deviceModel).toBe("EnvCam");
+    });
+
     it("config apiBaseUrl is overridden by flag", () => {
       const dir = makeTempDir();
       writeTempConfig(dir, { apiBaseUrl: "https://staging.honch.io" });
