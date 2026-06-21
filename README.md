@@ -82,13 +82,29 @@ npx @honch/start --dry-run
 | `--device-model <name>` | Device model to configure |
 | `--project-name <name>` | Honch project name (local/offline testing) |
 | `--project-api-key <key>` | Honch project API key (local/offline testing) |
+| `--config <path>` | Read the `honch.config.json` from this path instead of the install directory |
+| `--no-save-config` | Don't write `honch.config.json` after a successful run |
 | `--dry-run`, `-n` | Preview the plan without running the agent or changing files |
 | `--yes`, `-y` | Skip confirmation prompts when inputs are complete |
 | `--help`, `-h` | Show help |
 
 Every flag has an environment-variable equivalent (`HONCH_WIZARD_*`), e.g.
 `HONCH_WIZARD_INSTALL_DIR`, `HONCH_WIZARD_TARGET`, `HONCH_WIZARD_AUTH_TOKEN`,
-`HONCH_WIZARD_DEVICE_MODEL`, `HONCH_WIZARD_YES`, `HONCH_WIZARD_DRY_RUN`.
+`HONCH_WIZARD_DEVICE_MODEL`, `HONCH_WIZARD_CONFIG`,
+`HONCH_WIZARD_NO_SAVE_CONFIG`, `HONCH_WIZARD_YES`, `HONCH_WIZARD_DRY_RUN`.
+
+## Reproducible / CI installs
+
+A successful run writes a `honch.config.json` in the project, recording the
+non-secret choices it resolved (target, device model, project name/id, API base
+URL) — **no tokens or API keys are ever written**. Later runs read it back so
+the same install is reproducible without re-answering prompts, which makes it
+handy for CI. Each value is resolved with the precedence **CLI flag > env var >
+config file > prompt**, so the file fills in only what you haven't supplied
+explicitly.
+
+Point at a config elsewhere with `--config <path>` (or `HONCH_WIZARD_CONFIG`),
+or skip writing one with `--no-save-config` (or `HONCH_WIZARD_NO_SAVE_CONFIG=1`).
 
 ## Development
 
