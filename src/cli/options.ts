@@ -25,6 +25,7 @@ export type CliOptions = {
   runAgent: boolean;
   yes: boolean;
   help: boolean;
+  saveConfig: boolean;
 };
 
 type Env = Record<string, string | undefined>;
@@ -98,6 +99,11 @@ export function parseOptions(argv: string[], env: Env): CliOptions {
     ),
     yes: booleanFlag(flags, "yes") || env.HONCH_WIZARD_YES === "1",
     help: booleanFlag(flags, "help"),
+    // Write honch.config.json by default; --no-save-config or env var disables it.
+    saveConfig: !(
+      booleanFlag(flags, "no-save-config") ||
+      env.HONCH_WIZARD_NO_SAVE_CONFIG === "1"
+    ),
   };
 }
 
@@ -114,5 +120,6 @@ function booleanFlagName(arg: string) {
   if (arg === "--yes" || arg === "-y") return "yes";
   if (arg === "--help" || arg === "-h") return "help";
   if (arg === "--dry-run" || arg === "-n") return "dry-run";
+  if (arg === "--no-save-config") return "no-save-config";
   return undefined;
 }

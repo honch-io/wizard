@@ -14,6 +14,7 @@ import {
 } from "./auth/session.js";
 import type { CliOptions } from "./cli/options.js";
 import { createPrompter, type Prompter } from "./cli/prompt.js";
+import { writeHonchConfig } from "./config/honch-config.js";
 import { installEspIdfHonchSubmodule } from "./firmware/esp-idf-install.js";
 import {
   type VerificationOutcome,
@@ -346,6 +347,17 @@ export async function runWorkflow(
     writeFileSync(reportPath, report);
     prompter.setSummary?.({ reportPath, reportMarkdown: report, integrated });
     prompter.completeStep?.("report", reportPath);
+
+    if (options.saveConfig) {
+      writeHonchConfig(options.installDir, {
+        target: target.id,
+        deviceModel,
+        projectId: project.id,
+        projectName: project.name,
+        apiBaseUrl: options.apiBaseUrl,
+      });
+    }
+
     return { reportPath, agentRan };
   } finally {
     prompter.close();
