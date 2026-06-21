@@ -30,11 +30,16 @@ export type HonchConfig = {
 };
 
 export function loadHonchConfig(dir: string): HonchConfig | undefined {
-  const file = path.join(dir, CONFIG_FILENAME);
-  if (!existsSync(file)) return undefined;
+  return loadHonchConfigFromPath(path.join(dir, CONFIG_FILENAME));
+}
+
+export function loadHonchConfigFromPath(
+  filePath: string,
+): HonchConfig | undefined {
+  if (!existsSync(filePath)) return undefined;
 
   try {
-    return honchConfigSchema.parse(JSON.parse(readFileSync(file, "utf8")));
+    return honchConfigSchema.parse(JSON.parse(readFileSync(filePath, "utf8")));
   } catch {
     return undefined;
   }

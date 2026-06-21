@@ -1,5 +1,9 @@
 import path from "node:path";
 import { z } from "zod";
+import {
+  loadHonchConfig,
+  loadHonchConfigFromPath,
+} from "../config/honch-config.js";
 import type { SdkTargetId } from "../sdk/targets.js";
 
 const targetSchema = z.enum([
@@ -41,20 +45,34 @@ export function parseOptions(argv: string[], env: Env): CliOptions {
     }
   }
 
+  // Resolve installDir first — it determines the default config location.
+  const installDir = path.resolve(
+    stringFlag(flags, "install-dir") ??
+      env.HONCH_WIZARD_INSTALL_DIR ??
+      process.cwd(),
+  );
+
+  // Determine the config file path (flag > env > default <installDir>/honch.config.json).
+  const configPathOverride =
+    stringFlag(flags, "config") ?? env.HONCH_WIZARD_CONFIG ?? undefined;
+  const fileConfig = configPathOverride
+    ? loadHonchConfigFromPath(configPathOverride)
+    : loadHonchConfig(installDir);
+
   const rawTarget =
-    stringFlag(flags, "target") ?? env.HONCH_WIZARD_TARGET ?? undefined;
+    stringFlag(flags, "target") ??
+    env.HONCH_WIZARD_TARGET ??
+    fileConfig?.target ??
+    undefined;
   const target = rawTarget ? targetSchema.parse(rawTarget) : undefined;
 
   return {
     apiBaseUrl:
       stringFlag(flags, "api-base-url") ??
       env.HONCH_WIZARD_API_BASE_URL ??
+      fileConfig?.apiBaseUrl ??
       "https://api.honch.io",
-    installDir: path.resolve(
-      stringFlag(flags, "install-dir") ??
-        env.HONCH_WIZARD_INSTALL_DIR ??
-        process.cwd(),
-    ),
+    installDir,
     target,
     authToken:
       stringFlag(flags, "auth-token") ??
@@ -63,10 +81,12 @@ export function parseOptions(argv: string[], env: Env): CliOptions {
     deviceModel:
       stringFlag(flags, "device-model") ??
       env.HONCH_WIZARD_DEVICE_MODEL ??
+      fileConfig?.deviceModel ??
       undefined,
     projectName:
       stringFlag(flags, "project-name") ??
       env.HONCH_WIZARD_PROJECT_NAME ??
+      fileConfig?.projectName ??
       undefined,
     projectApiKey:
       stringFlag(flags, "project-api-key") ??
