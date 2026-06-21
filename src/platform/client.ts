@@ -19,6 +19,13 @@ export type OrganizationResponse = {
   role: string;
 };
 
+export type FeedbackBody = {
+  target: string;
+  outcome: "success" | "failed" | "reverted";
+  rating?: "up" | "down";
+  comment?: string;
+};
+
 export class PlatformClient {
   private readonly baseUrl: string;
   private readonly fetcher: Fetcher;
@@ -61,6 +68,12 @@ export class PlatformClient {
       accessToken,
       organizationId,
     );
+  }
+
+  /** Post opt-in install feedback. Never includes secrets — callers pass only
+   * the bare metadata in `FeedbackBody`. */
+  async sendFeedback(accessToken: string, body: FeedbackBody): Promise<void> {
+    await this.post<unknown>("/api/wizard/feedback", body, accessToken);
   }
 
   private async get<T>(

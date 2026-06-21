@@ -15,6 +15,7 @@ import {
 import type { CliOptions } from "./cli/options.js";
 import { createPrompter, type Prompter } from "./cli/prompt.js";
 import { writeHonchConfig } from "./config/honch-config.js";
+import { collectFeedback } from "./feedback.js";
 import { installEspIdfHonchSubmodule } from "./firmware/esp-idf-install.js";
 import {
   type VerificationOutcome,
@@ -390,6 +391,19 @@ export async function runWorkflow(
         projectId: project.id,
         projectName: project.name,
         apiBaseUrl: options.apiBaseUrl,
+      });
+    }
+
+    // Opt-in feedback — only on a real, interactive, authenticated run, and only
+    // if the user picks a rating (Skip sends nothing).
+    if (options.runAgent && auth.accessToken && !options.yes) {
+      await collectFeedback(prompter, platformClient, auth.accessToken, {
+        target: target.id,
+        outcome: installReverted
+          ? "reverted"
+          : integrated === false
+            ? "failed"
+            : "success",
       });
     }
 
