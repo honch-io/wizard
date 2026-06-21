@@ -105,9 +105,14 @@ export async function runWorkflow(
     let scaffoldNote: string | undefined;
     let tryMode = false;
     const detected = scan.detectedTargets[0];
+    // The welcome's "Continue with …" candidate: a remembered-config target if
+    // we have one, otherwise the detected SDK. A remembered target pre-selects
+    // here but (unlike an explicit --target) does NOT skip the welcome.
+    const remembered = options.target ? SDK_TARGETS[options.target] : undefined;
+    const preferred = remembered ?? detected;
 
     let target: SdkTarget;
-    if (options.target || options.yes) {
+    if (options.targetExplicit || options.yes) {
       // Non-interactive: honor the requested target (or the detected one) and
       // install into the cwd — never re-point or scaffold.
       target = await resolveTarget(
@@ -134,19 +139,18 @@ export async function runWorkflow(
       };
       const choice = await prompter.select({
         title: "Welcome to Honch",
-        message: detected
-          ? `I looked around ${options.installDir} and detected ${detected.label}. What would you like to do?`
+        message: preferred
+          ? `I looked around ${options.installDir} and ${detected ? `detected ${detected.label}` : `you previously set up ${preferred.label} here`}. What would you like to do?`
           : `I looked around ${options.installDir} but didn't detect an SDK. Trying Honch in a scratch project is the easiest way to start.`,
-        // With a detected SDK, lead with continuing it. With nothing detected,
-        // a scratch project is almost always the right move, so default to it
-        // and order it first.
-        defaultValue: detected ? "continue" : "try",
-        options: detected
+        // With a preferred SDK (detected or remembered), lead with continuing it.
+        // With nothing, a scratch project is almost always right, so default to it.
+        defaultValue: preferred ? "continue" : "try",
+        options: preferred
           ? [
               {
-                label: `Continue with ${detected.label}`,
+                label: `Continue with ${preferred.label}`,
                 value: "continue",
-                badge: "(detected)",
+                badge: detected ? "(detected)" : "(remembered)",
               },
               { label: "Choose a different SDK", value: "different" },
               tryOption,
@@ -156,8 +160,8 @@ export async function runWorkflow(
               { label: "Choose an SDK to install here", value: "different" },
             ],
       });
-      if (choice === "continue" && detected) {
-        target = detected;
+      if (choice === "continue" && preferred) {
+        target = preferred;
       } else if (choice === "try") {
         ({ target, scaffoldNote } = await runTryPath(
           scan.detectedTargets,

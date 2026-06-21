@@ -28,6 +28,10 @@ export type CliOptions = {
   saveConfig: boolean;
   /** Scaffold a starter project (for an empty dir) before installing. */
   tryMode: boolean;
+  /** True only when the target came from an explicit `--target` flag or env var
+   * (not from remembered config). A remembered target pre-selects the welcome
+   * choice but must NOT skip the interactive welcome screen. */
+  targetExplicit?: boolean;
 };
 
 type Env = Record<string, string | undefined>;
@@ -64,11 +68,10 @@ export function parseOptions(argv: string[], env: Env): CliOptions {
     ? loadHonchConfigFromPath(configPathOverride)
     : loadHonchConfig(installDir);
 
-  const rawTarget =
-    stringFlag(flags, "target") ??
-    env.HONCH_WIZARD_TARGET ??
-    fileConfig?.target ??
-    undefined;
+  // An explicit flag/env target means "use this, skip the SDK prompt"; a target
+  // that only comes from remembered config should pre-select, not skip.
+  const explicitTarget = stringFlag(flags, "target") ?? env.HONCH_WIZARD_TARGET;
+  const rawTarget = explicitTarget ?? fileConfig?.target ?? undefined;
   const target = rawTarget ? targetSchema.parse(rawTarget) : undefined;
 
   return {
@@ -79,6 +82,7 @@ export function parseOptions(argv: string[], env: Env): CliOptions {
       "https://api.honch.io",
     installDir,
     target,
+    targetExplicit: Boolean(explicitTarget),
     authToken:
       stringFlag(flags, "auth-token") ??
       env.HONCH_WIZARD_AUTH_TOKEN ??

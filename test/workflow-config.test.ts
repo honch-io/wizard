@@ -4,7 +4,10 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseOptions } from "../src/cli/options.js";
 import { TuiPrompter } from "../src/cli/prompt.js";
-import { loadHonchConfig } from "../src/config/honch-config.js";
+import {
+  loadHonchConfig,
+  writeHonchConfig,
+} from "../src/config/honch-config.js";
 import { runWorkflow } from "../src/workflow.js";
 
 const tempDirs: string[] = [];
@@ -179,5 +182,25 @@ describe("workflow config writing", () => {
 
     const config = loadHonchConfig(installDir);
     expect(config?.apiBaseUrl).toBe("https://staging.honch.io");
+  });
+
+  it("treats a remembered-config target as a pre-selection, not an explicit skip", () => {
+    const installDir = makeTempDir();
+    writeHonchConfig(installDir, { target: "esp-idf" });
+
+    // Interactive run (no --target, no --yes): the remembered target fills
+    // `target` but must NOT count as explicit — otherwise the welcome/SDK
+    // screens get skipped.
+    const remembered = parseOptions(["--install-dir", installDir], {});
+    expect(remembered.target).toBe("esp-idf");
+    expect(remembered.targetExplicit).toBeFalsy();
+
+    // An explicit flag IS explicit and may skip the prompt.
+    const explicit = parseOptions(
+      ["--install-dir", installDir, "--target", "c-posix"],
+      {},
+    );
+    expect(explicit.target).toBe("c-posix");
+    expect(explicit.targetExplicit).toBe(true);
   });
 });
