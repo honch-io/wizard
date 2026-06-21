@@ -24,9 +24,11 @@ export type AgentRunEvent = {
   // "retry" is transient — it updates a single pinned line instead of adding
   // a new run-log entry, so retry storms don't spam the log.
   // "file" tracks write/edit operations for the live changed-files panel.
-  kind: "assistant" | "tool" | "status" | "error" | "retry" | "file";
+  // "usage" carries an assistant turn's token cost for the live usage meter.
+  kind: "assistant" | "tool" | "status" | "error" | "retry" | "file" | "usage";
   text: string;
   op?: "create" | "edit";
+  tokens?: number;
 };
 
 // The backend proxy pins the model server-side; this keeps the client request
@@ -121,6 +123,14 @@ export function agentEventsFor(message: SDKMessage): AgentRunEvent[] {
         if (fileEvent) events.push(fileEvent);
       }
     }
+    // After the content blocks, surface this turn's token cost for the live
+    // usage meter. Summing each turn mirrors how the proxy meters the daily
+    // budget (each request bills its full input), so the meter and the cap
+    // speak the same units.
+    const tokens = tokensFromUsage(
+      (message.message as { usage?: unknown }).usage,
+    );
+    if (tokens > 0) events.push({ kind: "usage", text: "", tokens });
     return events;
   }
 
@@ -155,6 +165,26 @@ export function agentEventsFor(message: SDKMessage): AgentRunEvent[] {
   }
 
   return events;
+}
+
+/**
+ * Sum the billable token fields from an Anthropic `usage` object — the same
+ * fields the platform meters against the daily budget. Returns 0 for a missing
+ * or malformed usage object.
+ */
+function tokensFromUsage(usage: unknown): number {
+  if (!usage || typeof usage !== "object") return 0;
+  const record = usage as Record<string, unknown>;
+  return [
+    "input_tokens",
+    "output_tokens",
+    "cache_creation_input_tokens",
+    "cache_read_input_tokens",
+  ].reduce(
+    (sum, field) =>
+      sum + (typeof record[field] === "number" ? (record[field] as number) : 0),
+    0,
+  );
 }
 
 /**

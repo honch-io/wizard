@@ -173,4 +173,34 @@ describe("buildAgentOptions", () => {
       } as never),
     ).toEqual([]);
   });
+
+  it("emits a usage event summing input, output, and cache tokens", () => {
+    const events = agentEventsFor({
+      type: "assistant",
+      message: {
+        content: [{ type: "text", text: "Working on it." }],
+        usage: {
+          input_tokens: 100,
+          output_tokens: 20,
+          cache_creation_input_tokens: 5,
+          cache_read_input_tokens: 3,
+        },
+      },
+    } as never);
+
+    expect(events).toContainEqual({
+      kind: "assistant",
+      text: "Working on it.",
+    });
+    expect(events).toContainEqual({ kind: "usage", text: "", tokens: 128 });
+  });
+
+  it("omits a usage event when the assistant message carries no usage", () => {
+    const events = agentEventsFor({
+      type: "assistant",
+      message: { content: [{ type: "text", text: "hi" }] },
+    } as never);
+
+    expect(events.some((event) => event.kind === "usage")).toBe(false);
+  });
 });

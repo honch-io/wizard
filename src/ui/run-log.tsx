@@ -40,6 +40,12 @@ function formatElapsed(seconds: number) {
   return `${minutes}:${rest.toString().padStart(2, "0")}`;
 }
 
+/** Compact token count for the usage meter: 980 → "980", 12345 → "12.3k". */
+function formatTokens(tokens: number) {
+  if (tokens < 1000) return `${tokens}`;
+  return `${(tokens / 1000).toFixed(1)}k`;
+}
+
 type InlineSegment = { text: string; code?: boolean; bold?: boolean };
 
 /** Split a line into plain / `code` / **bold** runs (code wins over bold). */
@@ -206,6 +212,7 @@ export function RunView({
   messages,
   transientStatus,
   changedFiles,
+  usageTokens,
   width,
   height,
 }: {
@@ -213,6 +220,7 @@ export function RunView({
   messages: RunMessage[];
   transientStatus?: string;
   changedFiles: { path: string; op: "create" | "edit" }[];
+  usageTokens: number;
   width: number;
   height: number;
 }) {
@@ -272,6 +280,11 @@ export function RunView({
         </Text>
         {isAgent ? (
           <Text color={COLORS.label}>{`  ·  ${formatElapsed(elapsed)}`}</Text>
+        ) : null}
+        {isAgent && usageTokens > 0 ? (
+          <Text
+            color={COLORS.label}
+          >{`  ·  ${formatTokens(usageTokens)} tokens`}</Text>
         ) : null}
       </Text>
       <Box height={1} />

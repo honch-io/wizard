@@ -87,6 +87,17 @@ describe("TuiPrompter", () => {
     expect(prompter.getSnapshot().runMessages).toHaveLength(1);
   });
 
+  it("accumulates usage tokens and resets them on a new step", () => {
+    const prompter = new TuiPrompter({});
+
+    prompter.addUsage(128);
+    prompter.addUsage(72);
+    expect(prompter.getSnapshot().usageTokens).toBe(200);
+
+    prompter.setStep("agent");
+    expect(prompter.getSnapshot().usageTokens).toBe(0);
+  });
+
   it("marks sensitive questions as password prompts", async () => {
     const prompter = new TuiPrompter({});
 

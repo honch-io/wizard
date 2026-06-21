@@ -75,6 +75,9 @@ export type TuiSnapshot = {
   /** Files created or edited by the agent during the current step.
    * Deduped by path; first op wins (create stays create even if later edited). */
   changedFiles: { path: string; op: "create" | "edit" }[];
+  /** Cumulative tokens the agent has consumed during the current step, for the
+   * live usage meter. Summed per assistant turn; reset on a new step. */
+  usageTokens: number;
   /** A single transient line pinned at the bottom of the run view (e.g. API
    * retries), updated in place rather than appended to the log. */
   transientStatus?: string;
@@ -95,6 +98,7 @@ export type Prompter = {
   setSummary?(summary: Partial<WizardSummary>): void;
   addRunMessage?(message: string, kind?: RunMessageKind): void;
   setChangedFile?(path: string, op: "create" | "edit"): void;
+  addUsage?(tokens: number): void;
   setTransientStatus?(message?: string): void;
   onInterrupt?(handler: () => void): void;
   finish?(summary: Partial<WizardSummary>): void;
@@ -131,6 +135,7 @@ export class TuiPrompter implements Prompter {
       summary,
       runMessages: [],
       changedFiles: [],
+      usageTokens: 0,
     };
   }
 
@@ -232,6 +237,7 @@ export class TuiPrompter implements Prompter {
       steps: this.computeSteps(id, "active", detail),
       runMessages: [],
       changedFiles: [],
+      usageTokens: 0,
       transientStatus: undefined,
       currentPrompt: undefined,
     });
@@ -278,6 +284,11 @@ export class TuiPrompter implements Prompter {
     this.update({
       changedFiles: [...this.snapshot.changedFiles, { path, op }],
     });
+  }
+
+  addUsage(tokens: number) {
+    if (!Number.isFinite(tokens) || tokens <= 0) return;
+    this.update({ usageTokens: this.snapshot.usageTokens + tokens });
   }
 
   setTransientStatus(message?: string) {

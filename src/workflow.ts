@@ -283,6 +283,8 @@ export async function runWorkflow(
               prompter.setTransientStatus?.(event.text);
             } else if (event.kind === "file") {
               prompter.setChangedFile?.(event.text, event.op ?? "edit");
+            } else if (event.kind === "usage") {
+              prompter.addUsage?.(event.tokens ?? 0);
             } else {
               prompter.addRunMessage?.(event.text, event.kind);
             }

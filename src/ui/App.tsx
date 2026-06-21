@@ -124,6 +124,7 @@ export function App({
             integrated={snapshot.summary.integrated}
             messages={snapshot.runMessages}
             changedFiles={snapshot.changedFiles}
+            usageTokens={snapshot.usageTokens}
             transientStatus={snapshot.transientStatus}
             onAnswer={(value) => prompter.answer(value)}
           />
@@ -188,6 +189,7 @@ function MainArea({
   integrated,
   messages,
   changedFiles,
+  usageTokens,
   transientStatus,
   onAnswer,
 }: {
@@ -206,6 +208,7 @@ function MainArea({
   integrated?: boolean;
   messages: RunMessage[];
   changedFiles: { path: string; op: "create" | "edit" }[];
+  usageTokens: number;
   transientStatus?: string;
   onAnswer: (value: string) => void;
 }) {
@@ -238,6 +241,7 @@ function MainArea({
       activeStep={activeStep}
       messages={messages}
       changedFiles={changedFiles}
+      usageTokens={usageTokens}
       transientStatus={transientStatus}
       width={width}
       height={height}
