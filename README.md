@@ -96,7 +96,7 @@ npx @honch/start --dry-run
 | `--project-api-key <key>` | Honch project API key (local/offline testing) |
 | `--config <path>` | Read config from an explicit file you maintain (e.g. a committed CI config) instead of the remembered settings |
 | `--no-save-config` | Don't remember this run's settings |
-| `--try` | Scaffold a starter project (from `honch-io/starters`) when the directory is empty |
+| `--try` | Skip straight to "Try Honch": scaffold a starter project (from `honch-io/starters`) into a temporary scratch folder |
 | `--dry-run`, `-n` | Preview the plan without running the agent or changing files |
 | `--yes`, `-y` | Skip confirmation prompts when inputs are complete |
 | `--help`, `-h` | Show help |
@@ -121,12 +121,28 @@ env vars, or a standalone config file you maintain and point at with
 `--config <path>` (or `HONCH_WIZARD_CONFIG`). Each value resolves with the
 precedence **CLI flag > env var > config > prompt**.
 
-## Try Honch in an empty folder
+## The welcome screen
 
-Run the wizard in an empty directory (or pass `--try`) and it offers to scaffold
-a minimal starter project for the chosen SDK — fetched from
-[`honch-io/starters`](https://github.com/honch-io/starters) — and then wires
-Honch into it, so you can evaluate Honch from scratch in seconds.
+The first screen is the SDK choice. The wizard scans the current directory and
+always offers three things:
+
+- **Continue with the detected SDK** — shown (and pre-selected) when the scan
+  recognizes one.
+- **Choose a different SDK** (or **Choose an SDK** when nothing was detected) —
+  the full SDK picker.
+- **Try Honch in a scratch project** — see below.
+
+`--target <id>` or `--yes` skips this screen and installs into the current
+directory, preserving the non-interactive behavior.
+
+## Try Honch from anywhere
+
+Pick **Try Honch in a scratch project** (or pass `--try`) from *any* directory.
+The wizard asks which SDK to try, scaffolds a minimal starter for it — fetched
+from [`honch-io/starters`](https://github.com/honch-io/starters) — into a fresh
+temporary folder, and wires Honch in there, so you can evaluate Honch from
+scratch in seconds without touching your current project. The final report shows
+the temporary project's path, and pressing **`E`** opens that folder.
 
 ## Telemetry
 

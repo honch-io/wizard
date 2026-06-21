@@ -1,4 +1,5 @@
-import { existsSync, readdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { buildAgentPrompt } from "./agent/prompt.js";
 import { runAgent } from "./agent/runner.js";
@@ -54,12 +55,6 @@ export type WorkflowResult = {
 /** Sentinel value for the "create a new project" option. */
 const CREATE_NEW_PROJECT = "__create_new_project__";
 
-/** A project is a "Try Honch" candidate when it has no files of its own. */
-function isEmptyProject(dir: string): boolean {
-  if (!existsSync(dir)) return true;
-  return readdirSync(dir).filter((entry) => entry !== ".git").length === 0;
-}
-
 export async function runWorkflow(
   options: CliOptions,
   deps: {
@@ -76,6 +71,9 @@ export async function runWorkflow(
     deps.platformClient ?? new PlatformClient(options.apiBaseUrl);
   const vault = createSecretVault();
   const startedAt = Date.now();
+  // Mutable so the "Try Honch" path can re-point the install at a fresh temp
+  // scratch directory. The initial scan still runs on the cwd (= options.installDir).
+  let installDir = options.installDir;
   const analyticsId = newRunId();
   let totalTokens = 0;
   const track = (event: string, properties?: Record<string, unknown>) => {
@@ -86,17 +84,7 @@ export async function runWorkflow(
   try {
     track("wizard_started");
     prompter.setStep?.("scan", "reading project files");
-    const scan = scanProject(options.installDir);
-    const findings =
-      scan.detectedTargets.length > 0
-        ? scan.detectedTargets.map((target) => `Detected ${target.label}`)
-        : ["No SDK auto-detected — you can pick one on the next screen."];
-    if (prompter.welcome && !options.yes) {
-      await prompter.welcome({
-        body: "Hey — welcome to the Honch installer! I'll wire the Honch SDK into your project in a few quick steps. First, I took a look around to see what you're working with.",
-        lines: findings,
-      });
-    }
+    const scan = scanProject(installDir);
     prompter.completeStep?.(
       "scan",
       scan.detectedTargets.length > 0
@@ -105,37 +93,81 @@ export async function runWorkflow(
     );
 
     prompter.setStep?.("target", "selecting SDK target");
-    const target = await resolveTarget(
-      options.target,
-      scan.detectedTargets,
-      prompter,
-    );
+
+    // The welcome screen *is* the SDK choice. From any directory it always
+    // offers a "Try Honch" scratch project; when a non-interactive flag is set
+    // we preserve the old behavior (install into the cwd, no Try).
+    const scaffold = deps.scaffold ?? scaffoldStarter;
+    let scaffoldNote: string | undefined;
+    let tryMode = false;
+    const detected = scan.detectedTargets[0];
+
+    let target: SdkTarget;
+    if (options.target || options.yes) {
+      // Non-interactive: honor the requested target (or the detected one) and
+      // install into the cwd — never re-point or scaffold.
+      target = await resolveTarget(
+        options.target,
+        scan.detectedTargets,
+        prompter,
+      );
+    } else if (options.tryMode) {
+      // --try: go straight to the Try path, defaulting the SDK to the detected one.
+      ({ target, scaffoldNote } = await runTryPath(
+        scan.detectedTargets,
+        prompter,
+        scaffold,
+        (dir) => {
+          installDir = dir;
+        },
+      ));
+      tryMode = true;
+    } else {
+      const choice = await prompter.select({
+        title: "Welcome to Honch",
+        message: `I looked around ${options.installDir} and detected ${detected ? detected.label : "no SDK"}. What would you like to do?`,
+        defaultValue: detected ? "continue" : "different",
+        options: [
+          ...(detected
+            ? [
+                {
+                  label: `Continue with ${detected.label}`,
+                  value: "continue",
+                  badge: "(detected)",
+                },
+              ]
+            : []),
+          {
+            label: detected ? "Choose a different SDK" : "Choose an SDK",
+            value: "different",
+          },
+          {
+            label: "Try Honch in a scratch project",
+            value: "try",
+            hint: "no setup — I'll scaffold a temp project",
+          },
+        ],
+      });
+      if (choice === "continue" && detected) {
+        target = detected;
+      } else if (choice === "try") {
+        ({ target, scaffoldNote } = await runTryPath(
+          scan.detectedTargets,
+          prompter,
+          scaffold,
+          (dir) => {
+            installDir = dir;
+          },
+        ));
+        tryMode = true;
+      } else {
+        target = await resolveTarget(undefined, scan.detectedTargets, prompter);
+      }
+    }
+
     prompter.setSummary?.({ sdkTarget: target.label });
     prompter.completeStep?.("target", target.label);
     track("wizard_target_selected", { target: target.id });
-
-    // "Try Honch": when the project is empty, scaffold a bare starter for the
-    // chosen target so there's something to install into. `--try` forces it;
-    // otherwise we offer it. Only targets with a starter folder are eligible.
-    let scaffoldNote: string | undefined;
-    const scaffold = deps.scaffold ?? scaffoldStarter;
-    if (starterAvailable(target.id)) {
-      const wantScaffold =
-        options.tryMode ||
-        (isEmptyProject(options.installDir) &&
-          !options.yes &&
-          (await prompter.confirm(
-            `This folder is empty — scaffold a starter ${target.label} project to try Honch?`,
-          )));
-      if (wantScaffold) {
-        const { files } = await scaffold(options.installDir, target.id);
-        scaffoldNote = `scaffolded a starter ${target.label} project (${files.length} files)`;
-        prompter.completeStep?.(
-          "target",
-          `${target.label} · starter scaffolded`,
-        );
-      }
-    }
 
     prompter.setStep?.("auth", "connecting Honch account");
     const auth = await resolveAuth(options, prompter);
@@ -188,10 +220,9 @@ export async function runWorkflow(
     prompter.setStep?.("confirm", "waiting for confirmation");
     // The ESP-IDF flow git-inits the project itself, so revert always works
     // there; for other targets it only works if this is already a git repo.
-    const gitRepo = isGitWorkTree(options.installDir);
+    const gitRepo = isGitWorkTree(installDir);
     const revertable = target.id === "esp-idf" || gitRepo;
-    const canBranch =
-      options.runAgent && gitRepo && hasCommits(options.installDir);
+    const canBranch = options.runAgent && gitRepo && hasCommits(installDir);
 
     let branch: string | undefined;
     let baseBranch: string | undefined;
@@ -199,10 +230,10 @@ export async function runWorkflow(
     if (options.yes) {
       // Non-interactive: install on the current branch, no prompt.
     } else if (canBranch) {
-      const desired = availableBranchName(options.installDir, "honch/setup");
+      const desired = availableBranchName(installDir, "honch/setup");
       const choice = await prompter.select({
         title: "Review install plan",
-        message: `Install Honch ${target.label} into ${options.installDir}?`,
+        message: `Install the Honch ${target.label} SDK into the project at ${installDir}?`,
         defaultValue: "branch",
         options: [
           { label: "Work on a new branch", value: "branch", hint: desired },
@@ -220,7 +251,7 @@ export async function runWorkflow(
           ? "\n\n⚠ This folder isn't a git repo, so Claude's changes can't be auto-reverted. Run `git init` first if you want that safety net."
           : "";
       const confirmed = await prompter.confirm(
-        `Install Honch ${target.label} into ${options.installDir}?${warning}`,
+        `Install the Honch ${target.label} SDK into the project at ${installDir}?${warning}`,
       );
       if (!confirmed) {
         throw new Error("Wizard cancelled before project mutation");
@@ -242,8 +273,8 @@ export async function runWorkflow(
     if (options.runAgent && wizardToken) {
       prompter.setStep?.("agent", "running Claude Agent SDK");
       if (branch) {
-        baseBranch = currentBranch(options.installDir);
-        createBranch(options.installDir, branch);
+        baseBranch = currentBranch(installDir);
+        createBranch(installDir, branch);
         prompter.addRunMessage?.(
           `Working on a new branch: ${branch}`,
           "status",
@@ -254,7 +285,7 @@ export async function runWorkflow(
           "Registering Honch SDK component (git submodule)",
           "status",
         );
-        const install = installEspIdfHonchSubmodule(options.installDir);
+        const install = installEspIdfHonchSubmodule(installDir);
         verification.push(install.message);
         prompter.addRunMessage?.(install.message, "status");
       }
@@ -270,7 +301,7 @@ export async function runWorkflow(
       );
       // Snapshot the project right before Claude touches it so the user can
       // revert its work if they pause the run.
-      const snapshot = snapshotProject(options.installDir);
+      const snapshot = snapshotProject(installDir);
       // Anchor the run timer once; it survives a pause/resume from here on.
       prompter.markAgentStart?.();
       track("wizard_install_started");
@@ -300,7 +331,7 @@ export async function runWorkflow(
           abort.abort();
         });
         const result = await runAgent({
-          cwd: options.installDir,
+          cwd: installDir,
           prompt: nextPrompt,
           resume: sessionId,
           platformToken: wizardToken,
@@ -320,7 +351,7 @@ export async function runWorkflow(
           },
           mcpServers: {
             "honch-tools": createLocalToolsServer({
-              workingDirectory: options.installDir,
+              workingDirectory: installDir,
               secretVault: vault,
             }),
           },
@@ -331,7 +362,7 @@ export async function runWorkflow(
         if (!abort.signal.aborted) break;
 
         const choice = await resolveInterruption(
-          options.installDir,
+          installDir,
           snapshot,
           prompter,
           verification,
@@ -354,7 +385,7 @@ export async function runWorkflow(
       if (outcome === "completed") {
         // Did Claude actually touch project files? The setup report it writes
         // doesn't count — a report-only run means it couldn't integrate.
-        const changed = changedFilesSince(options.installDir, snapshot).filter(
+        const changed = changedFilesSince(installDir, snapshot).filter(
           (file) => file !== "honch-setup-report.md",
         );
         integrated = changed.length > 0;
@@ -369,7 +400,7 @@ export async function runWorkflow(
         verification.push("agent run completed");
         for (const result of verifyFirmwareInstall(
           target.id,
-          options.installDir,
+          installDir,
           undefined,
           projectApiKey,
         )) {
@@ -382,7 +413,7 @@ export async function runWorkflow(
         }
       }
       if (branch && outcome !== "reverted") {
-        commitAll(options.installDir, `honch: install ${target.label} SDK`);
+        commitAll(installDir, `honch: install ${target.label} SDK`);
         prompter.setSummary?.({ branch, baseBranch });
         prompter.addRunMessage?.(`Committed changes on ${branch}`, "status");
       }
@@ -417,13 +448,20 @@ export async function runWorkflow(
       branch: installReverted ? undefined : branch,
       baseBranch,
     });
-    const reportPath = path.join(options.installDir, "honch-setup-report.md");
+    const reportPath = path.join(installDir, "honch-setup-report.md");
     writeFileSync(reportPath, report);
-    prompter.setSummary?.({ reportPath, reportMarkdown: report, integrated });
+    prompter.setSummary?.({
+      reportPath,
+      reportMarkdown: report,
+      integrated,
+      // In Try mode the report knows it ran in a scratch project so the done
+      // screen can surface (and offer to open) the temp folder.
+      ...(tryMode ? { tempProject: installDir } : {}),
+    });
     prompter.completeStep?.("report", reportPath);
 
     if (options.saveConfig) {
-      writeHonchConfig(options.installDir, {
+      writeHonchConfig(installDir, {
         target: target.id,
         deviceModel,
         projectId: project.id,
@@ -467,6 +505,7 @@ async function resolveTarget(
   requested: SdkTargetId | undefined,
   detected: SdkTarget[],
   prompter: Prompter,
+  message?: string,
 ): Promise<SdkTarget> {
   if (requested) return SDK_TARGETS[requested];
 
@@ -490,9 +529,11 @@ async function resolveTarget(
 
   const answer = await prompter.select({
     title: "Select SDK",
-    message: detectedTarget
-      ? `Detected ${detectedTarget.label} — press enter to use it, or pick another SDK.`
-      : "Which SDK should I set up?",
+    message:
+      message ??
+      (detectedTarget
+        ? `Detected ${detectedTarget.label} — press enter to use it, or pick another SDK.`
+        : "Which SDK should I set up?"),
     ...(detectedTarget ? { defaultValue: detectedTarget.id } : {}),
     options,
   });
@@ -501,6 +542,51 @@ async function resolveTarget(
     detectedTarget ??
     SDK_TARGETS["esp-idf"]
   );
+}
+
+/**
+ * The "Try Honch" path: pick a starter-capable SDK, create a fresh temp scratch
+ * directory, re-point the install there (via `setInstallDir`), and scaffold the
+ * chosen starter into it (no confirm — Try is itself an explicit choice).
+ */
+async function runTryPath(
+  detected: SdkTarget[],
+  prompter: Prompter,
+  scaffold: (
+    installDir: string,
+    target: SdkTargetId,
+  ) => Promise<{ files: string[] }>,
+  setInstallDir: (dir: string) => void,
+): Promise<{ target: SdkTarget; scaffoldNote: string }> {
+  // Only SDKs with a starter folder can be scaffolded into a scratch project.
+  const starterIds = (Object.keys(SDK_TARGETS) as SdkTargetId[]).filter(
+    starterAvailable,
+  );
+  const detectedId = detected[0]?.id;
+  const detectedTryable =
+    detectedId && starterIds.includes(detectedId) ? detectedId : undefined;
+  const answer = await prompter.select({
+    title: "Try Honch",
+    message: "Which SDK do you want to try?",
+    ...(detectedTryable ? { defaultValue: detectedTryable } : {}),
+    options: starterIds.map((id) => ({
+      label: SDK_TARGETS[id].label,
+      value: id,
+      hint: SDK_TARGETS[id].verificationHint,
+      ...(id === detectedTryable ? { badge: "(detected)" } : {}),
+    })),
+  });
+  const target =
+    SDK_TARGETS[answer as SdkTargetId] ?? SDK_TARGETS[starterIds[0]];
+
+  const installDir = mkdtempSync(path.join(tmpdir(), "honch-try-"));
+  setInstallDir(installDir);
+
+  const { files } = await scaffold(installDir, target.id);
+  return {
+    target,
+    scaffoldNote: `scaffolded a starter ${target.label} project (${files.length} files)`,
+  };
 }
 
 async function resolveAuth(options: CliOptions, prompter: Prompter) {
@@ -714,7 +800,7 @@ async function resolveOrganization(
     options: organizations.map((org) => ({
       label: org.name,
       value: org.id,
-      hint: org.role,
+      hint: `You have ${org.role} privileges of ${org.name}`,
     })),
   });
 }

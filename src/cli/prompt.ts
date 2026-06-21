@@ -33,6 +33,9 @@ export type WizardSummary = {
   reverted?: boolean;
   /** Whether Claude actually changed project files (false = report-only run). */
   integrated?: boolean;
+  /** When set, the install ran in "Try Honch" mode and scaffolded into this
+   * temporary scratch project directory. */
+  tempProject?: string;
 };
 
 export type PromptOption = {
@@ -46,10 +49,9 @@ export type PromptRequest = {
   id: number;
   title: string;
   message: string;
-  kind: "text" | "password" | "select" | "confirm" | "welcome";
+  kind: "text" | "password" | "select" | "confirm";
   options: PromptOption[];
   defaultValue?: string;
-  lines?: string[];
 };
 
 export type QuestionOptions = {
@@ -100,7 +102,6 @@ export type Prompter = {
   question(prompt: string, options?: QuestionOptions): Promise<string>;
   select(config: SelectConfig): Promise<string>;
   confirm(prompt: string): Promise<boolean>;
-  welcome?(config: { body: string; lines: string[] }): Promise<void>;
   close(): void;
   cancel?(message?: string): void;
   setStep?(id: WizardStepId, detail?: string): void;
@@ -189,22 +190,6 @@ export class TuiPrompter implements Prompter {
           kind: "select",
           options: config.options,
           defaultValue: config.defaultValue,
-        },
-      });
-    });
-  }
-
-  welcome(config: { body: string; lines: string[] }): Promise<void> {
-    return new Promise((resolve) => {
-      this.pending = { resolve: () => resolve(), reject: () => resolve() };
-      this.update({
-        currentPrompt: {
-          id: ++this.promptId,
-          title: "Welcome",
-          message: config.body,
-          kind: "welcome",
-          options: [],
-          lines: config.lines,
         },
       });
     });

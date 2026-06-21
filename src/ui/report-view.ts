@@ -64,9 +64,14 @@ export function visibleReportLines(
   };
 }
 
-export function reportFooterHint(reportPath?: string) {
-  const file = reportPath ? path.basename(reportPath) : "honch-setup-report.md";
-  return `↑/↓ scroll · E open ${file} · q quit`;
+export function reportFooterHint(reportPath?: string, tempProject?: string) {
+  // In Try mode, "E" opens the scratch project folder rather than the report.
+  const target = tempProject
+    ? path.basename(tempProject)
+    : reportPath
+      ? path.basename(reportPath)
+      : "honch-setup-report.md";
+  return `↑/↓ scroll · E open ${target} · q quit`;
 }
 
 function inlineSegments(line: string): ReportSegment[] {

@@ -68,8 +68,12 @@ export function App({
   const dismissable = Boolean(snapshot.completed) || Boolean(snapshot.error);
   const footer = snapshot.error
     ? "press enter to exit"
-    : snapshot.completed && snapshot.summary.reportPath
-      ? reportFooterHint(snapshot.summary.reportPath)
+    : snapshot.completed &&
+        (snapshot.summary.reportPath || snapshot.summary.tempProject)
+      ? reportFooterHint(
+          snapshot.summary.reportPath,
+          snapshot.summary.tempProject,
+        )
       : `↑/↓ move · enter select${installing ? " · esc stop Claude" : ""} · ctrl+c exit`;
 
   useInput((input, key) => {
@@ -122,6 +126,7 @@ export function App({
             baseBranch={snapshot.summary.baseBranch}
             reverted={snapshot.summary.reverted}
             integrated={snapshot.summary.integrated}
+            tempProject={snapshot.summary.tempProject}
             messages={snapshot.runMessages}
             changedFiles={snapshot.changedFiles}
             usageTokens={snapshot.usageTokens}
@@ -190,6 +195,7 @@ function MainArea({
   baseBranch,
   reverted,
   integrated,
+  tempProject,
   messages,
   changedFiles,
   usageTokens,
@@ -212,6 +218,7 @@ function MainArea({
   baseBranch?: string;
   reverted?: boolean;
   integrated?: boolean;
+  tempProject?: string;
   messages: RunMessage[];
   changedFiles: { path: string; op: "create" | "edit" }[];
   usageTokens: number;
@@ -234,6 +241,7 @@ function MainArea({
         baseBranch={baseBranch}
         reverted={reverted}
         integrated={integrated}
+        tempProject={tempProject}
       />
     );
   if (prompt)
@@ -270,75 +278,10 @@ function PromptView({
   prompt: PromptRequest;
   onAnswer: (value: string) => void;
 }) {
-  if (prompt.kind === "welcome") {
-    return <WelcomeView width={width} prompt={prompt} onAnswer={onAnswer} />;
-  }
   if (prompt.kind === "select" || prompt.kind === "confirm") {
     return <Picker width={width} prompt={prompt} onAnswer={onAnswer} />;
   }
   return <TextInput width={width} prompt={prompt} onAnswer={onAnswer} />;
-}
-
-function WelcomeView({
-  width,
-  prompt,
-  onAnswer,
-}: {
-  width: number;
-  prompt: PromptRequest;
-  onAnswer: (value: string) => void;
-}) {
-  const full = prompt.message;
-  const [shown, setShown] = useState(0);
-  const done = shown >= full.length;
-
-  useEffect(() => {
-    if (done) return;
-    // Reveal 3 chars per tick (50% faster than the original 2) for a snappier
-    // welcome typewriter without changing the frame cadence.
-    const timer = setInterval(
-      () => setShown((current) => Math.min(current + 3, full.length)),
-      12,
-    );
-    return () => clearInterval(timer);
-  }, [done, full.length]);
-
-  useInput((_input, key) => {
-    if (key.return) {
-      if (done) onAnswer("");
-      else setShown(full.length);
-    }
-  });
-
-  return (
-    <Box flexDirection="column">
-      <Text>
-        <Text color={COLORS.accent}>◉</Text>
-        <Text bold color={COLORS.value}>
-          {"  "}Welcome
-        </Text>
-      </Text>
-      <Box height={1} />
-      <Text color={COLORS.value} wrap="wrap">
-        {full.slice(0, shown)}
-        {done ? "" : "▏"}
-      </Text>
-      {done ? (
-        <Box flexDirection="column" marginTop={1}>
-          <Text color={COLORS.label}>Here's what I found:</Text>
-          {(prompt.lines ?? []).map((line) => (
-            <Text key={line}>
-              <Text color={COLORS.success}>·</Text>{" "}
-              <Text color={COLORS.value}>{truncate(line, width - 2)}</Text>
-            </Text>
-          ))}
-          <Box marginTop={1}>
-            <Text color={COLORS.help}>press enter to continue ›</Text>
-          </Box>
-        </Box>
-      ) : null}
-    </Box>
-  );
 }
 
 function Picker({
@@ -474,6 +417,7 @@ function DoneView({
   baseBranch,
   reverted,
   integrated,
+  tempProject,
 }: {
   width: number;
   height: number;
@@ -483,6 +427,7 @@ function DoneView({
   baseBranch?: string;
   reverted?: boolean;
   integrated?: boolean;
+  tempProject?: string;
 }) {
   const base = baseBranch ?? "your branch";
   const lines = useMemo(
@@ -490,7 +435,8 @@ function DoneView({
     [reportMarkdown],
   );
   const notInstalled = integrated === false;
-  const headerRows = (branch ? 8 : 5) + (notInstalled ? 1 : 0);
+  const headerRows =
+    (branch ? 8 : 5) + (notInstalled ? 1 : 0) + (tempProject ? 2 : 0);
   const reportHeight = Math.max(height - headerRows, 4);
   const [scroll, setScroll] = useState(0);
   const windowed = visibleReportLines(lines, reportHeight, scroll);
@@ -499,8 +445,10 @@ function DoneView({
     if (key.upArrow) setScroll((current) => Math.max(current - 1, 0));
     else if (key.downArrow) {
       setScroll((current) => Math.min(current + 1, windowed.maxOffset));
-    } else if (input.toLowerCase() === "e" && reportPath) {
-      openReport(reportPath);
+    } else if (input.toLowerCase() === "e") {
+      // In Try mode, "e" opens the scratch project folder; otherwise the report.
+      const openTarget = tempProject ?? reportPath;
+      if (openTarget) openReport(openTarget);
     }
   });
 
@@ -536,6 +484,13 @@ function DoneView({
         </Text>
       )}
       <Box height={1} />
+      {tempProject ? (
+        <Box flexDirection="column">
+          <Text color={COLORS.help}>Tried Honch in a temporary project at</Text>
+          <Text color={COLORS.value}>{truncate(tempProject, width)}</Text>
+          <Box height={1} />
+        </Box>
+      ) : null}
       <Text color={COLORS.help}>Report generated at</Text>
       <Text color={COLORS.value}>
         {truncate(reportPath ?? "honch-setup-report.md", width)}
