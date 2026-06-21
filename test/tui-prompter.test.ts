@@ -98,6 +98,18 @@ describe("TuiPrompter", () => {
     expect(prompter.getSnapshot().usageTokens).toBe(0);
   });
 
+  it("records the daily token budget and baseline, ignoring a non-positive budget", () => {
+    const prompter = new TuiPrompter({});
+
+    prompter.setTokenBudget(3_000_000, 120_000);
+    expect(prompter.getSnapshot().tokenBudget).toBe(3_000_000);
+    expect(prompter.getSnapshot().tokensUsedBaseline).toBe(120_000);
+
+    prompter.setTokenBudget(0, 5);
+    // A non-positive budget is ignored — the prior value stays put.
+    expect(prompter.getSnapshot().tokenBudget).toBe(3_000_000);
+  });
+
   it("anchors the agent clock once and keeps it across a resume", () => {
     const prompter = new TuiPrompter({});
 

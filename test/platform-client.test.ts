@@ -84,6 +84,30 @@ describe("PlatformClient", () => {
   });
 });
 
+describe("PlatformClient.getWizardUsage", () => {
+  it("reads daily usage with the wizard token as bearer auth", async () => {
+    const usage = {
+      used: 120_000,
+      budget: 3_000_000,
+      remaining: 2_880_000,
+      resetsAt: 1_750_000_000_000,
+    };
+    const fetcher = vi.fn().mockResolvedValueOnce(response(usage));
+    const client = new PlatformClient("https://api.honch.io", fetcher);
+
+    const result = await client.getWizardUsage("wiz-token");
+
+    expect(result).toEqual(usage);
+    expect(fetcher).toHaveBeenLastCalledWith(
+      "https://api.honch.io/api/wizard/usage",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({ Authorization: "Bearer wiz-token" }),
+      }),
+    );
+  });
+});
+
 function response(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
     status: 200,

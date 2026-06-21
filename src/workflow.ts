@@ -261,6 +261,19 @@ export async function runWorkflow(
       const snapshot = snapshotProject(options.installDir);
       // Anchor the run timer once; it survives a pause/resume from here on.
       prompter.markAgentStart?.();
+      // Seed the daily-budget meter with the tokens already spent today, so it
+      // shows usage against the cap (live total = this baseline + run tokens).
+      // Re-synced on resume because `setStep` zeroes the run's local counter.
+      // Best-effort: a failure just leaves the meter on a raw token count.
+      const refreshBudget = async () => {
+        try {
+          const usage = await platformClient.getWizardUsage(wizardToken);
+          prompter.setTokenBudget?.(usage.budget, usage.used);
+        } catch {
+          // Meter degrades to a raw token count; never block the install.
+        }
+      };
+      await refreshBudget();
 
       let sessionId: string | undefined;
       let nextPrompt = prompt;
@@ -312,6 +325,9 @@ export async function runWorkflow(
         if (choice === "continue") {
           prompter.setStep?.("agent", "resuming Claude");
           prompter.addRunMessage?.("Resuming Claude…", "status");
+          // Re-sync the budget baseline: the proxy metered the pre-pause spend,
+          // and setStep just zeroed the run's local token counter.
+          await refreshBudget();
           nextPrompt =
             "Continue the Honch SDK installation from where you left off.";
           continue;

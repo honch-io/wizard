@@ -19,6 +19,13 @@ export type OrganizationResponse = {
   role: string;
 };
 
+export type WizardUsage = {
+  used: number;
+  budget: number;
+  remaining: number;
+  resetsAt: number;
+};
+
 export type FeedbackBody = {
   target: string;
   outcome: "success" | "failed" | "reverted";
@@ -56,6 +63,13 @@ export class PlatformClient {
       ? `/api/wizard/token?project_id=${encodeURIComponent(projectId)}`
       : "/api/wizard/token";
     return this.post<TokenResponse>(path, {}, accessToken);
+  }
+
+  /** Read today's token usage against the daily budget. Authed with the
+   * short-lived wizard token, so it shares the per-project metering subject the
+   * LLM proxy uses. */
+  async getWizardUsage(wizardToken: string): Promise<WizardUsage> {
+    return this.get<WizardUsage>("/api/wizard/usage", wizardToken);
   }
 
   async listOrganizations(accessToken: string) {

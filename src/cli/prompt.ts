@@ -82,6 +82,12 @@ export type TuiSnapshot = {
    * starts. The elapsed timer is derived from this so it survives a pause/
    * resume (which remounts the run view) instead of restarting from zero. */
   agentStartedAt?: number;
+  /** The daily token budget for this install (from the platform). When set, the
+   * run header shows how much of the budget is used rather than a raw count. */
+  tokenBudget?: number;
+  /** Tokens already spent today before this run started, so the live meter can
+   * show total daily usage = baseline + this run's `usageTokens`. */
+  tokensUsedBaseline?: number;
   /** A single transient line pinned at the bottom of the run view (e.g. API
    * retries), updated in place rather than appended to the log. */
   transientStatus?: string;
@@ -103,6 +109,7 @@ export type Prompter = {
   addRunMessage?(message: string, kind?: RunMessageKind): void;
   setChangedFile?(path: string, op: "create" | "edit"): void;
   addUsage?(tokens: number): void;
+  setTokenBudget?(budget: number, usedBaseline: number): void;
   markAgentStart?(): void;
   setTransientStatus?(message?: string): void;
   onInterrupt?(handler: () => void): void;
@@ -294,6 +301,17 @@ export class TuiPrompter implements Prompter {
   addUsage(tokens: number) {
     if (!Number.isFinite(tokens) || tokens <= 0) return;
     this.update({ usageTokens: this.snapshot.usageTokens + tokens });
+  }
+
+  /** Record the daily budget and the tokens already spent today, so the meter
+   * can show usage against the cap. Best-effort — skipped if the platform read
+   * fails, leaving the meter to fall back to a raw token count. */
+  setTokenBudget(budget: number, usedBaseline: number) {
+    if (!Number.isFinite(budget) || budget <= 0) return;
+    this.update({
+      tokenBudget: budget,
+      tokensUsedBaseline: Math.max(0, usedBaseline),
+    });
   }
 
   /** Start the agent clock once. Idempotent, so resuming after a pause keeps

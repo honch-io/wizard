@@ -68,9 +68,10 @@ While the agent works, the run view shows what's happening in real time:
 
 - A **Changed files** panel lists the files Claude creates (`+`) and edits
   (`~`) as it goes, so you can see the install take shape.
-- The header carries a live **elapsed timer** and a **token-usage meter**
-  (e.g. `12.3k tokens`) — the same usage that counts against the daily free
-  install budget, so you always know where you stand.
+- The header carries a live **elapsed timer** and a **usage meter** showing how
+  much of your **daily install budget** you've used (e.g. `34% of daily limit`),
+  so you always know where you stand. The timer keeps counting across a
+  pause/resume rather than restarting.
 - Use `↑`/`↓` to scroll back through Claude's output during the run.
 
 ## Preview without changing anything

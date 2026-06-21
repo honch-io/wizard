@@ -219,6 +219,8 @@ export function RunView({
   transientStatus,
   changedFiles,
   usageTokens,
+  tokenBudget,
+  tokensUsedBaseline,
   agentStartedAt,
   width,
   height,
@@ -228,12 +230,33 @@ export function RunView({
   transientStatus?: string;
   changedFiles: { path: string; op: "create" | "edit" }[];
   usageTokens: number;
+  tokenBudget?: number;
+  tokensUsedBaseline?: number;
   agentStartedAt?: number;
   width: number;
   height: number;
 }) {
   const isAgent = activeStep === "agent";
   const elapsed = useElapsed(agentStartedAt);
+  // Prefer "% of daily limit" when the platform gave us the budget; the daily
+  // total is the pre-run baseline plus this run's tokens. Without a budget,
+  // fall back to a raw token count.
+  const hasBudget = typeof tokenBudget === "number" && tokenBudget > 0;
+  const usagePct = hasBudget
+    ? Math.min(
+        100,
+        Math.round(
+          (((tokensUsedBaseline ?? 0) + usageTokens) / tokenBudget) * 100,
+        ),
+      )
+    : 0;
+  const usageLabel = hasBudget
+    ? `${usagePct}% of daily limit`
+    : usageTokens > 0
+      ? `${formatTokens(usageTokens)} tokens`
+      : undefined;
+  const usageColor =
+    hasBudget && usagePct >= 90 ? COLORS.failure : COLORS.label;
   const panelRows = changedFiles.length
     ? Math.min(changedFiles.length, 6) + 1
     : 0;
@@ -289,10 +312,8 @@ export function RunView({
         {isAgent ? (
           <Text color={COLORS.label}>{`  ·  ${formatElapsed(elapsed)}`}</Text>
         ) : null}
-        {isAgent && usageTokens > 0 ? (
-          <Text
-            color={COLORS.label}
-          >{`  ·  ${formatTokens(usageTokens)} tokens`}</Text>
+        {isAgent && usageLabel ? (
+          <Text color={usageColor}>{`  ·  ${usageLabel}`}</Text>
         ) : null}
       </Text>
       <Box height={1} />
