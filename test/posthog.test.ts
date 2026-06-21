@@ -22,7 +22,7 @@ describe("posthogConfig", () => {
 });
 
 describe("capturePostHog", () => {
-  it("posts to ${host}/capture/ with correct shape", async () => {
+  it("posts to the host's /capture/ endpoint with correct shape", async () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValue(new Response("", { status: 200 }));
