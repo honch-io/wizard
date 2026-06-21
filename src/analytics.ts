@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { arch, platform } from "node:os";
 import { fileURLToPath } from "node:url";
-import type { AnalyticsPayload } from "./platform/client.js";
+
+export type InstallOutcome = "success" | "failed" | "reverted";
 
 /**
  * Analytics is on by default (disclosed in the README) and disabled by
@@ -26,25 +27,34 @@ export function wizardVersion(): string {
   }
 }
 
-/**
- * Assemble the experience-only analytics payload. By construction it carries no
- * code, file contents, project identifiers, paths, or secrets — only the coarse
- * fields below.
- */
-export function buildAnalyticsPayload(input: {
+// Rough blended $/Mtok for the pinned Claude model. The metered token total
+// sums input+output+cache at face value, so this is an approximation for
+// cost-per-install trends, not billing.
+const BLENDED_USD_PER_MTOK = 3;
+
+export function estimateCostUsd(totalTokens: number): number {
+  if (!Number.isFinite(totalTokens) || totalTokens <= 0) return 0;
+  return (
+    Math.round((totalTokens / 1_000_000) * BLENDED_USD_PER_MTOK * 100) / 100
+  );
+}
+
+export function buildInstallProperties(input: {
   target?: string;
-  outcome: AnalyticsPayload["outcome"];
+  outcome: InstallOutcome;
   agentRan: boolean;
   durationMs: number;
-}): AnalyticsPayload {
+  totalTokens: number;
+}): Record<string, unknown> {
   return {
-    event: "install",
-    wizardVersion: wizardVersion(),
+    wizard_version: wizardVersion(),
     os: platform(),
     arch: arch(),
     target: input.target,
     outcome: input.outcome,
-    agentRan: input.agentRan,
-    durationMs: input.durationMs,
+    agent_ran: input.agentRan,
+    duration_ms: input.durationMs,
+    total_tokens: input.totalTokens,
+    est_cost_usd: estimateCostUsd(input.totalTokens),
   };
 }

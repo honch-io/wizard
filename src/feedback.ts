@@ -1,17 +1,17 @@
+import type { InstallOutcome } from "./analytics.js";
 import type { Prompter } from "./cli/prompt.js";
-import type { FeedbackBody, PlatformClient } from "./platform/client.js";
+import { capturePostHog } from "./posthog.js";
 
 /**
- * Ask the user, after a completed install, whether it was helpful and send their
- * answer to the platform. Strictly opt-in: nothing is sent unless they pick a
- * rating (choosing "Skip" sends nothing), and delivery failures — including the
- * endpoint not existing yet — never surface or block the wizard.
+ * After a completed install, ask whether it was helpful and send the answer to
+ * PostHog as a `wizard_feedback` event. Strictly opt-in (Skip sends nothing);
+ * delivery is best-effort and never blocks the wizard.
  */
 export async function collectFeedback(
   prompter: Prompter,
-  client: Pick<PlatformClient, "sendFeedback">,
-  accessToken: string,
-  base: { target: string; outcome: FeedbackBody["outcome"] },
+  base: { target: string; outcome: InstallOutcome },
+  distinctId: string,
+  capture: typeof capturePostHog = capturePostHog,
 ): Promise<void> {
   const rating = await prompter.select({
     title: "Quick feedback",
@@ -24,16 +24,19 @@ export async function collectFeedback(
     ],
   });
   if (rating !== "up" && rating !== "down") return;
-
   const comment = (
     await prompter.question("Anything to add? (press enter to skip)")
   ).trim();
-
   try {
-    await client.sendFeedback(accessToken, {
-      ...base,
-      rating,
-      ...(comment ? { comment } : {}),
+    await capture({
+      event: "wizard_feedback",
+      distinctId,
+      properties: {
+        target: base.target,
+        outcome: base.outcome,
+        rating,
+        ...(comment ? { comment } : {}),
+      },
     });
   } catch {
     // Feedback delivery is best-effort — never block or fail the wizard on it.

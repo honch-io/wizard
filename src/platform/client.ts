@@ -26,26 +26,6 @@ export type WizardUsage = {
   resetsAt: number;
 };
 
-export type FeedbackBody = {
-  target: string;
-  outcome: "success" | "failed" | "reverted";
-  rating?: "up" | "down";
-  comment?: string;
-};
-
-// Experience analytics — deliberately coarse. NEVER carries code, file contents,
-// project names/paths, env values, or keys.
-export type AnalyticsPayload = {
-  event: "install";
-  wizardVersion: string;
-  os: string;
-  arch: string;
-  target?: string;
-  outcome: "success" | "failed" | "reverted";
-  agentRan: boolean;
-  durationMs: number;
-};
-
 export class PlatformClient {
   private readonly baseUrl: string;
   private readonly fetcher: Fetcher;
@@ -95,20 +75,6 @@ export class PlatformClient {
       accessToken,
       organizationId,
     );
-  }
-
-  /** Post opt-in install feedback. Never includes secrets — callers pass only
-   * the bare metadata in `FeedbackBody`. */
-  async sendFeedback(accessToken: string, body: FeedbackBody): Promise<void> {
-    await this.post<unknown>("/api/wizard/feedback", body, accessToken);
-  }
-
-  /** Post coarse install-experience analytics (see `AnalyticsPayload`). */
-  async sendAnalytics(
-    accessToken: string,
-    payload: AnalyticsPayload,
-  ): Promise<void> {
-    await this.post<unknown>("/api/wizard/analytics", payload, accessToken);
   }
 
   private async get<T>(

@@ -1,20 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Prompter } from "../src/cli/prompt.js";
 import { collectFeedback } from "../src/feedback.js";
-import type { FeedbackBody } from "../src/platform/client.js";
-
-type Sent = { token: string; body: FeedbackBody };
-
-function stubClient(opts: { throws?: boolean } = {}) {
-  const sent: Sent[] = [];
-  return {
-    sent,
-    sendFeedback: async (token: string, body: FeedbackBody) => {
-      sent.push({ token, body });
-      if (opts.throws) throw new Error("network down");
-    },
-  };
-}
+import type { capturePostHog } from "../src/posthog.js";
 
 // Minimal Prompter that returns scripted answers for select/question.
 function stubPrompter(rating: string, comment = ""): Prompter {
@@ -28,69 +15,69 @@ function stubPrompter(rating: string, comment = ""): Prompter {
 
 describe("collectFeedback", () => {
   it("sends the rating and comment when the user opts in", async () => {
-    const client = stubClient();
-    await collectFeedback(stubPrompter("up", "loved it"), client, "token-123", {
-      target: "esp-idf",
-      outcome: "success",
-    });
+    const capture = vi.fn<typeof capturePostHog>().mockResolvedValue(undefined);
+    await collectFeedback(
+      stubPrompter("up", "loved it"),
+      { target: "esp-idf", outcome: "success" },
+      "run-id-123",
+      capture,
+    );
 
-    expect(client.sent).toEqual([
-      {
-        token: "token-123",
-        body: {
-          target: "esp-idf",
-          outcome: "success",
-          rating: "up",
-          comment: "loved it",
-        },
+    expect(capture).toHaveBeenCalledOnce();
+    expect(capture).toHaveBeenCalledWith({
+      event: "wizard_feedback",
+      distinctId: "run-id-123",
+      properties: {
+        target: "esp-idf",
+        outcome: "success",
+        rating: "up",
+        comment: "loved it",
       },
-    ]);
+    });
   });
 
   it("omits an empty comment", async () => {
-    const client = stubClient();
-    await collectFeedback(stubPrompter("down", ""), client, "t", {
-      target: "c-posix",
-      outcome: "failed",
-    });
+    const capture = vi.fn<typeof capturePostHog>().mockResolvedValue(undefined);
+    await collectFeedback(
+      stubPrompter("down", ""),
+      { target: "c-posix", outcome: "failed" },
+      "run-id-abc",
+      capture,
+    );
 
-    expect(client.sent[0].body).toEqual({
+    expect(capture).toHaveBeenCalledOnce();
+    const call = capture.mock.calls[0][0];
+    expect(call.properties).toEqual({
       target: "c-posix",
       outcome: "failed",
       rating: "down",
     });
-    expect(client.sent[0].body).not.toHaveProperty("comment");
+    expect(call.properties).not.toHaveProperty("comment");
   });
 
   it("sends nothing when the user skips", async () => {
-    const client = stubClient();
-    await collectFeedback(stubPrompter("skip"), client, "t", {
-      target: "esp-idf",
-      outcome: "success",
-    });
+    const capture = vi.fn<typeof capturePostHog>().mockResolvedValue(undefined);
+    await collectFeedback(
+      stubPrompter("skip"),
+      { target: "esp-idf", outcome: "success" },
+      "run-id-xyz",
+      capture,
+    );
 
-    expect(client.sent).toEqual([]);
+    expect(capture).not.toHaveBeenCalled();
   });
 
   it("never throws when delivery fails", async () => {
-    const client = stubClient({ throws: true });
+    const capture = vi
+      .fn<typeof capturePostHog>()
+      .mockRejectedValue(new Error("network down"));
     await expect(
-      collectFeedback(stubPrompter("up"), client, "t", {
-        target: "esp-idf",
-        outcome: "success",
-      }),
+      collectFeedback(
+        stubPrompter("up"),
+        { target: "esp-idf", outcome: "success" },
+        "run-id-err",
+        capture,
+      ),
     ).resolves.toBeUndefined();
-  });
-
-  it("never carries a secret in the body", async () => {
-    const client = stubClient();
-    await collectFeedback(stubPrompter("up", "note"), client, "secret-token", {
-      target: "esp-idf",
-      outcome: "success",
-    });
-
-    const raw = JSON.stringify(client.sent[0].body);
-    expect(raw).not.toContain("secret-token");
-    expect(raw).not.toContain("apiKey");
   });
 });

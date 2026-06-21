@@ -2,7 +2,7 @@ import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { buildAgentPrompt } from "./agent/prompt.js";
 import { runAgent } from "./agent/runner.js";
-import { analyticsDisabled, buildAnalyticsPayload } from "./analytics.js";
+import { analyticsDisabled, buildInstallProperties } from "./analytics.js";
 import {
   type BrowserLoginResult,
   loginViaBrowser,
@@ -23,6 +23,7 @@ import {
   verifyFirmwareInstall,
 } from "./firmware/verify.js";
 import { PlatformClient, type ProjectResponse } from "./platform/client.js";
+import { capturePostHog, newRunId } from "./posthog.js";
 import { scanProject } from "./project/scan.js";
 import {
   availableBranchName,
@@ -75,8 +76,15 @@ export async function runWorkflow(
     deps.platformClient ?? new PlatformClient(options.apiBaseUrl);
   const vault = createSecretVault();
   const startedAt = Date.now();
+  const analyticsId = newRunId();
+  let totalTokens = 0;
+  const track = (event: string, properties?: Record<string, unknown>) => {
+    if (analyticsDisabled()) return;
+    void capturePostHog({ event, distinctId: analyticsId, properties });
+  };
 
   try {
+    track("wizard_started");
     prompter.setStep?.("scan", "reading project files");
     const scan = scanProject(options.installDir);
     const findings =
@@ -104,6 +112,7 @@ export async function runWorkflow(
     );
     prompter.setSummary?.({ sdkTarget: target.label });
     prompter.completeStep?.("target", target.label);
+    track("wizard_target_selected", { target: target.id });
 
     // "Try Honch": when the project is empty, scaffold a bare starter for the
     // chosen target so there's something to install into. `--try` forces it;
@@ -137,6 +146,7 @@ export async function runWorkflow(
         ? "platform authenticated"
         : "local credentials supplied",
     );
+    if (auth.accessToken) track("wizard_authenticated");
 
     prompter.setStep?.("project", "loading Honch projects");
     const project = await resolveProject(
@@ -147,6 +157,7 @@ export async function runWorkflow(
     );
     prompter.setSummary?.({ projectName: project.name });
     prompter.completeStep?.("project", project.name);
+    track("wizard_project_selected");
 
     // Mint the wizard LLM token now that the project is known, so the platform
     // meters proxy usage against this project (the installer is free, tracked
@@ -214,6 +225,7 @@ export async function runWorkflow(
       if (!confirmed) {
         throw new Error("Wizard cancelled before project mutation");
       }
+      track("wizard_confirmed");
     }
     prompter.completeStep?.(
       "confirm",
@@ -261,6 +273,7 @@ export async function runWorkflow(
       const snapshot = snapshotProject(options.installDir);
       // Anchor the run timer once; it survives a pause/resume from here on.
       prompter.markAgentStart?.();
+      track("wizard_install_started");
       // Seed the daily-budget meter with the tokens already spent today, so it
       // shows usage against the cap (live total = this baseline + run tokens).
       // Re-synced on resume because `setStep` zeroes the run's local counter.
@@ -300,6 +313,7 @@ export async function runWorkflow(
               prompter.setChangedFile?.(event.text, event.op ?? "edit");
             } else if (event.kind === "usage") {
               prompter.addUsage?.(event.tokens ?? 0);
+              totalTokens += event.tokens ?? 0;
             } else {
               prompter.addRunMessage?.(event.text, event.kind);
             }
@@ -424,32 +438,23 @@ export async function runWorkflow(
         ? "failed"
         : "success";
 
-    // Coarse install-experience analytics: on by default for authenticated
-    // (online) runs, disclosed in the README, opt out via HONCH_WIZARD_NO_ANALYTICS.
-    // Best-effort — never blocks or fails the wizard.
-    if (auth.accessToken && !analyticsDisabled()) {
-      try {
-        await platformClient.sendAnalytics(
-          auth.accessToken,
-          buildAnalyticsPayload({
-            target: target.id,
-            outcome,
-            agentRan,
-            durationMs: Date.now() - startedAt,
-          }),
-        );
-      } catch {
-        // Swallow analytics delivery failures.
-      }
-    }
-
-    // Opt-in feedback — only on a real, interactive, authenticated run, and only
-    // if the user picks a rating (Skip sends nothing).
-    if (options.runAgent && auth.accessToken && !options.yes) {
-      await collectFeedback(prompter, platformClient, auth.accessToken, {
+    track(
+      "wizard_install_completed",
+      buildInstallProperties({
         target: target.id,
         outcome,
-      });
+        agentRan,
+        durationMs: Date.now() - startedAt,
+        totalTokens,
+      }),
+    );
+
+    if (options.runAgent && !options.yes) {
+      await collectFeedback(
+        prompter,
+        { target: target.id, outcome },
+        analyticsId,
+      );
     }
 
     return { reportPath, agentRan };

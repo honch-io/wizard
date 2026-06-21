@@ -22,54 +22,6 @@ describe("PlatformClient", () => {
     );
   });
 
-  it("posts opt-in feedback with bearer auth", async () => {
-    const fetcher = vi.fn().mockResolvedValueOnce(response({}));
-    const client = new PlatformClient("https://api.honch.io", fetcher);
-
-    await client.sendFeedback("jwt", {
-      target: "esp-idf",
-      outcome: "success",
-      rating: "up",
-    });
-
-    expect(fetcher).toHaveBeenLastCalledWith(
-      "https://api.honch.io/api/wizard/feedback",
-      expect.objectContaining({
-        method: "POST",
-        headers: expect.objectContaining({ Authorization: "Bearer jwt" }),
-        body: JSON.stringify({
-          target: "esp-idf",
-          outcome: "success",
-          rating: "up",
-        }),
-      }),
-    );
-  });
-
-  it("posts install analytics with bearer auth", async () => {
-    const fetcher = vi.fn().mockResolvedValueOnce(response({}));
-    const client = new PlatformClient("https://api.honch.io", fetcher);
-
-    await client.sendAnalytics("jwt", {
-      event: "install",
-      wizardVersion: "2.2.0",
-      os: "darwin",
-      arch: "arm64",
-      target: "esp-idf",
-      outcome: "success",
-      agentRan: true,
-      durationMs: 4200,
-    });
-
-    expect(fetcher).toHaveBeenLastCalledWith(
-      "https://api.honch.io/api/wizard/analytics",
-      expect.objectContaining({
-        method: "POST",
-        headers: expect.objectContaining({ Authorization: "Bearer jwt" }),
-      }),
-    );
-  });
-
   it("includes platform error details when requests fail", async () => {
     const fetcher = vi
       .fn()

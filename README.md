@@ -131,10 +131,19 @@ Honch into it, so you can evaluate Honch from scratch in seconds.
 ## Telemetry
 
 After an install the wizard may ask one optional, skippable "was this helpful?"
-question. On authenticated runs it also sends **coarse install metrics** — SDK
-target, outcome, duration, wizard version, and OS/arch — to help improve the
-installer. **It never sends your code, file contents, project names or paths, or
-any keys.** Opt out any time with `HONCH_WIZARD_NO_ANALYTICS=1` (the standard
+question. It also sends **coarse install metrics** to **PostHog** — SDK target,
+outcome, duration, wizard version, OS/arch, token count, and an estimated cost —
+to help improve the installer. **It never sends your code, file contents, project
+names or paths, project IDs, or any keys.** The key shipped in the binary is
+PostHog's public ingest key (read-only; cannot access your data).
+
+The wizard emits a funnel of events:
+`wizard_started → wizard_target_selected → wizard_authenticated →
+wizard_project_selected → wizard_confirmed → wizard_install_started →
+wizard_install_completed` (plus `wizard_feedback` when you answer the feedback
+prompt).
+
+Opt out any time with `HONCH_WIZARD_NO_ANALYTICS=1` (the standard
 `DO_NOT_TRACK=1` is honored too).
 
 ## Development
