@@ -41,8 +41,7 @@ export async function getUpgradeVersion(
   const cached = readVersionInfo();
   let latestVersion = cached?.latestVersion;
 
-  const fresh =
-    cached && now - Date.parse(cached.lastCheckedAt) < THROTTLE_MS;
+  const fresh = cached && now - Date.parse(cached.lastCheckedAt) < THROTTLE_MS;
   if (!fresh) {
     const fetched = await (options.fetchLatest ?? fetchLatestFromRegistry)();
     if (fetched) {

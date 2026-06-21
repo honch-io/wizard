@@ -83,7 +83,9 @@ process.once("SIGINT", handleSigint);
 function selfVersion(): string {
   try {
     const pkgPath = fileURLToPath(new URL("../package.json", import.meta.url));
-    const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { version?: unknown };
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as {
+      version?: unknown;
+    };
     return typeof pkg.version === "string" ? pkg.version : "0.0.0";
   } catch {
     return "0.0.0";

@@ -79,7 +79,12 @@ describe("buildAgentOptions", () => {
             type: "text",
             text: "I'll wire in the Honch SDK.\nFirst I'll read the build files.",
           },
-          { type: "tool_use", id: "t", name: "Read", input: { file_path: "CMakeLists.txt" } },
+          {
+            type: "tool_use",
+            id: "t",
+            name: "Read",
+            input: { file_path: "CMakeLists.txt" },
+          },
         ],
       },
     } as never);

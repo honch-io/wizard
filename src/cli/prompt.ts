@@ -250,7 +250,8 @@ export class TuiPrompter implements Prompter {
       .join("\n")
       .trim();
     if (!text) return;
-    const last = this.snapshot.runMessages[this.snapshot.runMessages.length - 1];
+    const last =
+      this.snapshot.runMessages[this.snapshot.runMessages.length - 1];
     // Collapse an exact repeat of the previous line (defensive — the agent
     // runner now emits each block once).
     if (last?.text === text && last.kind === kind) return;

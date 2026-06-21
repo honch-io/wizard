@@ -47,26 +47,31 @@ describe("install-method detection", () => {
         ?.manager,
     ).toBe("npm");
     expect(
-      getUpdateAction("/Users/x/.bun/install/global/node_modules/@honch/start/dist/bin.mjs")
-        ?.manager,
+      getUpdateAction(
+        "/Users/x/.bun/install/global/node_modules/@honch/start/dist/bin.mjs",
+      )?.manager,
     ).toBe("bun");
     expect(
-      getUpdateAction("/Users/x/Library/pnpm/global/5/node_modules/@honch/start/dist/bin.mjs")
-        ?.manager,
+      getUpdateAction(
+        "/Users/x/Library/pnpm/global/5/node_modules/@honch/start/dist/bin.mjs",
+      )?.manager,
     ).toBe("pnpm");
   });
 
   it("returns null for a dev/local run", () => {
     expect(
-      getUpdateAction("/Users/x/Development/honch-io/honcho-wizard/dist/bin.mjs"),
+      getUpdateAction(
+        "/Users/x/Development/honch-io/honcho-wizard/dist/bin.mjs",
+      ),
     ).toBeNull();
   });
 
   it("honors the HONCH_UPDATE_ACTION override and builds the command", () => {
     process.env.HONCH_UPDATE_ACTION = "npm";
     const action = getUpdateAction("/wherever/dist/bin.mjs");
-    expect(action?.manager).toBe("npm");
-    expect(commandString(action!)).toBe("npm install -g @honch/start@latest");
+    if (!action) throw new Error("expected an update action");
+    expect(action.manager).toBe("npm");
+    expect(commandString(action)).toBe("npm install -g @honch/start@latest");
   });
 });
 
@@ -84,7 +89,10 @@ describe("update cache", () => {
   });
 
   it("round-trips version info and records dismissals", () => {
-    writeVersionInfo({ latestVersion: "2.2.0", lastCheckedAt: "2026-06-21T00:00:00.000Z" });
+    writeVersionInfo({
+      latestVersion: "2.2.0",
+      lastCheckedAt: "2026-06-21T00:00:00.000Z",
+    });
     expect(readVersionInfo()?.latestVersion).toBe("2.2.0");
 
     dismissVersion("2.2.0");
@@ -96,7 +104,11 @@ describe("update cache", () => {
 
 describe("getUpgradeVersion", () => {
   let dir: string;
-  const action = { manager: "npm" as const, command: "npm", args: ["install", "-g", "@honch/start@latest"] };
+  const action = {
+    manager: "npm" as const,
+    command: "npm",
+    args: ["install", "-g", "@honch/start@latest"],
+  };
 
   beforeEach(() => {
     dir = mkdtempSync(path.join(tmpdir(), "honch-update-"));
@@ -167,12 +179,22 @@ describe("getUpgradeVersion", () => {
   it("returns null when the check is disabled or no manager is detected", async () => {
     process.env.HONCH_NO_UPDATE_CHECK = "1";
     expect(
-      await getUpgradeVersion({ currentVersion: "2.1.2", action, now: 1, fetchLatest: async () => "2.1.3" }),
+      await getUpgradeVersion({
+        currentVersion: "2.1.2",
+        action,
+        now: 1,
+        fetchLatest: async () => "2.1.3",
+      }),
     ).toBeNull();
     delete process.env.HONCH_NO_UPDATE_CHECK;
 
     expect(
-      await getUpgradeVersion({ currentVersion: "2.1.2", action: null, now: 1, fetchLatest: async () => "2.1.3" }),
+      await getUpgradeVersion({
+        currentVersion: "2.1.2",
+        action: null,
+        now: 1,
+        fetchLatest: async () => "2.1.3",
+      }),
     ).toBeNull();
   });
 });

@@ -58,6 +58,10 @@ honch
    you don't enter them.
 5. **Reports** what changed in `honch-setup-report.md`, viewable in the terminal.
 
+On launch it also checks npm for a newer release (throttled, and silent when
+offline) and offers a one-keystroke self-update. Set `HONCH_NO_UPDATE_CHECK=1`
+to skip the check.
+
 ## Preview without changing anything
 
 Use `--dry-run` (`-n`) to walk the flow and generate the setup report without

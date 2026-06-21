@@ -12,9 +12,21 @@ export type UpdateAction = {
 };
 
 const ACTIONS: Record<PackageManager, UpdateAction> = {
-  npm: { manager: "npm", command: "npm", args: ["install", "-g", `${PACKAGE_NAME}@latest`] },
-  bun: { manager: "bun", command: "bun", args: ["install", "-g", `${PACKAGE_NAME}@latest`] },
-  pnpm: { manager: "pnpm", command: "pnpm", args: ["add", "-g", `${PACKAGE_NAME}@latest`] },
+  npm: {
+    manager: "npm",
+    command: "npm",
+    args: ["install", "-g", `${PACKAGE_NAME}@latest`],
+  },
+  bun: {
+    manager: "bun",
+    command: "bun",
+    args: ["install", "-g", `${PACKAGE_NAME}@latest`],
+  },
+  pnpm: {
+    manager: "pnpm",
+    command: "pnpm",
+    args: ["add", "-g", `${PACKAGE_NAME}@latest`],
+  },
 };
 
 export function commandString(action: UpdateAction): string {
@@ -38,7 +50,9 @@ export function getUpdateAction(selfPath?: string): UpdateAction | null {
 
   let resolved: string;
   try {
-    resolved = (selfPath ?? realpathSync(fileURLToPath(import.meta.url))).replace(/\\/g, "/");
+    resolved = (
+      selfPath ?? realpathSync(fileURLToPath(import.meta.url))
+    ).replace(/\\/g, "/");
   } catch {
     return null;
   }

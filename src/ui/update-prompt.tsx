@@ -1,5 +1,5 @@
 import { Box, render, Text, useInput } from "ink";
-import React, { useState } from "react";
+import { useState } from "react";
 import { commandString } from "../update/action.js";
 import type { UpgradeInfo } from "../update/check.js";
 
@@ -18,7 +18,7 @@ const OPTIONS: { value: UpdateChoice; label: (command: string) => string }[] = [
   { value: "continue", label: () => "Continue for now" },
 ];
 
-export function UpdatePrompt({
+function UpdatePrompt({
   currentVersion,
   info,
   onChoose,
@@ -36,9 +36,13 @@ export function UpdatePrompt({
       return;
     }
     if (key.upArrow) {
-      setFocused((current) => (current === 0 ? OPTIONS.length - 1 : current - 1));
+      setFocused((current) =>
+        current === 0 ? OPTIONS.length - 1 : current - 1,
+      );
     } else if (key.downArrow) {
-      setFocused((current) => (current === OPTIONS.length - 1 ? 0 : current + 1));
+      setFocused((current) =>
+        current === OPTIONS.length - 1 ? 0 : current + 1,
+      );
     } else if (input === "1") onChoose("update");
     else if (input === "2") onChoose("skip");
     else if (input === "3") onChoose("continue");
@@ -52,7 +56,9 @@ export function UpdatePrompt({
         <Text bold color={COLORS.accent}>
           ✨ Update available!
         </Text>
-        <Text color={COLORS.neutral}>{`  ${currentVersion} → ${info.latestVersion}`}</Text>
+        <Text
+          color={COLORS.neutral}
+        >{`  ${currentVersion} → ${info.latestVersion}`}</Text>
       </Text>
       <Box height={1} />
       {OPTIONS.map((option, index) => {
