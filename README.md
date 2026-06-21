@@ -62,6 +62,17 @@ On launch it also checks npm for a newer release (throttled, and silent when
 offline) and offers a one-keystroke self-update. Set `HONCH_NO_UPDATE_CHECK=1`
 to skip the check.
 
+## Live install view
+
+While the agent works, the run view shows what's happening in real time:
+
+- A **Changed files** panel lists the files Claude creates (`+`) and edits
+  (`~`) as it goes, so you can see the install take shape.
+- The header carries a live **elapsed timer** and a **token-usage meter**
+  (e.g. `12.3k tokens`) — the same usage that counts against the daily free
+  install budget, so you always know where you stand.
+- Use `↑`/`↓` to scroll back through Claude's output during the run.
+
 ## Preview without changing anything
 
 Use `--dry-run` (`-n`) to walk the flow and generate the setup report without
