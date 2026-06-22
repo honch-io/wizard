@@ -58,6 +58,23 @@ export const SDK_TARGETS: Record<SdkTargetId, SdkTarget> = {
   },
 };
 
+function hasReactNativeDependency(packageJson: string): boolean {
+  let pkg: {
+    dependencies?: Record<string, unknown>;
+    devDependencies?: Record<string, unknown>;
+  };
+  try {
+    pkg = JSON.parse(packageJson);
+  } catch {
+    // A malformed package.json gives no reliable signal.
+    return false;
+  }
+  return Boolean(
+    pkg?.dependencies?.["react-native"] ??
+      pkg?.devDependencies?.["react-native"],
+  );
+}
+
 export function detectSdkTargets(files: ProjectFiles): SdkTarget[] {
   const normalized = Object.fromEntries(
     Object.entries(files).map(([path, contents]) => [
@@ -110,10 +127,10 @@ export function detectSdkTargets(files: ProjectFiles): SdkTarget[] {
       found.add("arduino");
     }
 
-    if (
-      path.endsWith("package.json") &&
-      /["']react-native["']\s*:/.test(contents)
-    ) {
+    // React Native must be an actual dependency — a "react-native" mention in a
+    // script, config block, or metadata field is not a React Native app. Parse
+    // the manifest and check the dependency maps rather than the whole file.
+    if (path.endsWith("package.json") && hasReactNativeDependency(contents)) {
       found.add("react-native-relay");
     }
   }

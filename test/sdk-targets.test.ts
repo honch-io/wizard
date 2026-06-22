@@ -44,6 +44,19 @@ describe("detectSdkTargets", () => {
     expect(result.map((target) => target.id)).toContain("react-native-relay");
   });
 
+  it("requires react-native in dependencies, not just anywhere in package.json", () => {
+    // A "react-native" mention outside dependencies (a config block, a script,
+    // a metadata field) is not a React Native app and must not be detected.
+    const result = detectSdkTargets({
+      "package.json":
+        '{ "name": "app", "config": { "react-native": "metro" } }',
+    });
+
+    expect(result.map((target) => target.id)).not.toContain(
+      "react-native-relay",
+    );
+  });
+
   it("reports only ESP-IDF (not C/POSIX) for an IDF project's CMake files", () => {
     // A real ESP-IDF project: the top-level CMakeLists declares a C project and
     // the component CMakeLists registers via idf_component_register. The generic
