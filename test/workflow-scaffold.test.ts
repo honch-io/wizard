@@ -122,6 +122,23 @@ describe("workflow scaffold wiring", () => {
     expect(welcome.options[0]?.value).toBe("different");
   });
 
+  it("creates the scratch project under a honch/ folder named by SDK", async () => {
+    const cwd = makeTempDir();
+    const calls: ScaffoldCall[] = [];
+    const scaffold = async (dir: string, target: SdkTargetId) => {
+      calls.push({ dir, target });
+      return { files: [] as string[] };
+    };
+
+    const { prompter } = stubPrompter(["c-posix"]);
+    await runWorkflow(localDryRun(cwd, ["--try"]), { prompter, scaffold });
+
+    const dir = calls[0].dir;
+    // Self-describing: <tmpdir>/honch/try-<sdk>-<random>, not <tmpdir>/honch-try-<random>.
+    expect(path.basename(path.dirname(dir))).toBe("honch");
+    expect(path.basename(dir).startsWith("try-c-posix-")).toBe(true);
+  });
+
   it("non-interactive (--yes --target) installs into the cwd and never scaffolds", async () => {
     const cwd = makeTempDir();
     const calls: ScaffoldCall[] = [];
