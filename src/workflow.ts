@@ -826,12 +826,20 @@ async function resolveOrganization(
   });
 }
 
-async function requiredInput(
+/** Resolve a required value: use the preset if it's non-empty, otherwise ask,
+ * re-asking until the user enters something non-empty. Mirrors requiredSecret —
+ * a required field must never proceed empty and fail deeper in the install. */
+export async function requiredInput(
   value: string | undefined,
   prompt: string,
   prompter: Prompter,
 ) {
-  return value ?? prompter.question(prompt);
+  const provided = value?.trim();
+  if (provided) return provided;
+  while (true) {
+    const answer = (await prompter.question(prompt)).trim();
+    if (answer) return answer;
+  }
 }
 
 /** Ask for a sensitive value, re-asking until the user enters something
