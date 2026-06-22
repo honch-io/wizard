@@ -19,25 +19,32 @@ import { RunView } from "./run-log.js";
 import { COLORS, GLYPHS } from "./theme.js";
 
 const SIDEBAR_WIDTH = 24;
-/** Below this width the sidebar + main area can't both stay usable, so we hide
- * the sidebar and give the whole row to the main content. */
-const NARROW_THRESHOLD = 60;
-/** Below this width even the main area is cramped; show a resize nudge. */
-const TINY_THRESHOLD = 40;
+
+/** The minimum terminal size for the full wizard layout (sidebar timeline +
+ * main column). Below this we don't degrade into a cramped view — we ask the
+ * user to resize, so the experience is either complete or a clear prompt. */
+export const MIN_TERMINAL = { width: 60, height: 20 } as const;
+
+export function isTerminalTooSmall(cols: number, rows: number): boolean {
+  return cols < MIN_TERMINAL.width || rows < MIN_TERMINAL.height;
+}
 
 /** Fit to the live terminal size. */
 function layout() {
   const rawCols = process.stdout.columns ?? 80;
+  const rawRows = process.stdout.rows ?? 24;
   const cols = Math.max(rawCols, 24);
-  const rows = Math.max(process.stdout.rows ?? 24, 12);
+  const rows = Math.max(rawRows, 12);
   const inner = cols - 4; // outer paddingX={2}
-  const narrow = rawCols < NARROW_THRESHOLD;
-  const tiny = rawCols < TINY_THRESHOLD;
-  // When narrow, drop the sidebar and reclaim its width for the main column.
-  const main = narrow
-    ? Math.max(inner, 16)
-    : Math.max(inner - SIDEBAR_WIDTH - 3, 30); // gutter + left rule
-  return { inner, main, rows, narrow, tiny };
+  const main = Math.max(inner - SIDEBAR_WIDTH - 3, 30); // gutter + left rule
+  return {
+    inner,
+    main,
+    rows,
+    rawCols,
+    rawRows,
+    tooSmall: isTerminalTooSmall(rawCols, rawRows),
+  };
 }
 
 export type TextEditState = { value: string; cursor: number };
@@ -131,7 +138,7 @@ export function App({
     };
   }, []);
 
-  const { inner, main, rows, narrow, tiny } = layout();
+  const { inner, main, rows, rawCols, rawRows, tooSmall } = layout();
   const installing =
     activeStepLabel(snapshot.steps) === "agent" &&
     !prompt &&
@@ -170,6 +177,11 @@ export function App({
     else if (action === "interrupt") prompter.interrupt();
   });
 
+  // Below the minimum, don't render a cramped layout — show a centered prompt
+  // with the current size and the size we need. (All hooks above run first so
+  // this conditional return is safe.)
+  if (tooSmall) return <TooSmallNotice cols={rawCols} rows={rawRows} />;
+
   return (
     <Box
       flexDirection="column"
@@ -179,28 +191,23 @@ export function App({
       paddingBottom={0}
     >
       <Box gap={2} flexGrow={1}>
-        {narrow ? null : (
-          <Sidebar
-            options={options}
-            steps={snapshot.steps}
-            summary={snapshot.summary}
-          />
-        )}
+        <Sidebar
+          options={options}
+          steps={snapshot.steps}
+          summary={snapshot.summary}
+        />
         <Box
           flexDirection="column"
           width={main}
-          borderStyle={narrow ? undefined : "single"}
+          borderStyle="single"
           borderColor={COLORS.rule}
           borderTop={false}
           borderRight={false}
           borderBottom={false}
-          paddingLeft={narrow ? 0 : 2}
+          paddingLeft={2}
         >
-          {tiny ? (
-            <Text color={COLORS.help}>resize for a better view</Text>
-          ) : null}
           <MainArea
-            width={narrow ? main : main - 3}
+            width={main - 3}
             height={rows - 3}
             activeStep={activeStepLabel(snapshot.steps)}
             prompt={prompt}
@@ -227,6 +234,26 @@ export function App({
       </Box>
       <Text color={COLORS.rule}>{rule(inner)}</Text>
       <Text color={COLORS.help}>{footer}</Text>
+    </Box>
+  );
+}
+
+function TooSmallNotice({ cols, rows }: { cols: number; rows: number }) {
+  return (
+    <Box
+      height={Math.max(rows, 1)}
+      width={Math.max(cols, 1)}
+      flexDirection="column"
+      alignItems="center"
+      justifyContent="center"
+    >
+      <Text bold color={COLORS.value}>
+        Terminal too small
+      </Text>
+      <Text color={COLORS.help}>{`Now ${cols} × ${rows}`}</Text>
+      <Text color={COLORS.help}>
+        {`Resize to at least ${MIN_TERMINAL.width} × ${MIN_TERMINAL.height}`}
+      </Text>
     </Box>
   );
 }
