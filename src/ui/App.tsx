@@ -40,6 +40,31 @@ function layout() {
   return { inner, main, rows, narrow, tiny };
 }
 
+export type KeyAction = "exit" | "cancel" | "interrupt" | "none";
+
+/** Map a keypress to an action given the current screen. Pure and exported so
+ * the key map is unit-testable without rendering Ink.
+ *
+ * ctrl+c is the single cancel/exit key (it lands on the calm CancelledView mid-
+ * flow, or exits a terminal screen). ESC pauses the agent run, but during a
+ * (non-run) prompt it is intentionally a no-op: it used to silently cancel the
+ * whole wizard, which surprised users reaching for ESC as "go back" and cost
+ * them the run. */
+export function resolveKeyAction(
+  key: { ctrl?: boolean; escape?: boolean; return?: boolean },
+  input: string,
+  state: { dismissable: boolean; installing: boolean; hasPrompt: boolean },
+): KeyAction {
+  if (key.ctrl && input.toLowerCase() === "c") {
+    return state.dismissable ? "exit" : "cancel";
+  }
+  if (state.dismissable && (input.toLowerCase() === "q" || key.return)) {
+    return "exit";
+  }
+  if (key.escape && state.installing) return "interrupt";
+  return "none";
+}
+
 export function App({
   options,
   prompter,
@@ -96,22 +121,14 @@ export function App({
           : "↑/↓ move · enter select · ctrl+c cancel";
 
   useInput((input, key) => {
-    if (key.ctrl && input.toLowerCase() === "c") {
-      // On a terminal screen, ctrl+c is just "I'm done" — exit cleanly.
-      if (dismissable) onExit();
-      else onCancel();
-    } else if (dismissable && (input.toLowerCase() === "q" || key.return)) {
-      onExit();
-    } else if (key.escape) {
-      if (installing) {
-        // During the live run, ESC pauses Claude (the agent interrupt handler).
-        prompter.interrupt();
-      } else if (prompt) {
-        // During a (non-run) prompt, ESC is a deliberate cancel — land on the
-        // calm CancelledView rather than dangling or appearing to fail.
-        onCancel();
-      }
-    }
+    const action = resolveKeyAction(key, input, {
+      dismissable,
+      installing,
+      hasPrompt: Boolean(prompt),
+    });
+    if (action === "exit") onExit();
+    else if (action === "cancel") onCancel();
+    else if (action === "interrupt") prompter.interrupt();
   });
 
   return (
