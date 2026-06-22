@@ -427,20 +427,31 @@ export function createPrompter(): Prompter {
           return `  ${index + 1}) ${option.label}${badge}${hint}`;
         })
         .join("\n");
-      const answer = (
-        await rl.question(`${config.message}\n${list}\n> `)
-      ).trim();
-      const byIndex = config.options[Number(answer) - 1];
-      const byValue = config.options.find(
-        (option) => option.value === answer || option.label === answer,
-      );
-      return (
-        byIndex?.value ??
-        byValue?.value ??
-        config.defaultValue ??
-        config.options[0]?.value ??
-        ""
-      );
+      const base = `${config.message}\n${list}\n> `;
+      let prompt = base;
+      // Re-ask on an unrecognized answer rather than silently falling back to a
+      // default — a typo must never quietly select the wrong SDK. A bare enter
+      // still accepts the default (or first option). Bounded so a closed/looping
+      // stdin can't spin forever.
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const answer = (await rl.question(prompt)).trim();
+        if (answer === "") {
+          const fallback =
+            config.defaultValue ?? config.options[0]?.value ?? "";
+          if (fallback) return fallback;
+        } else {
+          const byIndex = /^\d+$/.test(answer)
+            ? config.options[Number(answer) - 1]
+            : undefined;
+          const byValue = config.options.find(
+            (option) => option.value === answer || option.label === answer,
+          );
+          const chosen = byIndex?.value ?? byValue?.value;
+          if (chosen) return chosen;
+        }
+        prompt = `Please enter a number between 1 and ${config.options.length}, or an option name.\n${base}`;
+      }
+      throw new Error("No valid selection after several attempts.");
     },
     async confirm(prompt) {
       // Align with the TUI, which pre-selects "Install Honch": default to yes on

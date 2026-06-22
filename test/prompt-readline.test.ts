@@ -42,6 +42,46 @@ describe("createPrompter (readline / non-TTY)", () => {
     expect(rendered).toContain("Run CMake configure");
   });
 
+  it("re-prompts on an unrecognized answer instead of silently using the default", async () => {
+    // A typo must not silently install the default/first SDK — re-ask until the
+    // answer is valid.
+    questionMock.mockResolvedValueOnce("banana").mockResolvedValueOnce("2");
+    const { createPrompter } = await import("../src/cli/prompt.js");
+    const prompter = createPrompter();
+
+    const answer = await prompter.select({
+      title: "Select SDK",
+      message: "Which SDK should I set up?",
+      defaultValue: "esp-idf",
+      options: [
+        { label: "ESP-IDF", value: "esp-idf" },
+        { label: "C/POSIX", value: "c-posix" },
+      ],
+    });
+
+    expect(answer).toBe("c-posix");
+    expect(questionMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("accepts the default on a bare enter", async () => {
+    questionMock.mockResolvedValueOnce("");
+    const { createPrompter } = await import("../src/cli/prompt.js");
+    const prompter = createPrompter();
+
+    const answer = await prompter.select({
+      title: "Select SDK",
+      message: "Which SDK should I set up?",
+      defaultValue: "c-posix",
+      options: [
+        { label: "ESP-IDF", value: "esp-idf" },
+        { label: "C/POSIX", value: "c-posix" },
+      ],
+    });
+
+    expect(answer).toBe("c-posix");
+    expect(questionMock).toHaveBeenCalledTimes(1);
+  });
+
   it("defaults confirm to yes on a bare enter, matching the TUI's Install default", async () => {
     questionMock.mockResolvedValueOnce("");
     const { createPrompter } = await import("../src/cli/prompt.js");
