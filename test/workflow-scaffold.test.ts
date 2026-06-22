@@ -3,7 +3,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { parseOptions } from "../src/cli/options.js";
-import type { Prompter, WizardSummary } from "../src/cli/prompt.js";
+import type {
+  Prompter,
+  SelectConfig,
+  WizardSummary,
+} from "../src/cli/prompt.js";
 import type { SdkTargetId } from "../src/sdk/targets.js";
 import { runWorkflow } from "../src/workflow.js";
 
@@ -86,6 +90,36 @@ describe("workflow scaffold wiring", () => {
     expect(path.resolve(calls[0].dir)).not.toBe(path.resolve(cwd));
     // The summary carries the temp project path so the report can surface it.
     expect(summary().tempProject).toBe(calls[0].dir);
+  });
+
+  it("leads with installing here (not a scratch project) when no SDK is detected", async () => {
+    const cwd = makeTempDir(); // empty dir → nothing detected
+    const welcomeConfigs: SelectConfig[] = [];
+    const prompter = {
+      question: async () => "",
+      select: async (config: SelectConfig) => {
+        const isWelcome = config.options.some((o) => o.value === "try");
+        if (isWelcome) {
+          welcomeConfigs.push(config);
+          return "different"; // choose to set up here
+        }
+        return "c-posix"; // the SDK picker that follows
+      },
+      confirm: async () => true,
+      close: () => {},
+      setSummary: () => {},
+      finish: () => {},
+    } as unknown as Prompter;
+    const scaffold = async () => ({ files: [] as string[] });
+
+    await runWorkflow(localDryRun(cwd), { prompter, scaffold });
+
+    const welcome = welcomeConfigs[0];
+    expect(welcome).toBeDefined();
+    // The user ran honch in THIS directory, so installing here is the default
+    // and leading option; the scratch project is the secondary escape hatch.
+    expect(welcome.defaultValue).toBe("different");
+    expect(welcome.options[0]?.value).toBe("different");
   });
 
   it("non-interactive (--yes --target) installs into the cwd and never scaffolds", async () => {

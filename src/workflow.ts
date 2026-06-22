@@ -135,10 +135,11 @@ export async function runWorkflow(
         title: "Welcome to Honch",
         message: detected
           ? `I looked around ${options.installDir} and detected ${detected.label}. What would you like to do?`
-          : `I looked around ${options.installDir} but didn't detect an SDK. Trying Honch in a scratch project is the easiest way to start.`,
-        // With a detected SDK, lead with continuing it. With nothing, a scratch
-        // project is almost always right, so default to it.
-        defaultValue: detected ? "continue" : "try",
+          : `I looked around ${options.installDir} but couldn't identify an SDK. You can set Honch up here, or try it in a throwaway scratch project.`,
+        // With a detected SDK, lead with continuing it. With nothing detected,
+        // the user still ran honch in THIS directory, so default to setting up
+        // here and keep the scratch project as the secondary escape hatch.
+        defaultValue: detected ? "continue" : "different",
         options: detected
           ? [
               {
@@ -150,8 +151,8 @@ export async function runWorkflow(
               tryOption,
             ]
           : [
+              { label: "Set up Honch in this folder", value: "different" },
               tryOption,
-              { label: "Choose an SDK to install here", value: "different" },
             ],
       });
       if (choice === "continue" && detected) {
