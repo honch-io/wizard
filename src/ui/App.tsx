@@ -40,6 +40,45 @@ function layout() {
   return { inner, main, rows, narrow, tiny };
 }
 
+export type TextEditState = { value: string; cursor: number };
+
+/** Apply one keypress to a text field with a cursor. Pure and exported so the
+ * editing logic is unit-testable without rendering Ink. Supports mid-string
+ * insertion, left/right cursor movement, backspace-at-cursor, and ctrl+U clear.
+ * Backspace and delete both delete the character before the cursor — terminals
+ * disagree on which code the Backspace key sends, so lumping them avoids a
+ * platform-specific regression (forward-delete isn't worth that risk). */
+export function editText(
+  state: TextEditState,
+  key: {
+    leftArrow?: boolean;
+    rightArrow?: boolean;
+    backspace?: boolean;
+    delete?: boolean;
+    ctrl?: boolean;
+    meta?: boolean;
+  },
+  input: string,
+): TextEditState {
+  const { value, cursor } = state;
+  if (key.leftArrow) return { value, cursor: Math.max(0, cursor - 1) };
+  if (key.rightArrow)
+    return { value, cursor: Math.min(value.length, cursor + 1) };
+  if (key.ctrl && input.toLowerCase() === "u") return { value: "", cursor: 0 };
+  if (key.backspace || key.delete) {
+    if (cursor === 0) return state;
+    return {
+      value: value.slice(0, cursor - 1) + value.slice(cursor),
+      cursor: cursor - 1,
+    };
+  }
+  if (key.ctrl || key.meta || !input) return state;
+  return {
+    value: value.slice(0, cursor) + input + value.slice(cursor),
+    cursor: cursor + input.length,
+  };
+}
+
 export type KeyAction = "exit" | "cancel" | "interrupt" | "none";
 
 /** Map a keypress to an action given the current screen. Pure and exported so
@@ -414,24 +453,23 @@ function TextInput({
   prompt: PromptRequest;
   onAnswer: (value: string) => void;
 }) {
-  const [value, setValue] = useState(prompt.defaultValue ?? "");
+  const [state, setState] = useState<TextEditState>(() => ({
+    value: prompt.defaultValue ?? "",
+    cursor: (prompt.defaultValue ?? "").length,
+  }));
 
   useInput((input, key) => {
     if (key.return) {
-      onAnswer(value);
+      onAnswer(state.value);
       return;
     }
-    if (key.backspace || key.delete) {
-      setValue((current) => current.slice(0, -1));
-      return;
-    }
-    if (!key.ctrl && !key.meta && input) {
-      setValue((current) => `${current}${input}`);
-    }
+    setState((current) => editText(current, key, input));
   });
 
   const visibleValue =
-    prompt.kind === "password" ? "*".repeat(value.length) : value;
+    prompt.kind === "password" ? "*".repeat(state.value.length) : state.value;
+  const before = visibleValue.slice(0, state.cursor);
+  const after = visibleValue.slice(state.cursor);
 
   return (
     <Box flexDirection="column">
@@ -439,8 +477,9 @@ function TextInput({
       <Box height={1} />
       <Text>
         <Text color={COLORS.secondary}>{"›"}</Text>{" "}
-        <Text color={COLORS.value}>{visibleValue}</Text>
+        <Text color={COLORS.value}>{before}</Text>
         <Text color={COLORS.accent}>▏</Text>
+        <Text color={COLORS.value}>{after}</Text>
       </Text>
       <Text color={COLORS.rule}>{rule(Math.min(width, 40))}</Text>
       {prompt.kind === "password" ? (
