@@ -254,6 +254,42 @@ export function messageRows(message: RunMessage, textWidth: number): number {
   return Math.max(1, Math.ceil((prefix + message.text.length) / width));
 }
 
+/** The run header (spinner/heading, elapsed timer, usage meter). It owns the
+ * once-a-second elapsed tick so that tick re-renders only this small subtree —
+ * not RunView's message-windowing, which runs only when the log changes. */
+function RunHeader({
+  isAgent,
+  agentStartedAt,
+  usageLabel,
+  usageColor,
+}: {
+  isAgent: boolean;
+  agentStartedAt?: number;
+  usageLabel?: string;
+  usageColor: string;
+}) {
+  const elapsed = useElapsed(agentStartedAt);
+  return (
+    <Text>
+      {isAgent ? (
+        <Spinner />
+      ) : (
+        <Text color={COLORS.accent}>{GLYPHS.heading}</Text>
+      )}
+      <Text bold color={COLORS.value}>
+        {"  "}
+        {isAgent ? "Claude is installing Honch" : "Preparing install"}
+      </Text>
+      {isAgent ? (
+        <Text color={COLORS.label}>{`  ·  ${formatElapsed(elapsed)}`}</Text>
+      ) : null}
+      {isAgent && usageLabel ? (
+        <Text color={usageColor}>{`  ·  ${usageLabel}`}</Text>
+      ) : null}
+    </Text>
+  );
+}
+
 export function RunView({
   activeStep,
   messages,
@@ -278,7 +314,6 @@ export function RunView({
   height: number;
 }) {
   const isAgent = activeStep === "agent";
-  const elapsed = useElapsed(agentStartedAt);
   // Prefer "% of daily limit" when the platform gave us the budget; the daily
   // total is the pre-run baseline plus this run's tokens. Without a budget,
   // fall back to a raw token count.
@@ -339,23 +374,12 @@ export function RunView({
 
   return (
     <Box flexDirection="column" flexGrow={1}>
-      <Text>
-        {isAgent ? (
-          <Spinner />
-        ) : (
-          <Text color={COLORS.accent}>{GLYPHS.heading}</Text>
-        )}
-        <Text bold color={COLORS.value}>
-          {"  "}
-          {isAgent ? "Claude is installing Honch" : "Preparing install"}
-        </Text>
-        {isAgent ? (
-          <Text color={COLORS.label}>{`  ·  ${formatElapsed(elapsed)}`}</Text>
-        ) : null}
-        {isAgent && usageLabel ? (
-          <Text color={usageColor}>{`  ·  ${usageLabel}`}</Text>
-        ) : null}
-      </Text>
+      <RunHeader
+        isAgent={isAgent}
+        agentStartedAt={agentStartedAt}
+        usageLabel={usageLabel}
+        usageColor={usageColor}
+      />
       <Box height={1} />
       {changedFiles.length > 0 ? (
         <Box flexDirection="column" marginBottom={1}>
