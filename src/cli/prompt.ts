@@ -381,11 +381,13 @@ export class TuiPrompter implements Prompter {
   }
 }
 
-function promptTitle(prompt: string) {
+export function promptTitle(prompt: string) {
   if (prompt.startsWith("Organization")) return "Organization";
   if (prompt.startsWith("Project")) return "Honch project";
   if (prompt.startsWith("Device")) return "Device profile";
-  return "Wizard input";
+  // Fall back to the prompt itself so an unrecognized question's heading is
+  // never less informative than the question (vs a generic "Wizard input").
+  return prompt;
 }
 
 export function createPrompter(): Prompter {

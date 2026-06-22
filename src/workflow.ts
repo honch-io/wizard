@@ -764,7 +764,7 @@ async function resolveProject(
     if (picked) return picked;
   }
 
-  const name = (await prompter.question("New project name:")).trim();
+  const name = (await prompter.question("Project name:")).trim();
   return platformClient.createProject(
     accessToken,
     name || "Honch Project",

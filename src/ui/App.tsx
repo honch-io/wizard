@@ -498,10 +498,22 @@ function TextInput({
   const before = visibleValue.slice(0, state.cursor);
   const after = visibleValue.slice(state.cursor);
 
+  // Mirror the Picker: a title heading, then the question as a message line —
+  // so select and text prompts read the same. Skip the message when it would
+  // just repeat the heading (an unrecognized prompt whose title is itself).
+  const showMessage = prompt.message && prompt.message !== prompt.title;
   return (
     <Box flexDirection="column">
-      <StepHeading title={inputLabel(prompt)} />
+      <StepHeading title={prompt.title} />
       <Box height={1} />
+      {showMessage ? (
+        <>
+          <Text color={COLORS.help} wrap="wrap">
+            {prompt.message}
+          </Text>
+          <Box height={1} />
+        </>
+      ) : null}
       <Text>
         <Text color={COLORS.secondary}>{"›"}</Text>{" "}
         <Text color={COLORS.value}>{before}</Text>
@@ -885,10 +897,6 @@ function timelineLabel(step: WizardStep) {
 
 function activeStepLabel(steps: WizardStep[]) {
   return steps.find((step) => step.status === "active")?.id ?? "auth";
-}
-
-function inputLabel(prompt: PromptRequest) {
-  return prompt.message.replace(/:$/, "");
 }
 
 function displayPath(path: string) {
