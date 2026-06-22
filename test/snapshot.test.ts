@@ -14,11 +14,27 @@ import {
   commitAll,
   createBranch,
   currentBranch,
+  gitInit,
+  isGitWorkTree,
   restoreProject,
   snapshotProject,
 } from "../src/project/snapshot.js";
 
 const dirs: string[] = [];
+
+describe("gitInit", () => {
+  it("turns a plain directory into a revertable git work tree", () => {
+    const dir = mkdtempSync(join(tmpdir(), "honch-init-test-"));
+    dirs.push(dir);
+    writeFileSync(join(dir, "main.c"), "int main(){}\n");
+
+    expect(isGitWorkTree(dir)).toBe(false);
+    gitInit(dir);
+    expect(isGitWorkTree(dir)).toBe(true);
+    // Snapshot/revert becomes available immediately — no commit needed.
+    expect(snapshotProject(dir)).toBeTruthy();
+  });
+});
 
 function tempRepo(): string {
   const dir = mkdtempSync(join(tmpdir(), "honch-snap-test-"));

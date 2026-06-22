@@ -107,6 +107,12 @@ export function commitAll(
   }
 }
 
+/** Initialize a git work tree in `dir` so snapshots and revert become available.
+ * Works on an empty repo — snapshotProject uses write-tree, not commits. */
+export function gitInit(dir: string, runGit: GitRunner = runGitCommand): void {
+  runGit(["init"], { cwd: dir });
+}
+
 export function isGitWorkTree(
   dir: string,
   runGit: GitRunner = runGitCommand,

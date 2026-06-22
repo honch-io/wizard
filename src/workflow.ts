@@ -35,6 +35,7 @@ import {
   commitAll,
   createBranch,
   currentBranch,
+  gitInit,
   hasCommits,
   isGitWorkTree,
   restoreProject,
@@ -260,13 +261,41 @@ export async function runWorkflow(
         );
       }
       if (choice === "branch") branch = desired;
+    } else if (options.runAgent && !revertable) {
+      // Not a git repo and Claude is about to edit files. Offer to init git
+      // inline so the user gets the revert safety net without dropping out to
+      // run `git init` and starting over.
+      const choice = await prompter.select({
+        title: "Review install plan",
+        message: `Install the Honch ${target.label} SDK into the project at ${installDir}?${expectations}\n\nThis folder isn't a git repo, so Claude's changes can't be auto-reverted.`,
+        defaultValue: "install",
+        options: [
+          { label: "Install Honch", value: "install" },
+          {
+            label: "Initialize git, then install",
+            value: "init",
+            hint: "lets you review and undo Claude's changes",
+          },
+          { label: "Cancel", value: "cancel" },
+        ],
+      });
+      if (choice === "cancel") {
+        prompter.cancel?.("Wizard cancelled before project mutation");
+        throw new WizardCancelledError(
+          "Wizard cancelled before project mutation",
+        );
+      }
+      if (choice === "init") {
+        gitInit(installDir);
+        prompter.addRunMessage?.(
+          "Initialized a git repo so Claude's changes can be reverted.",
+          "status",
+        );
+      }
+      track("wizard_confirmed");
     } else {
-      const warning =
-        options.runAgent && !revertable
-          ? "\n\n⚠ This folder isn't a git repo, so Claude's changes can't be auto-reverted. Run `git init` first if you want that safety net."
-          : "";
       const confirmed = await prompter.confirm(
-        `Install the Honch ${target.label} SDK into the project at ${installDir}?${expectations}${warning}`,
+        `Install the Honch ${target.label} SDK into the project at ${installDir}?${expectations}`,
       );
       if (!confirmed) {
         prompter.cancel?.("Wizard cancelled before project mutation");
