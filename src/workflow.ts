@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { buildAgentPrompt } from "./agent/prompt.js";
@@ -629,14 +629,14 @@ async function runTryPath(
   const target =
     SDK_TARGETS[answer as SdkTargetId] ?? SDK_TARGETS[starterIds[0]];
 
-  // Group scratch projects under one self-describing `honch/` folder and name
-  // each by its SDK (e.g. .../honch/try-c-posix-Ab12Cd) instead of a bare
-  // .../honch-try-Ab12Cd. Stays in the per-user temp dir (mode 700) so any key
-  // the install writes into the scratch project isn't world-readable; the
-  // random suffix keeps concurrent/repeat runs from colliding.
-  const scratchBase = path.join(tmpdir(), "honch");
-  mkdirSync(scratchBase, { recursive: true });
-  const installDir = mkdtempSync(path.join(scratchBase, `try-${target.id}-`));
+  // Name the scratch dir by SDK for readability (honch-try-c-posix-Ab12Cd).
+  // mkdtemp atomically creates a unique, 0700, unguessable leaf with the temp
+  // dir as the ONLY fixed parent — no stable intermediate path (e.g. a shared
+  // <tmpdir>/honch) an attacker on a multi-user box could pre-plant as a symlink
+  // and redirect the install (which may seed a project key) into their space.
+  const installDir = mkdtempSync(
+    path.join(tmpdir(), `honch-try-${target.id}-`),
+  );
   setInstallDir(installDir);
 
   const { files } = await scaffold(installDir, target.id);

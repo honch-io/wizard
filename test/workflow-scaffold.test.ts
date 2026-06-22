@@ -122,7 +122,7 @@ describe("workflow scaffold wiring", () => {
     expect(welcome.options[0]?.value).toBe("different");
   });
 
-  it("creates the scratch project under a honch/ folder named by SDK", async () => {
+  it("names the scratch project by SDK, directly under the temp dir", async () => {
     const cwd = makeTempDir();
     const calls: ScaffoldCall[] = [];
     const scaffold = async (dir: string, target: SdkTargetId) => {
@@ -134,9 +134,11 @@ describe("workflow scaffold wiring", () => {
     await runWorkflow(localDryRun(cwd, ["--try"]), { prompter, scaffold });
 
     const dir = calls[0].dir;
-    // Self-describing: <tmpdir>/honch/try-<sdk>-<random>, not <tmpdir>/honch-try-<random>.
-    expect(path.basename(path.dirname(dir))).toBe("honch");
-    expect(path.basename(dir).startsWith("try-c-posix-")).toBe(true);
+    // Flat: the only fixed parent is the temp dir itself — no stable,
+    // attacker-guessable intermediate dir to plant a symlink at. mkdtemp creates
+    // the unique 0700 leaf atomically. The SDK name keeps it self-describing.
+    expect(path.dirname(dir)).toBe(tmpdir());
+    expect(path.basename(dir).startsWith("honch-try-c-posix-")).toBe(true);
   });
 
   it("non-interactive (--yes --target) installs into the cwd and never scaffolds", async () => {
