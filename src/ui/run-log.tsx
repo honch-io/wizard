@@ -209,7 +209,7 @@ function RunMessageView({
   if (message.kind === "status" || message.kind === "info") {
     return (
       <Box flexDirection="row">
-        <Text color={COLORS.help} dimColor wrap="truncate">
+        <Text color={COLORS.help} dimColor wrap="wrap">
           {`  ${message.text}`}
         </Text>
       </Box>
@@ -224,12 +224,34 @@ function RunMessageView({
       <Text
         color={message.kind === "error" ? COLORS.failure : COLORS.neutral}
         dimColor={message.kind === "tool"}
-        wrap="truncate"
+        wrap="wrap"
       >
         {`  ${connector} ${message.text}`}
       </Text>
     </Box>
   );
+}
+
+/** How many terminal rows a run-log message occupies at the given text width —
+ * used to fill the scroll window without truncating wrapped content. Assistant
+ * prose hangs under a marker (each explicit line wraps) plus a blank separator;
+ * status/tool/error lines wrap too, accounting for their indent/connector. */
+export function messageRows(message: RunMessage, textWidth: number): number {
+  const width = Math.max(textWidth, 1);
+  if (message.kind === "assistant") {
+    return (
+      1 +
+      message.text
+        .split("\n")
+        .reduce(
+          (sum, line) => sum + Math.max(1, Math.ceil(line.length / width)),
+          0,
+        )
+    );
+  }
+  // status/info render with a 2-col indent; tool/error add a connector ("  | ").
+  const prefix = message.kind === "status" || message.kind === "info" ? 2 : 4;
+  return Math.max(1, Math.ceil((prefix + message.text.length) / width));
 }
 
 export function RunView({
@@ -308,21 +330,7 @@ export function RunView({
   let used = 0;
   let start = end;
   for (let i = end - 1; i >= 0; i -= 1) {
-    const message = messages[i];
-    // Assistant prose spans multiple explicit lines, each of which wraps — count
-    // rows per line (plus one for the blank line that separates turns) so the
-    // visible window never over- or under-fills.
-    const rows =
-      message.kind === "assistant"
-        ? 1 +
-          message.text
-            .split("\n")
-            .reduce(
-              (sum, line) =>
-                sum + Math.max(1, Math.ceil(line.length / textWidth)),
-              0,
-            )
-        : 1;
+    const rows = messageRows(messages[i], textWidth);
     if (used + rows > budget && start < end) break;
     used += rows;
     start = i;
