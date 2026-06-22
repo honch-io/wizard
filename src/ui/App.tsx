@@ -493,10 +493,12 @@ function TextInput({
     setState((current) => editText(current, key, input));
   });
 
-  const visibleValue =
-    prompt.kind === "password" ? "*".repeat(state.value.length) : state.value;
-  const before = visibleValue.slice(0, state.cursor);
-  const after = visibleValue.slice(state.cursor);
+  // A password field shows just the caret — never per-character masking, which
+  // would leak the secret's length. The "(input hidden)" note below explains
+  // the empty field. Other fields show the value with the caret at the cursor.
+  const masked = prompt.kind === "password";
+  const before = masked ? "" : state.value.slice(0, state.cursor);
+  const after = masked ? "" : state.value.slice(state.cursor);
 
   // Mirror the Picker: a title heading, then the question as a message line —
   // so select and text prompts read the same. Skip the message when it would
