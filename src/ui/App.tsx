@@ -491,7 +491,7 @@ const CORE_JOKE =
 
 /** The "Pick your features" multi-select. Matches the Picker style (heading +
  * rows + spacing, no dividers). The core row is locked: trying to toggle it off
- * flashes a friendly warning twice instead of disabling it. */
+ * flashes a friendly warning instead of disabling it. */
 function FeaturePicker({
   width,
   prompt,
@@ -508,21 +508,15 @@ function FeaturePicker({
   );
   const [focused, setFocused] = useState(0);
   // Bumped each time the user tries to toggle the locked core; the effect shows
-  // the warning for ~1s, hides it for ~1s, shows it once more, then clears it.
+  // the warning once, holds it for ~2s, then clears it.
   const [jokeTrigger, setJokeTrigger] = useState(0);
   const [jokeOn, setJokeOn] = useState(false);
 
   useEffect(() => {
     if (jokeTrigger === 0) return;
     setJokeOn(true);
-    const timers = [
-      setTimeout(() => setJokeOn(false), 1000),
-      setTimeout(() => setJokeOn(true), 2000),
-      setTimeout(() => setJokeOn(false), 3000),
-    ];
-    return () => {
-      for (const timer of timers) clearTimeout(timer);
-    };
+    const timer = setTimeout(() => setJokeOn(false), 2000);
+    return () => clearTimeout(timer);
   }, [jokeTrigger]);
 
   useInput((input, key) => {
@@ -635,6 +629,7 @@ function FeaturePicker({
         </Text>{" "}
         (estimated)
       </Text>
+      <Box height={1} />
       {jokeOn ? (
         <Text color={COLORS.warning}>{CORE_JOKE}</Text>
       ) : (
