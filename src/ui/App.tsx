@@ -598,14 +598,17 @@ function FeaturePicker({
         const boxColor = option.locked || on ? COLORS.accent : COLORS.neutral;
         const hasStat =
           (option.flashBytes ?? 0) > 0 || (option.ramBytes ?? 0) > 0;
+        const statParts = [`+${formatBytes(option.flashBytes ?? 0)} flash`];
+        if ((option.ramBytes ?? 0) > 0)
+          statParts.push(`${formatBytes(option.ramBytes ?? 0)} RAM`);
+        if ((option.wireBytesPerEvent ?? 0) > 0)
+          statParts.push(
+            `~${formatBytes(option.wireBytesPerEvent ?? 0)}/event`,
+          );
         const stat = option.locked
           ? "(required)"
           : hasStat
-            ? `+${formatBytes(option.flashBytes ?? 0)} flash${
-                (option.ramBytes ?? 0) > 0
-                  ? ` · ${formatBytes(option.ramBytes ?? 0)} RAM`
-                  : ""
-              }`
+            ? statParts.join(" · ")
             : "";
         return (
           <Text key={option.value}>
@@ -627,7 +630,7 @@ function FeaturePicker({
         <Text color={COLORS.value}>
           {formatBytes(animFlash)} flash · {formatBytes(animRam)} RAM
         </Text>{" "}
-        (measured: ESP32, ESP-IDF v6.0.1)
+        (measured on ESP32 · how → docs.honch.io/wizard)
       </Text>
       <Box height={1} />
       {jokeOn ? (

@@ -27,11 +27,17 @@ describe("feature catalog", () => {
     expect(errorTracking?.espIdfConfig).toBe("CONFIG_HONCH_ERROR_TRACKING");
   });
 
-  it("uses measured footprint numbers (real, not round estimates)", () => {
+  it("uses measured footprint + wire numbers (real, not round estimates)", () => {
     const errorTracking = HONCH_FEATURES.find((f) => f.id === "error-tracking");
     // Measured on ESP32/IDF v6.0.1 — see src/sdk/feature-footprint.json.
     expect(errorTracking?.flashBytes).toBe(4971);
     expect(errorTracking?.ramBytes).toBe(316);
+    expect(errorTracking?.wireBytesPerEvent).toBe(166);
+    expect(errorTracking?.wireEvent).toBe("$crash");
+    // Every optional feature has a measured per-event wire cost.
+    for (const feature of HONCH_FEATURES) {
+      if (!feature.locked) expect(feature.wireBytesPerEvent).toBeGreaterThan(0);
+    }
   });
 
   it("offers feature stripping for the C-core SDKs but not the React Native relay", () => {

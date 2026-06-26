@@ -65,6 +65,9 @@ export type PromptOption = {
   /** Multi-select only: numeric footprint, summed into the live total. */
   flashBytes?: number;
   ramBytes?: number;
+  /** Multi-select only: wire bytes of this feature's headline event (per-event
+   * network cost; shown per row, not summed into the footprint total). */
+  wireBytesPerEvent?: number;
 };
 
 export type PromptRequest = {

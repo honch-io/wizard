@@ -247,6 +247,7 @@ export async function runWorkflow(
           locked: feature.locked,
           flashBytes: feature.flashBytes,
           ramBytes: feature.ramBytes,
+          wireBytesPerEvent: feature.wireBytesPerEvent,
         })),
       });
       const enabledSet = new Set(enabled);

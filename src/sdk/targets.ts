@@ -178,6 +178,12 @@ export type WizardFeature = {
    * RAM is config-driven and separate. */
   flashBytes: number;
   ramBytes: number;
+  /** Full wire-v2 bytes of this feature's headline auto-event (e.g. $crash for
+   * error tracking) — the per-event network cost. 0 for the locked core, which
+   * emits no auto-events of its own. */
+  wireBytesPerEvent: number;
+  /** The headline event the wire number measures, for labeling/docs. */
+  wireEvent?: string;
 };
 
 const FP = footprint.features;
@@ -194,6 +200,7 @@ export const HONCH_FEATURES: WizardFeature[] = [
     locked: true,
     flashBytes: 0,
     ramBytes: 0,
+    wireBytesPerEvent: 0,
   },
   {
     id: "error-tracking",
@@ -203,6 +210,8 @@ export const HONCH_FEATURES: WizardFeature[] = [
     espIdfConfig: "CONFIG_HONCH_ERROR_TRACKING",
     flashBytes: FP["error-tracking"].flash_bytes,
     ramBytes: FP["error-tracking"].ram_bytes,
+    wireBytesPerEvent: FP["error-tracking"].wire_bytes_per_event,
+    wireEvent: FP["error-tracking"].wire_event,
   },
   {
     id: "lifecycle",
@@ -212,6 +221,8 @@ export const HONCH_FEATURES: WizardFeature[] = [
     espIdfConfig: "CONFIG_HONCH_LIFECYCLE_EVENTS",
     flashBytes: FP.lifecycle.flash_bytes,
     ramBytes: FP.lifecycle.ram_bytes,
+    wireBytesPerEvent: FP.lifecycle.wire_bytes_per_event,
+    wireEvent: FP.lifecycle.wire_event,
   },
   {
     id: "sessions",
@@ -221,6 +232,8 @@ export const HONCH_FEATURES: WizardFeature[] = [
     espIdfConfig: "CONFIG_HONCH_SESSIONS",
     flashBytes: FP.sessions.flash_bytes,
     ramBytes: FP.sessions.ram_bytes,
+    wireBytesPerEvent: FP.sessions.wire_bytes_per_event,
+    wireEvent: FP.sessions.wire_event,
   },
   {
     id: "battery",
@@ -230,6 +243,8 @@ export const HONCH_FEATURES: WizardFeature[] = [
     espIdfConfig: "CONFIG_HONCH_BATTERY",
     flashBytes: FP.battery.flash_bytes,
     ramBytes: FP.battery.ram_bytes,
+    wireBytesPerEvent: FP.battery.wire_bytes_per_event,
+    wireEvent: FP.battery.wire_event,
   },
 ];
 
