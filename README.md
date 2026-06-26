@@ -51,10 +51,10 @@ honch
 2. **Connects** your Honch account (browser login/signup) and lets you pick or
    create a project.
 3. **Pick your features** — choose which optional SDK features to compile in
-   (crash + coredump, error logs, lifecycle events, sessions, battery).
+   (error tracking — crashes + logs, lifecycle events, sessions, battery).
    Everything is on by default; turn off what a device doesn't need to shrink the
-   build, with an estimated flash/RAM delta shown per feature. The core is always
-   included.
+   build, with a **measured** flash/RAM delta shown per feature (ESP32, ESP-IDF
+   v6.0.1). The core is always included.
 4. **Confirms** the plan — and offers to do the work on a fresh git branch so
    you can review or discard it.
 5. **Installs** by running the Claude Agent SDK (through Honch's hosted LLM

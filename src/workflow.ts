@@ -1,7 +1,7 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { buildAgentPrompt } from "./agent/prompt.js";
+import { buildAgentPrompt, type DisabledFeature } from "./agent/prompt.js";
 import { runAgent } from "./agent/runner.js";
 import { analyticsDisabled, buildInstallProperties } from "./analytics.js";
 import {
@@ -233,12 +233,12 @@ export async function runWorkflow(
     // unchanged installs the full SDK. Skipped for non-interactive runs and the
     // React Native relay (which has no compile-time toggles).
     prompter.setStep?.("features", "choosing SDK features");
-    let disabledFeatures: string[] = [];
+    let disabledFeatures: DisabledFeature[] = [];
     if (!options.yes && targetSupportsFeatures(target.id)) {
       const enabled = await prompter.multiSelect({
         title: "Pick your features",
         message:
-          "Everything's on by default — turn off what this device doesn't need. Footprint numbers are estimates; the core is always included.",
+          "Everything's on by default — turn off what this device doesn't need. The core is always included.",
         options: HONCH_FEATURES.map((feature) => ({
           label: feature.label,
           value: feature.id,
@@ -253,7 +253,10 @@ export async function runWorkflow(
       disabledFeatures = HONCH_FEATURES.filter(
         (feature) =>
           feature.toggle && !feature.locked && !enabledSet.has(feature.id),
-      ).map((feature) => feature.toggle as string);
+      ).map((feature) => ({
+        toggle: feature.toggle as string,
+        espIdfConfig: feature.espIdfConfig,
+      }));
     }
     prompter.completeStep?.(
       "features",
@@ -263,7 +266,7 @@ export async function runWorkflow(
     );
     track("wizard_features_selected", {
       disabledCount: disabledFeatures.length,
-      disabled: disabledFeatures,
+      disabled: disabledFeatures.map((feature) => feature.toggle),
     });
 
     prompter.setStep?.("confirm", "waiting for confirmation");

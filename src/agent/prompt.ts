@@ -20,21 +20,39 @@ function resolveSkillPath(skillPath: string): string {
   return fileURLToPath(candidates[0]);
 }
 
+export type DisabledFeature = {
+  /** Portable compile macro used by C/POSIX, Arduino, and MicroPython. */
+  toggle: string;
+  /** ESP-IDF Kconfig symbol (differs from the macro name). */
+  espIdfConfig?: string;
+};
+
 export type AgentPromptInput = {
   targetId: SdkTargetId;
   projectApiKeyRef: string;
   deviceModel: string;
-  /** HONCH_ENABLE_* toggles the user chose to compile OUT (empty = full SDK). */
-  disabledFeatures?: string[];
+  /** Optional features the user chose to COMPILE OUT (empty = full SDK). */
+  disabledFeatures?: DisabledFeature[];
 };
 
 export function buildAgentPrompt(input: AgentPromptInput): string {
   const target = SDK_TARGETS[input.targetId];
   const disabled = input.disabledFeatures ?? [];
-  const featureBlock =
-    disabled.length > 0
-      ? `\nFeature selection — the user chose to COMPILE OUT these optional features to shrink the build. Apply each as a compile-time toggle set off, using the target's mechanism (ESP-IDF: the matching CONFIG_HONCH_* = n in sdkconfig.defaults; C/POSIX & Arduino: a -D<NAME>=0 build flag; MicroPython: -D<NAME>=0 for the _honch_core usermod build). Leave every other feature at its default (ON), and list the stripped features in the setup report:\n${disabled.map((toggle) => `- ${toggle}=0`).join("\n")}\n`
-      : "";
+  let featureBlock = "";
+  if (disabled.length > 0) {
+    const isEspIdf = input.targetId === "esp-idf";
+    const lines = disabled
+      .map((f) =>
+        isEspIdf ? `- ${f.espIdfConfig ?? f.toggle}=n` : `- ${f.toggle}=0`,
+      )
+      .join("\n");
+    const mechanism = isEspIdf
+      ? "Set each Kconfig symbol below to `n` in sdkconfig.defaults (create the file if absent)."
+      : input.targetId === "micropython"
+        ? "Pass each `-D<NAME>=0` flag to the `_honch_core` usermod build."
+        : "Add each `-D<NAME>=0` flag to the build configuration.";
+    featureBlock = `\nFeature selection — the user chose to COMPILE OUT these optional Honch features to shrink the build. ${mechanism} Leave every other feature at its default (ON), and list the stripped features in the setup report:\n${lines}\n`;
+  }
 
   return `You are the Honch SDK installer agent. Your job is to integrate the Honch ${target.label} SDK into this client project with the smallest correct set of changes.
 

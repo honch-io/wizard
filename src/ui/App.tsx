@@ -627,7 +627,7 @@ function FeaturePicker({
         <Text color={COLORS.value}>
           {formatBytes(animFlash)} flash · {formatBytes(animRam)} RAM
         </Text>{" "}
-        (estimated)
+        (measured: ESP32, ESP-IDF v6.0.1)
       </Text>
       <Box height={1} />
       {jokeOn ? (
