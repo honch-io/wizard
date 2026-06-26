@@ -9,6 +9,7 @@ function stubPrompter(rating: string, comment = ""): Prompter {
     question: async () => comment,
     select: async () => rating,
     confirm: async () => false,
+    multiSelect: async () => [],
     close: () => {},
   } as Prompter;
 }

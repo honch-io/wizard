@@ -33,6 +33,7 @@ function decliningPrompter(): Prompter & { cancelled: boolean } {
     select: async (config: SelectConfig) =>
       config.defaultValue ?? config.options[0]?.value ?? "",
     confirm: async () => false,
+    multiSelect: async () => [],
     cancel: () => {
       state.cancelled = true;
     },

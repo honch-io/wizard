@@ -153,3 +153,77 @@ export function detectSdkTargets(files: ProjectFiles): SdkTarget[] {
   ];
   return priority.filter((id) => found.has(id)).map((id) => SDK_TARGETS[id]);
 }
+
+export type WizardFeature = {
+  /** Short id used as the multi-select option value. */
+  id: string;
+  label: string;
+  hint: string;
+  /** The SDK compile-time macro this maps to. Omitted for the locked core. */
+  toggle?: string;
+  /** The core: always compiled in, cannot be toggled off. */
+  locked?: boolean;
+  /** Estimated footprint delta when enabled. ESTIMATES (representative of a
+   * release build) shown to weigh the tradeoff — refined by the per-port
+   * footprint matrix, not exact guarantees. */
+  flashBytes: number;
+  ramBytes: number;
+};
+
+/** The optional feature set, mapped 1:1 to the SDK's HONCH_ENABLE_* toggles. */
+export const HONCH_FEATURES: WizardFeature[] = [
+  {
+    id: "core",
+    label: "Event tracking + wire & queue",
+    hint: "the heart of the SDK — always included",
+    locked: true,
+    flashBytes: 0,
+    ramBytes: 0,
+  },
+  {
+    id: "crash",
+    label: "Crash + coredump reporting",
+    hint: "$crash events and ESP32 coredump upload",
+    toggle: "HONCH_ENABLE_CRASH_CAPTURE",
+    flashBytes: 14_200,
+    ramBytes: 2_048,
+  },
+  {
+    id: "log",
+    label: "Error log capture",
+    hint: "$error events coalesced from SDK logs",
+    toggle: "HONCH_ENABLE_LOG_CAPTURE",
+    flashBytes: 3_100,
+    ramBytes: 0,
+  },
+  {
+    id: "lifecycle",
+    label: "Lifecycle events",
+    hint: "$device_boot / $firmware_update / $device_shutdown",
+    toggle: "HONCH_ENABLE_LIFECYCLE_EVENTS",
+    flashBytes: 1_200,
+    ramBytes: 0,
+  },
+  {
+    id: "sessions",
+    label: "Sessions",
+    hint: "$session_start / $session_end",
+    toggle: "HONCH_ENABLE_SESSIONS",
+    flashBytes: 900,
+    ramBytes: 0,
+  },
+  {
+    id: "battery",
+    label: "Battery telemetry",
+    hint: "$battery_level + $battery_low (battery-powered devices)",
+    toggle: "HONCH_ENABLE_BATTERY",
+    flashBytes: 800,
+    ramBytes: 48,
+  },
+];
+
+/** Compile-time feature stripping applies to the C-core SDKs; the React Native
+ * relay has no such toggles. */
+export function targetSupportsFeatures(id: SdkTargetId): boolean {
+  return id !== "react-native-relay";
+}

@@ -24,10 +24,17 @@ export type AgentPromptInput = {
   targetId: SdkTargetId;
   projectApiKeyRef: string;
   deviceModel: string;
+  /** HONCH_ENABLE_* toggles the user chose to compile OUT (empty = full SDK). */
+  disabledFeatures?: string[];
 };
 
 export function buildAgentPrompt(input: AgentPromptInput): string {
   const target = SDK_TARGETS[input.targetId];
+  const disabled = input.disabledFeatures ?? [];
+  const featureBlock =
+    disabled.length > 0
+      ? `\nFeature selection — the user chose to COMPILE OUT these optional features to shrink the build. Apply each as a compile-time toggle set off, using the target's mechanism (ESP-IDF: the matching CONFIG_HONCH_* = n in sdkconfig.defaults; C/POSIX & Arduino: a -D<NAME>=0 build flag; MicroPython: -D<NAME>=0 for the _honch_core usermod build). Leave every other feature at its default (ON), and list the stripped features in the setup report:\n${disabled.map((toggle) => `- ${toggle}=0`).join("\n")}\n`
+      : "";
 
   return `You are the Honch SDK installer agent. Your job is to integrate the Honch ${target.label} SDK into this client project with the smallest correct set of changes.
 
@@ -37,7 +44,7 @@ Project context:
 - SDK target: ${target.label}
 - Honch project API key secret ref: ${input.projectApiKeyRef}
 - Device model: ${input.deviceModel}
-
+${featureBlock}
 Required workflow:
 1. Inspect the target project structure before modifying anything.
    - Identify build files, package/dependency files, app entrypoints, config files, and existing SDK or telemetry code.

@@ -398,6 +398,9 @@ function PromptView({
   if (prompt.kind === "select" || prompt.kind === "confirm") {
     return <Picker width={width} prompt={prompt} onAnswer={onAnswer} />;
   }
+  if (prompt.kind === "multiselect") {
+    return <FeaturePicker width={width} prompt={prompt} onAnswer={onAnswer} />;
+  }
   return <TextInput width={width} prompt={prompt} onAnswer={onAnswer} />;
 }
 
@@ -467,6 +470,147 @@ function Picker({
           <Text color={COLORS.help}>{truncate(hint, width)}</Text>
         </Box>
       ) : null}
+    </Box>
+  );
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes <= 0) return "0";
+  if (bytes < 1024) return `${bytes} B`;
+  return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+const CORE_JOKE =
+  "hey man — what's the point of using the SDK without the heart of it? 💚";
+
+/** The "Pick your features" multi-select. Matches the Picker style (heading +
+ * rows + spacing, no dividers). The core row is locked: trying to toggle it off
+ * flashes a friendly warning twice instead of disabling it. */
+function FeaturePicker({
+  width,
+  prompt,
+  onAnswer,
+}: {
+  width: number;
+  prompt: PromptRequest;
+  onAnswer: (value: string) => void;
+}) {
+  const options = prompt.options;
+  const [enabled, setEnabled] = useState<Set<string>>(
+    () =>
+      new Set(options.filter((o) => o.checked !== false).map((o) => o.value)),
+  );
+  const [focused, setFocused] = useState(0);
+  // Bumped each time the user tries to toggle the locked core; the effect blinks
+  // the warning line twice, then clears it.
+  const [jokeTrigger, setJokeTrigger] = useState(0);
+  const [jokeOn, setJokeOn] = useState(false);
+
+  useEffect(() => {
+    if (jokeTrigger === 0) return;
+    setJokeOn(true);
+    const timers = [
+      setTimeout(() => setJokeOn(false), 320),
+      setTimeout(() => setJokeOn(true), 620),
+      setTimeout(() => setJokeOn(false), 940),
+    ];
+    return () => {
+      for (const timer of timers) clearTimeout(timer);
+    };
+  }, [jokeTrigger]);
+
+  useInput((input, key) => {
+    if (key.upArrow) {
+      setFocused((c) => (c === 0 ? options.length - 1 : c - 1));
+    } else if (key.downArrow) {
+      setFocused((c) => (c === options.length - 1 ? 0 : c + 1));
+    } else if (input === " ") {
+      const option = options[focused];
+      if (!option) return;
+      if (option.locked) {
+        setJokeTrigger((t) => t + 1);
+        return;
+      }
+      setEnabled((current) => {
+        const next = new Set(current);
+        if (next.has(option.value)) next.delete(option.value);
+        else next.add(option.value);
+        return next;
+      });
+    } else if (key.return) {
+      onAnswer([...enabled].join(","));
+    }
+  });
+
+  let totalFlash = 0;
+  let totalRam = 0;
+  for (const option of options) {
+    if (!enabled.has(option.value)) continue;
+    totalFlash += option.flashBytes ?? 0;
+    totalRam += option.ramBytes ?? 0;
+  }
+
+  return (
+    <Box flexDirection="column">
+      <StepHeading title={prompt.title} />
+      <Box height={1} />
+      <Text color={COLORS.help} wrap="wrap">
+        {prompt.message}
+      </Text>
+      <Box height={1} />
+      {options.map((option, index) => {
+        const active = index === focused;
+        const on = enabled.has(option.value);
+        const box = option.locked ? "♥" : on ? "[x]" : "[ ]";
+        const boxColor = option.locked
+          ? COLORS.success
+          : on
+            ? COLORS.accent
+            : COLORS.neutral;
+        const hasStat =
+          (option.flashBytes ?? 0) > 0 || (option.ramBytes ?? 0) > 0;
+        const stat = hasStat
+          ? `+${formatBytes(option.flashBytes ?? 0)} flash${
+              (option.ramBytes ?? 0) > 0
+                ? ` · ${formatBytes(option.ramBytes ?? 0)} RAM`
+                : ""
+            }`
+          : "always on";
+        return (
+          <Text key={option.value}>
+            <Text color={active ? COLORS.accent : COLORS.neutral}>
+              {active ? "›" : " "}
+            </Text>
+            <Text color={boxColor}> {box}</Text>
+            <Text bold={active} color={active ? COLORS.value : COLORS.neutral}>
+              {" "}
+              {option.label}
+            </Text>
+            <Text color={COLORS.neutral}> {stat}</Text>
+          </Text>
+        );
+      })}
+      <Box height={1} />
+      <Text color={COLORS.help}>
+        Selected optional features add{" "}
+        <Text color={COLORS.value}>
+          {formatBytes(totalFlash)} flash · {formatBytes(totalRam)} RAM
+        </Text>{" "}
+        (estimated)
+      </Text>
+      {jokeOn ? (
+        <Text color={COLORS.warning}>{CORE_JOKE}</Text>
+      ) : (
+        <Text> </Text>
+      )}
+      <Box marginTop={1}>
+        <Text color={COLORS.help}>
+          {truncate(
+            "space toggles · ↑↓ moves · enter confirms — all on is the default SDK",
+            width,
+          )}
+        </Text>
+      </Box>
     </Box>
   );
 }

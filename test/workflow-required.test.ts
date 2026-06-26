@@ -15,6 +15,7 @@ function fakePrompter(answers: string[]): {
     },
     select: async () => "",
     confirm: async () => true,
+    multiSelect: async () => [],
     close: () => {},
   } as unknown as Prompter;
   return { prompter, calls: () => count };
