@@ -1,5 +1,11 @@
 import { Box, Text, useInput } from "ink";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type { CliOptions } from "../cli/options.js";
 import type {
   PromptRequest,
@@ -481,7 +487,7 @@ function formatBytes(bytes: number): string {
 }
 
 const CORE_JOKE =
-  "hey man — what's the point of using the SDK without the heart of it? 💚";
+  "hey man, what's the point of using our SDK without the heart of it?";
 
 /** The "Pick your features" multi-select. Matches the Picker style (heading +
  * rows + spacing, no dividers). The core row is locked: trying to toggle it off
@@ -501,8 +507,8 @@ function FeaturePicker({
       new Set(options.filter((o) => o.checked !== false).map((o) => o.value)),
   );
   const [focused, setFocused] = useState(0);
-  // Bumped each time the user tries to toggle the locked core; the effect blinks
-  // the warning line twice, then clears it.
+  // Bumped each time the user tries to toggle the locked core; the effect shows
+  // the warning for ~1s, hides it for ~1s, shows it once more, then clears it.
   const [jokeTrigger, setJokeTrigger] = useState(0);
   const [jokeOn, setJokeOn] = useState(false);
 
@@ -510,9 +516,9 @@ function FeaturePicker({
     if (jokeTrigger === 0) return;
     setJokeOn(true);
     const timers = [
-      setTimeout(() => setJokeOn(false), 320),
-      setTimeout(() => setJokeOn(true), 620),
-      setTimeout(() => setJokeOn(false), 940),
+      setTimeout(() => setJokeOn(false), 1000),
+      setTimeout(() => setJokeOn(true), 2000),
+      setTimeout(() => setJokeOn(false), 3000),
     ];
     return () => {
       for (const timer of timers) clearTimeout(timer);
@@ -550,6 +556,37 @@ function FeaturePicker({
     totalRam += option.ramBytes ?? 0;
   }
 
+  // Roll the displayed totals quickly up/down toward the new target when a
+  // feature is toggled — a brief "counting" shuffle instead of a hard snap.
+  const [animFlash, setAnimFlash] = useState(totalFlash);
+  const [animRam, setAnimRam] = useState(totalRam);
+  const flashRef = useRef(totalFlash);
+  const ramRef = useRef(totalRam);
+  useEffect(() => {
+    const startFlash = flashRef.current;
+    const startRam = ramRef.current;
+    if (startFlash === totalFlash && startRam === totalRam) return;
+    const steps = 12;
+    let i = 0;
+    const id = setInterval(() => {
+      i += 1;
+      const done = i >= steps;
+      const t = i / steps;
+      const flash = done
+        ? totalFlash
+        : Math.round(startFlash + (totalFlash - startFlash) * t);
+      const ram = done
+        ? totalRam
+        : Math.round(startRam + (totalRam - startRam) * t);
+      flashRef.current = flash;
+      ramRef.current = ram;
+      setAnimFlash(flash);
+      setAnimRam(ram);
+      if (done) clearInterval(id);
+    }, 22);
+    return () => clearInterval(id);
+  }, [totalFlash, totalRam]);
+
   return (
     <Box flexDirection="column">
       <StepHeading title={prompt.title} />
@@ -561,21 +598,21 @@ function FeaturePicker({
       {options.map((option, index) => {
         const active = index === focused;
         const on = enabled.has(option.value);
-        const box = option.locked ? "♥" : on ? "[x]" : "[ ]";
-        const boxColor = option.locked
-          ? COLORS.success
-          : on
-            ? COLORS.accent
-            : COLORS.neutral;
+        // The core renders like an enabled row ([x], accent) but is locked off —
+        // toggling it flashes the joke instead. Its stat reads "(required)".
+        const box = option.locked || on ? "[x]" : "[ ]";
+        const boxColor = option.locked || on ? COLORS.accent : COLORS.neutral;
         const hasStat =
           (option.flashBytes ?? 0) > 0 || (option.ramBytes ?? 0) > 0;
-        const stat = hasStat
-          ? `+${formatBytes(option.flashBytes ?? 0)} flash${
-              (option.ramBytes ?? 0) > 0
-                ? ` · ${formatBytes(option.ramBytes ?? 0)} RAM`
-                : ""
-            }`
-          : "always on";
+        const stat = option.locked
+          ? "(required)"
+          : hasStat
+            ? `+${formatBytes(option.flashBytes ?? 0)} flash${
+                (option.ramBytes ?? 0) > 0
+                  ? ` · ${formatBytes(option.ramBytes ?? 0)} RAM`
+                  : ""
+              }`
+            : "";
         return (
           <Text key={option.value}>
             <Text color={active ? COLORS.accent : COLORS.neutral}>
@@ -594,7 +631,7 @@ function FeaturePicker({
       <Text color={COLORS.help}>
         Selected optional features add{" "}
         <Text color={COLORS.value}>
-          {formatBytes(totalFlash)} flash · {formatBytes(totalRam)} RAM
+          {formatBytes(animFlash)} flash · {formatBytes(animRam)} RAM
         </Text>{" "}
         (estimated)
       </Text>
