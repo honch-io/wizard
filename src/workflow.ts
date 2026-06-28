@@ -1,7 +1,7 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { buildAgentPrompt } from "./agent/prompt.js";
+import { buildAgentPrompt, type DisabledFeature } from "./agent/prompt.js";
 import { runAgent } from "./agent/runner.js";
 import { analyticsDisabled, buildInstallProperties } from "./analytics.js";
 import {
@@ -44,9 +44,11 @@ import {
 import { buildSetupReport } from "./report/setup-report.js";
 import { scaffoldStarter, starterAvailable } from "./scaffold/starter.js";
 import {
+  HONCH_FEATURES,
   SDK_TARGETS,
   type SdkTarget,
   type SdkTargetId,
+  targetSupportsFeatures,
 } from "./sdk/targets.js";
 import { createSecretVault } from "./secrets/vault.js";
 import { createLocalToolsServer } from "./tools/mcp-server.js";
@@ -226,6 +228,48 @@ export async function runWorkflow(
     const projectApiKeyRef = vault.put("Honch project API key", projectApiKey);
     prompter.completeStep?.("config", "device settings ready");
 
+    // Pick your features — let the user compile out optional features they don't
+    // need (smaller flash/RAM). Everything is on by default, so confirming
+    // unchanged installs the full SDK. Skipped for non-interactive runs and the
+    // React Native relay (which has no compile-time toggles).
+    prompter.setStep?.("features", "choosing SDK features");
+    let disabledFeatures: DisabledFeature[] = [];
+    if (!options.yes && targetSupportsFeatures(target.id)) {
+      const enabled = await prompter.multiSelect({
+        title: "Pick your features",
+        message:
+          "Everything's on by default — turn off what this device doesn't need. The core is always included.",
+        options: HONCH_FEATURES.map((feature) => ({
+          label: feature.label,
+          value: feature.id,
+          hint: feature.hint,
+          checked: true,
+          locked: feature.locked,
+          flashBytes: feature.flashBytes,
+          ramBytes: feature.ramBytes,
+          wireBytesPerEvent: feature.wireBytesPerEvent,
+        })),
+      });
+      const enabledSet = new Set(enabled);
+      disabledFeatures = HONCH_FEATURES.filter(
+        (feature) =>
+          feature.toggle && !feature.locked && !enabledSet.has(feature.id),
+      ).map((feature) => ({
+        toggle: feature.toggle as string,
+        espIdfConfig: feature.espIdfConfig,
+      }));
+    }
+    prompter.completeStep?.(
+      "features",
+      disabledFeatures.length > 0
+        ? `${disabledFeatures.length} feature(s) stripped`
+        : "all features on",
+    );
+    track("wizard_features_selected", {
+      disabledCount: disabledFeatures.length,
+      disabled: disabledFeatures.map((feature) => feature.toggle),
+    });
+
     prompter.setStep?.("confirm", "waiting for confirmation");
     // The ESP-IDF flow git-inits the project itself, so revert always works
     // there; for other targets it only works if this is already a git repo.
@@ -341,6 +385,7 @@ export async function runWorkflow(
         targetId: target.id,
         projectApiKeyRef,
         deviceModel,
+        disabledFeatures,
       });
       prompter.addRunMessage?.(
         "Handing off to Claude — press esc to pause",

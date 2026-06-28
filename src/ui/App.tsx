@@ -1,5 +1,11 @@
 import { Box, Text, useInput } from "ink";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type { CliOptions } from "../cli/options.js";
 import type {
   PromptRequest,
@@ -398,6 +404,9 @@ function PromptView({
   if (prompt.kind === "select" || prompt.kind === "confirm") {
     return <Picker width={width} prompt={prompt} onAnswer={onAnswer} />;
   }
+  if (prompt.kind === "multiselect") {
+    return <FeaturePicker width={width} prompt={prompt} onAnswer={onAnswer} />;
+  }
   return <TextInput width={width} prompt={prompt} onAnswer={onAnswer} />;
 }
 
@@ -467,6 +476,176 @@ function Picker({
           <Text color={COLORS.help}>{truncate(hint, width)}</Text>
         </Box>
       ) : null}
+    </Box>
+  );
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes <= 0) return "0";
+  if (bytes < 1024) return `${bytes} B`;
+  return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+const CORE_JOKE =
+  "hey man, what's the point of using our SDK without the heart of it?";
+
+/** The "Pick your features" multi-select. Matches the Picker style (heading +
+ * rows + spacing, no dividers). The core row is locked: trying to toggle it off
+ * flashes a friendly warning instead of disabling it. */
+function FeaturePicker({
+  width,
+  prompt,
+  onAnswer,
+}: {
+  width: number;
+  prompt: PromptRequest;
+  onAnswer: (value: string) => void;
+}) {
+  const options = prompt.options;
+  const [enabled, setEnabled] = useState<Set<string>>(
+    () =>
+      new Set(options.filter((o) => o.checked !== false).map((o) => o.value)),
+  );
+  const [focused, setFocused] = useState(0);
+  // Bumped each time the user tries to toggle the locked core; the effect shows
+  // the warning once, holds it for ~2s, then clears it.
+  const [jokeTrigger, setJokeTrigger] = useState(0);
+  const [jokeOn, setJokeOn] = useState(false);
+
+  useEffect(() => {
+    if (jokeTrigger === 0) return;
+    setJokeOn(true);
+    const timer = setTimeout(() => setJokeOn(false), 2000);
+    return () => clearTimeout(timer);
+  }, [jokeTrigger]);
+
+  useInput((input, key) => {
+    if (key.upArrow) {
+      setFocused((c) => (c === 0 ? options.length - 1 : c - 1));
+    } else if (key.downArrow) {
+      setFocused((c) => (c === options.length - 1 ? 0 : c + 1));
+    } else if (input === " ") {
+      const option = options[focused];
+      if (!option) return;
+      if (option.locked) {
+        setJokeTrigger((t) => t + 1);
+        return;
+      }
+      setEnabled((current) => {
+        const next = new Set(current);
+        if (next.has(option.value)) next.delete(option.value);
+        else next.add(option.value);
+        return next;
+      });
+    } else if (key.return) {
+      onAnswer([...enabled].join(","));
+    }
+  });
+
+  let totalFlash = 0;
+  let totalRam = 0;
+  for (const option of options) {
+    if (!enabled.has(option.value)) continue;
+    totalFlash += option.flashBytes ?? 0;
+    totalRam += option.ramBytes ?? 0;
+  }
+
+  // Roll the displayed totals quickly up/down toward the new target when a
+  // feature is toggled — a brief "counting" shuffle instead of a hard snap.
+  const [animFlash, setAnimFlash] = useState(totalFlash);
+  const [animRam, setAnimRam] = useState(totalRam);
+  const flashRef = useRef(totalFlash);
+  const ramRef = useRef(totalRam);
+  useEffect(() => {
+    const startFlash = flashRef.current;
+    const startRam = ramRef.current;
+    if (startFlash === totalFlash && startRam === totalRam) return;
+    const steps = 12;
+    let i = 0;
+    const id = setInterval(() => {
+      i += 1;
+      const done = i >= steps;
+      const t = i / steps;
+      const flash = done
+        ? totalFlash
+        : Math.round(startFlash + (totalFlash - startFlash) * t);
+      const ram = done
+        ? totalRam
+        : Math.round(startRam + (totalRam - startRam) * t);
+      flashRef.current = flash;
+      ramRef.current = ram;
+      setAnimFlash(flash);
+      setAnimRam(ram);
+      if (done) clearInterval(id);
+    }, 22);
+    return () => clearInterval(id);
+  }, [totalFlash, totalRam]);
+
+  return (
+    <Box flexDirection="column">
+      <StepHeading title={prompt.title} />
+      <Box height={1} />
+      <Text color={COLORS.help} wrap="wrap">
+        {prompt.message}
+      </Text>
+      <Box height={1} />
+      {options.map((option, index) => {
+        const active = index === focused;
+        const on = enabled.has(option.value);
+        // The core renders like an enabled row ([x], accent) but is locked off —
+        // toggling it flashes the joke instead. Its stat reads "(required)".
+        const box = option.locked || on ? "[x]" : "[ ]";
+        const boxColor = option.locked || on ? COLORS.accent : COLORS.neutral;
+        const hasStat =
+          (option.flashBytes ?? 0) > 0 || (option.ramBytes ?? 0) > 0;
+        const statParts = [`+${formatBytes(option.flashBytes ?? 0)} flash`];
+        if ((option.ramBytes ?? 0) > 0)
+          statParts.push(`${formatBytes(option.ramBytes ?? 0)} RAM`);
+        if ((option.wireBytesPerEvent ?? 0) > 0)
+          statParts.push(
+            `~${formatBytes(option.wireBytesPerEvent ?? 0)}/event`,
+          );
+        const stat = option.locked
+          ? "(required)"
+          : hasStat
+            ? statParts.join(" · ")
+            : "";
+        return (
+          <Text key={option.value}>
+            <Text color={active ? COLORS.accent : COLORS.neutral}>
+              {active ? "›" : " "}
+            </Text>
+            <Text color={boxColor}> {box}</Text>
+            <Text bold={active} color={active ? COLORS.value : COLORS.neutral}>
+              {" "}
+              {option.label}
+            </Text>
+            <Text color={COLORS.neutral}> {stat}</Text>
+          </Text>
+        );
+      })}
+      <Box height={1} />
+      <Text color={COLORS.help}>
+        Selected optional features add{" "}
+        <Text color={COLORS.value}>
+          {formatBytes(animFlash)} flash · {formatBytes(animRam)} RAM
+        </Text>{" "}
+        (measured on ESP32 · how → docs.honch.io/wizard)
+      </Text>
+      <Box height={1} />
+      {jokeOn ? (
+        <Text color={COLORS.warning}>{CORE_JOKE}</Text>
+      ) : (
+        <Text> </Text>
+      )}
+      <Box marginTop={1}>
+        <Text color={COLORS.help}>
+          {truncate(
+            "space toggles · ↑↓ moves · enter confirms — all on is the default SDK",
+            width,
+          )}
+        </Text>
+      </Box>
     </Box>
   );
 }

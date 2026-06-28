@@ -50,13 +50,18 @@ honch
 1. **Scans** the target project and detects the most likely SDK target.
 2. **Connects** your Honch account (browser login/signup) and lets you pick or
    create a project.
-3. **Confirms** the plan — and offers to do the work on a fresh git branch so
+3. **Pick your features** — choose which optional SDK features to compile in
+   (error tracking — crashes + logs, lifecycle events, sessions, battery).
+   Everything is on by default; turn off what a device doesn't need to shrink the
+   build, with a **measured** flash/RAM delta shown per feature (ESP32, ESP-IDF
+   v6.0.1). The core is always included.
+4. **Confirms** the plan — and offers to do the work on a fresh git branch so
    you can review or discard it.
-4. **Installs** by running the Claude Agent SDK (through Honch's hosted LLM
+5. **Installs** by running the Claude Agent SDK (through Honch's hosted LLM
    proxy) with local MCP tools for package detection and safe `.env` updates.
    The firmware version and capture host are sourced/defaulted automatically —
    you don't enter them.
-5. **Reports** what changed in `honch-setup-report.md`, viewable in the terminal.
+6. **Reports** what changed in `honch-setup-report.md`, viewable in the terminal.
 
 On launch it also checks npm for a newer release (throttled, and silent when
 offline) and offers a one-keystroke self-update. Set `HONCH_NO_UPDATE_CHECK=1`

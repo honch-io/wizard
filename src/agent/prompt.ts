@@ -20,14 +20,39 @@ function resolveSkillPath(skillPath: string): string {
   return fileURLToPath(candidates[0]);
 }
 
+export type DisabledFeature = {
+  /** Portable compile macro used by C/POSIX, Arduino, and MicroPython. */
+  toggle: string;
+  /** ESP-IDF Kconfig symbol (differs from the macro name). */
+  espIdfConfig?: string;
+};
+
 export type AgentPromptInput = {
   targetId: SdkTargetId;
   projectApiKeyRef: string;
   deviceModel: string;
+  /** Optional features the user chose to COMPILE OUT (empty = full SDK). */
+  disabledFeatures?: DisabledFeature[];
 };
 
 export function buildAgentPrompt(input: AgentPromptInput): string {
   const target = SDK_TARGETS[input.targetId];
+  const disabled = input.disabledFeatures ?? [];
+  let featureBlock = "";
+  if (disabled.length > 0) {
+    const isEspIdf = input.targetId === "esp-idf";
+    const lines = disabled
+      .map((f) =>
+        isEspIdf ? `- ${f.espIdfConfig ?? f.toggle}=n` : `- ${f.toggle}=0`,
+      )
+      .join("\n");
+    const mechanism = isEspIdf
+      ? "Set each Kconfig symbol below to `n` in sdkconfig.defaults (create the file if absent)."
+      : input.targetId === "micropython"
+        ? "Pass each `-D<NAME>=0` flag to the `_honch_core` usermod build."
+        : "Add each `-D<NAME>=0` flag to the build configuration.";
+    featureBlock = `\nFeature selection — the user chose to COMPILE OUT these optional Honch features to shrink the build. ${mechanism} Leave every other feature at its default (ON), and list the stripped features in the setup report:\n${lines}\n`;
+  }
 
   return `You are the Honch SDK installer agent. Your job is to integrate the Honch ${target.label} SDK into this client project with the smallest correct set of changes.
 
@@ -37,7 +62,7 @@ Project context:
 - SDK target: ${target.label}
 - Honch project API key secret ref: ${input.projectApiKeyRef}
 - Device model: ${input.deviceModel}
-
+${featureBlock}
 Required workflow:
 1. Inspect the target project structure before modifying anything.
    - Identify build files, package/dependency files, app entrypoints, config files, and existing SDK or telemetry code.

@@ -58,6 +58,7 @@ function stubPrompter(selectAnswers: string[]): {
     question: async () => "",
     select: async () => selectAnswers[next++] ?? "",
     confirm: async () => true,
+    multiSelect: async () => [],
     close: () => {},
     setSummary: (patch: Partial<WizardSummary>) => {
       summary = { ...summary, ...patch };
@@ -106,6 +107,7 @@ describe("workflow scaffold wiring", () => {
         return "c-posix"; // the SDK picker that follows
       },
       confirm: async () => true,
+      multiSelect: async () => [],
       close: () => {},
       setSummary: () => {},
       finish: () => {},

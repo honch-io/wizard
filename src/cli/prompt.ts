@@ -17,6 +17,7 @@ export type WizardStepId =
   | "auth"
   | "project"
   | "config"
+  | "features"
   | "confirm"
   | "agent"
   | "report";
@@ -55,13 +56,25 @@ export type PromptOption = {
   value: string;
   hint?: string;
   badge?: string;
+  /** Multi-select only: initial checked state (defaults to true). */
+  checked?: boolean;
+  /** Multi-select only: a row that cannot be toggled off (the SDK core). */
+  locked?: boolean;
+  /** Multi-select only: pre-formatted footprint estimate shown after the label. */
+  stat?: string;
+  /** Multi-select only: numeric footprint, summed into the live total. */
+  flashBytes?: number;
+  ramBytes?: number;
+  /** Multi-select only: wire bytes of this feature's headline event (per-event
+   * network cost; shown per row, not summed into the footprint total). */
+  wireBytesPerEvent?: number;
 };
 
 export type PromptRequest = {
   id: number;
   title: string;
   message: string;
-  kind: "text" | "password" | "select" | "confirm";
+  kind: "text" | "password" | "select" | "confirm" | "multiselect";
   options: PromptOption[];
   defaultValue?: string;
 };
@@ -75,6 +88,12 @@ export type SelectConfig = {
   message: string;
   options: PromptOption[];
   defaultValue?: string;
+};
+
+export type MultiSelectConfig = {
+  title: string;
+  message: string;
+  options: PromptOption[];
 };
 
 export type RunMessageKind = "tool" | "assistant" | "status" | "error" | "info";
@@ -113,6 +132,7 @@ export type TuiSnapshot = {
 export type Prompter = {
   question(prompt: string, options?: QuestionOptions): Promise<string>;
   select(config: SelectConfig): Promise<string>;
+  multiSelect(config: MultiSelectConfig): Promise<string[]>;
   confirm(prompt: string): Promise<boolean>;
   close(): void;
   cancel?(message?: string): void;
@@ -136,6 +156,7 @@ const INITIAL_STEPS: WizardStep[] = [
   { id: "auth", label: "Connect", status: "pending" },
   { id: "project", label: "Project", status: "pending" },
   { id: "config", label: "Configure", status: "pending" },
+  { id: "features", label: "Features", status: "pending" },
   { id: "confirm", label: "Confirm", status: "pending" },
   { id: "agent", label: "Install", status: "pending" },
   { id: "report", label: "Report", status: "pending" },
@@ -202,6 +223,27 @@ export class TuiPrompter implements Prompter {
           kind: "select",
           options: config.options,
           defaultValue: config.defaultValue,
+        },
+      });
+    });
+  }
+
+  multiSelect(config: MultiSelectConfig): Promise<string[]> {
+    return new Promise((resolve, reject) => {
+      // The picker joins enabled option values with a comma; split it back
+      // into the selected list (empty -> []).
+      this.pending = {
+        resolve: (value) =>
+          resolve(value ? value.split(",").filter(Boolean) : []),
+        reject,
+      };
+      this.update({
+        currentPrompt: {
+          id: ++this.promptId,
+          title: config.title,
+          message: config.message,
+          kind: "multiselect",
+          options: config.options,
         },
       });
     });
@@ -418,6 +460,14 @@ export function createPrompter(): Prompter {
       } finally {
         rlAny._writeToOutput = restore;
       }
+    },
+    async multiSelect(config) {
+      // Non-interactive path: keep the full feature set (everything is on by
+      // default). The TUI is where features get toggled off.
+      output.write(`${config.message}\n`);
+      return config.options
+        .filter((option) => option.checked !== false)
+        .map((option) => option.value);
     },
     async select(config) {
       // Mirror the TUI: show each option's badge (e.g. "(detected)") inline and
