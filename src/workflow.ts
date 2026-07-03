@@ -41,6 +41,7 @@ import {
   restoreProject,
   snapshotProject,
 } from "./project/snapshot.js";
+import { resolveInstallOutcome } from "./report/install-outcome.js";
 import { buildSetupReport } from "./report/setup-report.js";
 import { scaffoldStarter, starterAvailable } from "./scaffold/starter.js";
 import {
@@ -358,6 +359,7 @@ export async function runWorkflow(
     // Whether Claude actually changed project files. undefined = not applicable
     // (dry run / reverted / non-git project where we can't tell).
     let integrated: boolean | undefined;
+    let unverifiedByGit = false;
     let agentSummary: string | undefined;
     const verification: string[] = [];
     if (scaffoldNote) verification.push(scaffoldNote);
@@ -415,6 +417,12 @@ export async function runWorkflow(
       let nextPrompt = prompt;
       let outcome: "completed" | "kept" | "reverted" = "completed";
       let lastMessages: string[] = [];
+      // Authoritative record of files Claude actually wrote (Write/Edit tool
+      // calls), accumulated across pause/resume. Observed at the tool layer, so
+      // unlike the git snapshot it sees through submodules, nested repos,
+      // ignored paths, and non-git projects. The report Claude writes itself
+      // never counts as an integration.
+      const agentWrittenFiles = new Set<string>();
 
       while (true) {
         const abort = new AbortController();
@@ -434,6 +442,9 @@ export async function runWorkflow(
               prompter.setTransientStatus?.(event.text);
             } else if (event.kind === "file") {
               prompter.setChangedFile?.(event.text, event.op ?? "edit");
+              if (path.basename(event.text) !== "honch-setup-report.md") {
+                agentWrittenFiles.add(event.text);
+              }
             } else if (event.kind === "usage") {
               prompter.addUsage?.(event.tokens ?? 0);
               totalTokens += event.tokens ?? 0;
@@ -479,17 +490,31 @@ export async function runWorkflow(
 
       agentRan = outcome !== "reverted";
       if (outcome === "completed") {
-        // Did Claude actually touch project files? The setup report it writes
-        // doesn't count — a report-only run means it couldn't integrate.
-        const changed = changedFilesSince(installDir, snapshot).filter(
+        // Did Claude actually touch project files? Combine two signals so a real
+        // integration is never reported as "no changes": the git snapshot diff
+        // (catches Bash writes, but is blind to submodules / nested repos /
+        // ignored paths / non-git projects) and Claude's own Write/Edit tool
+        // calls (authoritative, and sees through all of those). The setup report
+        // Claude writes itself doesn't count — a report-only run isn't an install.
+        const gitChanged = changedFilesSince(installDir, snapshot).filter(
           (file) => file !== "honch-setup-report.md",
         );
-        integrated = changed.length > 0;
+        const resolved = resolveInstallOutcome({
+          agentWroteFiles: agentWrittenFiles.size > 0,
+          gitChangedCount: gitChanged.length,
+        });
+        integrated = resolved.integrated;
+        unverifiedByGit = resolved.unverifiedByGit;
         agentSummary = lastMessages.at(-1)?.trim();
         if (!integrated) {
           prompter.addRunMessage?.(
             "Claude did not change any project files",
             "error",
+          );
+        } else if (unverifiedByGit) {
+          prompter.addRunMessage?.(
+            "Claude changed files that aren't visible at the project root (submodule or ignored path) — review them directly",
+            "status",
           );
         }
         prompter.addRunMessage?.("Verifying the integration", "status");
@@ -539,6 +564,7 @@ export async function runWorkflow(
       deviceModel,
       agentRan,
       integrated,
+      unverifiedByGit,
       agentSummary,
       verification,
       branch: installReverted ? undefined : branch,
