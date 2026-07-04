@@ -1,7 +1,7 @@
+import { basename } from "@honch/agent-core";
 import { Box, Text, useInput } from "ink";
 import { useEffect, useState } from "react";
 import type { RunMessage } from "../cli/prompt.js";
-import { basename } from "../util/text.js";
 import { COLORS, GLYPHS } from "./theme.js";
 
 const STAR_FRAMES = ["✶", "✷", "✸", "✹", "✺", "✹", "✸", "✷"];

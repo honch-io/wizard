@@ -1,5 +1,5 @@
+import { agentEventsFor, buildAgentOptions } from "@honch/agent-core";
 import { describe, expect, it } from "vitest";
-import { agentEventsFor, buildAgentOptions } from "../src/agent/runner.js";
 import { createSecretVault } from "../src/secrets/vault.js";
 import { createLocalToolsServer } from "../src/tools/mcp-server.js";
 

@@ -1,4 +1,17 @@
 export {
+  type AgentPromptInput,
+  buildAgentPrompt,
+  type DisabledFeature,
+} from "./agent/prompt.js";
+export {
+  type AgentRunEvent,
+  type AgentRunInput,
+  type AgentRunResult,
+  agentEventsFor,
+  buildAgentOptions,
+  runAgent,
+} from "./agent/runner.js";
+export {
   type InstallOutcome,
   type InstallOutcomeSignals,
   resolveInstallOutcome,
@@ -16,3 +29,4 @@ export {
   type SdkTargetId,
   targetSupportsFeatures,
 } from "./sdk/targets.js";
+export { basename } from "./util/text.js";

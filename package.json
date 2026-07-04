@@ -36,7 +36,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "tsdown && node -e \"require('node:fs').cpSync('src/skills','dist/skills',{recursive:true})\"",
+    "build": "tsdown && node -e \"require('node:fs').cpSync('packages/agent-core/src/skills','dist/skills',{recursive:true})\"",
     "dev": "tsx src/bin.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",

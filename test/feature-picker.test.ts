@@ -1,6 +1,9 @@
-import { HONCH_FEATURES, targetSupportsFeatures } from "@honch/agent-core";
+import {
+  buildAgentPrompt,
+  HONCH_FEATURES,
+  targetSupportsFeatures,
+} from "@honch/agent-core";
 import { describe, expect, it } from "vitest";
-import { buildAgentPrompt } from "../src/agent/prompt.js";
 
 describe("feature catalog", () => {
   it("has exactly one locked core; every optional feature carries both a -D macro and an ESP-IDF Kconfig symbol", () => {
