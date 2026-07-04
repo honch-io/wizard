@@ -32,8 +32,11 @@
     "dist",
     "README.md"
   ],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "build": "tsdown && node -e \"require('node:fs').cpSync('src/skills','dist/skills',{recursive:true})\"",
+    "build": "tsdown && node -e \"require('node:fs').cpSync('packages/agent-core/src/skills','dist/skills',{recursive:true})\" && ! grep -Eq 'from *\"@honch/' dist/bin.mjs || (echo 'build: unresolved @honch/* import left in dist/bin.mjs (tsdown noExternal regression)' >&2 && exit 1)",
     "dev": "tsx src/bin.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
@@ -43,6 +46,7 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.146",
+    "@honch/agent-core": "workspace:*",
     "ink": "^6.8.0",
     "react": "^19.2.4",
     "tar": "^7.5.16",

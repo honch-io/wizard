@@ -6,7 +6,8 @@ import { SDK_TARGETS, type SdkTargetId } from "../sdk/targets.js";
  * Resolve a bundled skill to an absolute path so the agent's Read tool can load
  * it regardless of the project cwd it runs in. Skills sit next to the entry in a
  * build (dist/skills, where this module is bundled into dist/bin.mjs) and one
- * level up in dev (src/skills, while this file is src/agent/prompt.ts).
+ * level up in dev (packages/agent-core/src/skills, while this file is
+ * packages/agent-core/src/agent/prompt.ts — so `../skills` still resolves).
  */
 function resolveSkillPath(skillPath: string): string {
   const candidates = [

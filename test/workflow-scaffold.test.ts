@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import type { SdkTargetId } from "@honch/agent-core";
 import { afterEach, describe, expect, it } from "vitest";
 import { parseOptions } from "../src/cli/options.js";
 import type {
@@ -8,7 +9,6 @@ import type {
   SelectConfig,
   WizardSummary,
 } from "../src/cli/prompt.js";
-import type { SdkTargetId } from "../src/sdk/targets.js";
 import { runWorkflow } from "../src/workflow.js";
 
 const tempDirs: string[] = [];

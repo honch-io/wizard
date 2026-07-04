@@ -10,7 +10,9 @@
     "jsx": "react-jsx",
     "rootDir": ".",
     "outDir": "dist",
-    "types": ["node", "vitest/globals"]
+    "types": ["node", "vitest/globals"],
+    "baseUrl": ".",
+    "paths": { "@honch/agent-core": ["packages/agent-core/src/index.ts"] }
   },
-  "include": ["src", "test", "tsdown.config.ts"]
+  "include": ["src", "test", "packages/agent-core/src", "tsdown.config.ts"]
 }

@@ -1,5 +1,5 @@
+import { buildAgentPrompt } from "@honch/agent-core";
 import { describe, expect, it } from "vitest";
-import { buildAgentPrompt } from "../src/agent/prompt.js";
 
 describe("buildAgentPrompt", () => {
   it("includes SDK target instructions and secret refs without raw keys", () => {

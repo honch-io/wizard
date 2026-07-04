@@ -2,11 +2,11 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { SDK_TARGETS } from "@honch/agent-core";
 import { render } from "ink";
 import React from "react";
 import { parseOptions } from "./cli/options.js";
 import { TuiPrompter, WizardCancelledError } from "./cli/prompt.js";
-import { SDK_TARGETS } from "./sdk/targets.js";
 import { App } from "./ui/App.js";
 import { promptForUpdate } from "./ui/update-prompt.js";
 import { commandString } from "./update/action.js";

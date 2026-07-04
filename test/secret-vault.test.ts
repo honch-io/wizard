@@ -1,5 +1,5 @@
+import { createSecretVault } from "@honch/agent-core";
 import { describe, expect, it } from "vitest";
-import { createSecretVault } from "../src/secrets/vault.js";
 
 describe("createSecretVault", () => {
   it("returns opaque refs without exposing stored values", () => {

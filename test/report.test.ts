@@ -1,5 +1,5 @@
+import { buildSetupReport } from "@honch/agent-core";
 import { describe, expect, it } from "vitest";
-import { buildSetupReport } from "../src/report/setup-report.js";
 
 describe("buildSetupReport", () => {
   it("summarizes setup decisions and verification", () => {

@@ -1,5 +1,5 @@
+import { buildSetupReport } from "@honch/agent-core";
 import { describe, expect, it } from "vitest";
-import { buildSetupReport } from "../src/report/setup-report.js";
 
 const base = {
   targetLabel: "C/POSIX",

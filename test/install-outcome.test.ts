@@ -1,5 +1,5 @@
+import { resolveInstallOutcome } from "@honch/agent-core";
 import { describe, expect, it } from "vitest";
-import { resolveInstallOutcome } from "../src/report/install-outcome.js";
 
 describe("resolveInstallOutcome", () => {
   it("is integrated when the agent wrote files, even if git saw nothing (submodule/nested/ignored/non-git)", () => {

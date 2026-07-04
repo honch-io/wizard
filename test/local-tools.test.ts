@@ -1,13 +1,13 @@
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
-import { createSecretVault } from "../src/secrets/vault.js";
 import {
   checkEnvKeys,
+  createSecretVault,
   detectPackageManager,
   setEnvValues,
-} from "../src/tools/local-tools.js";
+} from "@honch/agent-core";
+import { describe, expect, it } from "vitest";
 
 describe("local tools", () => {
   it("detects package managers", () => {

@@ -1,6 +1,6 @@
 import path from "node:path";
+import type { SdkTargetId } from "@honch/agent-core";
 import { z } from "zod";
-import type { SdkTargetId } from "../sdk/targets.js";
 
 const targetSchema = z.enum([
   "esp-idf",

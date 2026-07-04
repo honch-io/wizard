@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
+import type { SdkTargetId } from "@honch/agent-core";
 import { x as extractTar } from "tar";
-import type { SdkTargetId } from "../sdk/targets.js";
 
 // Bare starter projects (no Honch) live in a separate repo, one folder per
 // target, so they can be maintained and verified independently of this CLI. The

@@ -1,8 +1,20 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { buildAgentPrompt, type DisabledFeature } from "./agent/prompt.js";
-import { runAgent } from "./agent/runner.js";
+import {
+  buildAgentPrompt,
+  buildSetupReport,
+  createLocalToolsServer,
+  createSecretVault,
+  type DisabledFeature,
+  HONCH_FEATURES,
+  resolveInstallOutcome,
+  runAgent,
+  SDK_TARGETS,
+  type SdkTarget,
+  type SdkTargetId,
+  targetSupportsFeatures,
+} from "@honch/agent-core";
 import { analyticsDisabled, buildInstallProperties } from "./analytics.js";
 import {
   type BrowserLoginResult,
@@ -41,18 +53,7 @@ import {
   restoreProject,
   snapshotProject,
 } from "./project/snapshot.js";
-import { resolveInstallOutcome } from "./report/install-outcome.js";
-import { buildSetupReport } from "./report/setup-report.js";
 import { scaffoldStarter, starterAvailable } from "./scaffold/starter.js";
-import {
-  HONCH_FEATURES,
-  SDK_TARGETS,
-  type SdkTarget,
-  type SdkTargetId,
-  targetSupportsFeatures,
-} from "./sdk/targets.js";
-import { createSecretVault } from "./secrets/vault.js";
-import { createLocalToolsServer } from "./tools/mcp-server.js";
 
 export type WorkflowResult = {
   reportPath: string;

@@ -1,6 +1,9 @@
+import {
+  buildAgentPrompt,
+  HONCH_FEATURES,
+  targetSupportsFeatures,
+} from "@honch/agent-core";
 import { describe, expect, it } from "vitest";
-import { buildAgentPrompt } from "../src/agent/prompt.js";
-import { HONCH_FEATURES, targetSupportsFeatures } from "../src/sdk/targets.js";
 
 describe("feature catalog", () => {
   it("has exactly one locked core; every optional feature carries both a -D macro and an ESP-IDF Kconfig symbol", () => {
@@ -29,7 +32,7 @@ describe("feature catalog", () => {
 
   it("uses measured footprint + wire numbers (real, not round estimates)", () => {
     const errorTracking = HONCH_FEATURES.find((f) => f.id === "error-tracking");
-    // Measured on ESP32/IDF v6.0.1 — see src/sdk/feature-footprint.json.
+    // Measured on ESP32/IDF v6.0.1 — see packages/agent-core/src/sdk/feature-footprint.json.
     expect(errorTracking?.flashBytes).toBe(4971);
     expect(errorTracking?.ramBytes).toBe(316);
     expect(errorTracking?.wireBytesPerEvent).toBe(166);
