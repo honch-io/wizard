@@ -1,7 +1,10 @@
-import { agentEventsFor, buildAgentOptions } from "@honch/agent-core";
+import {
+  agentEventsFor,
+  buildAgentOptions,
+  createLocalToolsServer,
+  createSecretVault,
+} from "@honch/agent-core";
 import { describe, expect, it } from "vitest";
-import { createSecretVault } from "../src/secrets/vault.js";
-import { createLocalToolsServer } from "../src/tools/mcp-server.js";
 
 describe("buildAgentOptions", () => {
   it("points Claude at the Honch platform proxy", () => {

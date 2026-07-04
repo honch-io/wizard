@@ -4,6 +4,8 @@ import path from "node:path";
 import {
   buildAgentPrompt,
   buildSetupReport,
+  createLocalToolsServer,
+  createSecretVault,
   type DisabledFeature,
   HONCH_FEATURES,
   resolveInstallOutcome,
@@ -52,8 +54,6 @@ import {
   snapshotProject,
 } from "./project/snapshot.js";
 import { scaffoldStarter, starterAvailable } from "./scaffold/starter.js";
-import { createSecretVault } from "./secrets/vault.js";
-import { createLocalToolsServer } from "./tools/mcp-server.js";
 
 export type WorkflowResult = {
   reportPath: string;

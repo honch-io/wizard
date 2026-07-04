@@ -29,4 +29,15 @@ export {
   type SdkTargetId,
   targetSupportsFeatures,
 } from "./sdk/targets.js";
+export {
+  createSecretVault,
+  type SecretMetadata,
+  type SecretVault,
+} from "./secrets/vault.js";
+export {
+  checkEnvKeys,
+  detectPackageManager,
+  setEnvValues,
+} from "./tools/local-tools.js";
+export { createLocalToolsServer } from "./tools/mcp-server.js";
 export { basename } from "./util/text.js";
