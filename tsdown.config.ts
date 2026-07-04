@@ -7,4 +7,5 @@ export default defineConfig({
   clean: true,
   minify: false,
   outDir: "dist",
+  noExternal: ["@honch/agent-core"],
 });

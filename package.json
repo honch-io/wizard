@@ -36,7 +36,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "tsdown && node -e \"require('node:fs').cpSync('packages/agent-core/src/skills','dist/skills',{recursive:true})\"",
+    "build": "tsdown && node -e \"require('node:fs').cpSync('packages/agent-core/src/skills','dist/skills',{recursive:true})\" && ! grep -Eq 'from *\"@honch/' dist/bin.mjs || (echo 'build: unresolved @honch/* import left in dist/bin.mjs (tsdown noExternal regression)' >&2 && exit 1)",
     "dev": "tsx src/bin.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
