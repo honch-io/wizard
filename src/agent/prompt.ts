@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { SDK_TARGETS, type SdkTargetId } from "../sdk/targets.js";
+import { SDK_TARGETS, type SdkTargetId } from "@honch/agent-core";
 
 /**
  * Resolve a bundled skill to an absolute path so the agent's Read tool can load

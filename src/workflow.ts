@@ -1,7 +1,15 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { buildSetupReport, resolveInstallOutcome } from "@honch/agent-core";
+import {
+  buildSetupReport,
+  HONCH_FEATURES,
+  resolveInstallOutcome,
+  SDK_TARGETS,
+  type SdkTarget,
+  type SdkTargetId,
+  targetSupportsFeatures,
+} from "@honch/agent-core";
 import { buildAgentPrompt, type DisabledFeature } from "./agent/prompt.js";
 import { runAgent } from "./agent/runner.js";
 import { analyticsDisabled, buildInstallProperties } from "./analytics.js";
@@ -43,13 +51,6 @@ import {
   snapshotProject,
 } from "./project/snapshot.js";
 import { scaffoldStarter, starterAvailable } from "./scaffold/starter.js";
-import {
-  HONCH_FEATURES,
-  SDK_TARGETS,
-  type SdkTarget,
-  type SdkTargetId,
-  targetSupportsFeatures,
-} from "./sdk/targets.js";
 import { createSecretVault } from "./secrets/vault.js";
 import { createLocalToolsServer } from "./tools/mcp-server.js";
 

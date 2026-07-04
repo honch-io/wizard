@@ -4,7 +4,7 @@ import {
   detectSdkTargets,
   type ProjectFiles,
   type SdkTarget,
-} from "../sdk/targets.js";
+} from "@honch/agent-core";
 
 const CANDIDATE_FILES = new Set([
   "CMakeLists.txt",

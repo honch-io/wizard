@@ -1,5 +1,5 @@
+import { detectSdkTargets } from "@honch/agent-core";
 import { describe, expect, it } from "vitest";
-import { detectSdkTargets } from "../src/sdk/targets.js";
 
 describe("detectSdkTargets", () => {
   it("detects ESP-IDF projects from idf_component_register", () => {
