@@ -1,9 +1,22 @@
 {
   "name": "@honch/agent-core",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "type": "module",
   "description": "Shared Honch SDK install engine (agent prompt, runner, report, local tools).",
+  "license": "MIT",
+  "author": "Honch",
+  "homepage": "https://github.com/honch-io/wizard/tree/main/packages/agent-core#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/honch-io/wizard.git",
+    "directory": "packages/agent-core"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src"
+  ],
   "exports": {
     ".": "./src/index.ts"
   },

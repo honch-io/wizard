@@ -69,6 +69,25 @@ jobs:
             exit 1
           fi
 
+      # Publish @honch/agent-core first (idempotent). It's a standalone package
+      # (agent prompt/runner/tools/skills) consumed out-of-repo by
+      # platform/install-runner. Its version is managed by hand in
+      # packages/agent-core/package.json — the @honch/start bump above does NOT
+      # touch it — so bump that file when agent-core changes. If the version is
+      # already on npm, this is a no-op, so it's safe to run on every release.
+      - name: Publish @honch/agent-core (if new version)
+        working-directory: packages/agent-core
+        run: |
+          VER="$(node -p "require('./package.json').version")"
+          if npm view "@honch/agent-core@$VER" version >/dev/null 2>&1; then
+            echo "@honch/agent-core@$VER already published — skipping"
+          else
+            echo "Publishing @honch/agent-core@$VER"
+            npm publish --access public
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       # `npm publish` runs prepublishOnly (typecheck + test + build) first, so a
       # broken build never reaches the registry.
       - name: Publish
