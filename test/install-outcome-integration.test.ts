@@ -10,10 +10,9 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { buildSetupReport, resolveInstallOutcome } from "@honch/agent-core";
 import { afterEach, describe, expect, it } from "vitest";
 import { changedFilesSince, snapshotProject } from "../src/project/snapshot.js";
-import { resolveInstallOutcome } from "../src/report/install-outcome.js";
-import { buildSetupReport } from "../src/report/setup-report.js";
 
 const dirs: string[] = [];
 afterEach(() => {

@@ -1,6 +1,7 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { buildSetupReport, resolveInstallOutcome } from "@honch/agent-core";
 import { buildAgentPrompt, type DisabledFeature } from "./agent/prompt.js";
 import { runAgent } from "./agent/runner.js";
 import { analyticsDisabled, buildInstallProperties } from "./analytics.js";
@@ -41,8 +42,6 @@ import {
   restoreProject,
   snapshotProject,
 } from "./project/snapshot.js";
-import { resolveInstallOutcome } from "./report/install-outcome.js";
-import { buildSetupReport } from "./report/setup-report.js";
 import { scaffoldStarter, starterAvailable } from "./scaffold/starter.js";
 import {
   HONCH_FEATURES,
