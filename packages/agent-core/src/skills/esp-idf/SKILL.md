@@ -59,17 +59,19 @@ typedef struct {
     const char *environment;         // optional, defaults to "production"
     uint8_t    *event_buffer;        // required, caller-owned RAM for the queue
     size_t      event_buffer_size;   // required, recommend >= 8192
-    uint32_t    flush_interval_seconds;      // optional, default 60
-    uint32_t    flush_min_interval_ms;       // optional, default 10000
-    uint32_t    flush_event_threshold;       // optional, default 30
+    uint32_t    flush_interval_seconds;      // optional, default 120
+    uint32_t    flush_min_interval_ms;       // optional, default 15000
+    uint32_t    flush_event_threshold;       // optional, default 20
     uint32_t    flush_max_batches;           // optional, default 1
     uint32_t    shutdown_flush_max_batches;  // optional, default 1
-    uint32_t    transport_timeout_ms;        // optional, default 3000
+    uint32_t    transport_timeout_ms;        // optional, default 8000
     int       (*battery_callback)(void);     // optional, returns 0-100 or -1
     int         battery_low_threshold;       // optional, default 15
     bool      (*connectivity_callback)(void);// optional, false while offline
     const honch_state_storage_ops_t *state_storage_ops; // optional, durable identity/version state
     const honch_event_queue_ops_t   *event_queue_ops;   // optional, replaces the default RAM queue
+    bool        enable_error_tracking;       // optional, emits recovered $crash after abnormal reset
+    bool        enable_crash_symbolication;  // optional, adds build id + fault addrs from ESP coredump
 } honch_config_t;
 
 honch_err_t honch_init(const honch_config_t *config);
@@ -106,18 +108,38 @@ The six-function contract (`init` / `track` / `identify` / `set_property` /
 
 ## Add the component
 
-The ESP-IDF component is named `honch` (its `REQUIRES` name is `honch`). Always
-get it from a source that is identical on every machine — **never** bake a
+The ESP-IDF component's `REQUIRES` name depends on **how** it is added, and
+getting this wrong is the most common reason the build won't resolve the
+component:
+
+- **Registry-managed** (`idf.py add-dependency "honch/honch"`): it installs to
+  `managed_components/honch__honch/`, so the CMake component name — and the
+  `REQUIRES` name — is **`honch__honch`** (`<namespace>__<name>`).
+- **Git submodule** vendored at `components/honch`: the name is the directory,
+  **`honch`**.
+
+Always get it from a source that is identical on every machine — **never** bake a
 local filesystem path into committed build files. A path like
 `EXTRA_COMPONENT_DIRS "/Users/.../SDK/ports/esp-idf"` only exists on one
 developer's laptop; it breaks for everyone else and in CI.
 
-1. **Preferred — ESP Component Registry** (once the SDK is published there):
+1. **Preferred — ESP Component Registry:**
    ```
-   idf.py add-dependency "honch-io/honch^0.2.0"
+   idf.py add-dependency "honch/honch^0.3.0"
    ```
-   Install the version the project's `idf_component.yml` / registry resolves and
-   verify against the installed `honch.h`.
+   The registry namespace is **`honch/honch`** — **NOT** `honch-io/honch`. The
+   GitHub org slug (`honch-io`) is not the registry namespace; `honch-io/honch`
+   does not resolve and breaks `idf.py reconfigure`. If no toolchain is present,
+   hand-author `main/idf_component.yml` with the exact same coordinates instead of
+   running the command:
+   ```yaml
+   dependencies:
+     idf:
+       version: ">=5.0"
+     honch/honch: "^0.3.0"
+   ```
+   The component manager fetches it on the next `idf.py reconfigure`/`build`.
+   Verify the resolved version against the installed `honch.h`.
 2. **Fallback — git submodule** (use this when the registry entry isn't
    reachable, e.g. it 404s):
    ```bash
@@ -133,10 +155,14 @@ developer's laptop; it breaks for everyone else and in CI.
    you can't resolve it, ask the user with `wizard_ask` — do not fall back to a
    local checkout path.)
 
-Then add `honch` to your app component's `REQUIRES` (use `honch`, **not**
-`honch-io__honch`):
+Then add the component to your app's `REQUIRES` — using the name that matches how
+you added it (see above): **`honch__honch`** for the registry-managed component,
+or **`honch`** for a `components/honch` submodule:
 ```cmake
-idf_component_register(SRCS "app_main.c" INCLUDE_DIRS "." REQUIRES honch)
+# Registry-managed (added via idf.py add-dependency "honch/honch…"):
+idf_component_register(SRCS "app_main.c" INCLUDE_DIRS "." REQUIRES honch__honch)
+# Or, for a components/honch git submodule instead:
+# idf_component_register(SRCS "app_main.c" INCLUDE_DIRS "." REQUIRES honch)
 ```
 
 ## Configure safely
@@ -192,9 +218,9 @@ idf_component_register(SRCS "app_main.c" INCLUDE_DIRS "." REQUIRES honch)
 - Do not point `host` at a non-TLS URL and do not add any
   `insecure_skip_tls_verify` flag in production.
 - **Be frugal with the radio and the user's data plan.** The SDK ships
-  conservative delivery defaults — `flush_interval_seconds` 60,
-  `flush_min_interval_ms` 10000, `flush_max_batches` 1, `flush_event_threshold`
-  30, `transport_timeout_ms` 3000. Leave them unless the product genuinely needs
+  conservative delivery defaults — `flush_interval_seconds` 120,
+  `flush_min_interval_ms` 15000, `flush_max_batches` 1, `flush_event_threshold`
+  20, `transport_timeout_ms` 8000. Leave them unless the product genuinely needs
   faster delivery; never disable `flush_min_interval_ms` (benchmark/factory
   modes only) or crank the flush cadence. Prefer low-rate, meaningful events
   (boot, state changes, low-rate heartbeats) over per-loop or per-sample tracks
@@ -206,7 +232,8 @@ This install is not complete if you only add markdown, a report, a skill file,
 dependency metadata, or Kconfig defaults. A successful ESP-IDF integration must
 modify executable firmware/build files and wire Honch into real behavior:
 
-- add the component dependency and `REQUIRES honch`;
+- add the component dependency and the matching `REQUIRES` (`honch__honch` for the
+  registry-managed component, `honch` for a `components/honch` submodule);
 - initialize Honch after the device has network/IP, never before async Wi-Fi is
   ready;
 - drive `honch_tick()` from an application-owned low-priority task **with a
