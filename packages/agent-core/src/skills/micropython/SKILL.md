@@ -34,7 +34,7 @@ import honch
 
 client = honch.Honch(
     api_key=API_KEY,                 # required (project key, honch_…, from secret/env)
-    endpoint_url="https://i.honch.io",
+    # endpoint_url is OPTIONAL — omit it to use the SDK default (https://i.honch.io).
     device_id=DEVICE_ID,             # required, caller-owned, stable per device
     device_model="esp32-cam",        # required
     firmware_version=FIRMWARE_VERSION, # required, existing app/OTA/build version
@@ -57,8 +57,10 @@ Known hallucinations to never emit:
   `honch.Honch(...)` and call methods on the instance.
 - `event_buffer_size=` (an int) — the required keyword is `event_buffer=` and it
   takes an actual `bytearray` (blank/missing → `InvalidArgumentError`).
-- `device_id`, `api_key`, `endpoint_url`, `device_model`, `firmware_version`,
-  `event_buffer` are all **required** — a blank value raises `InvalidArgumentError`.
+- `device_id`, `api_key`, `device_model`, `firmware_version`, and `event_buffer`
+  are all **required** — a blank value raises `InvalidArgumentError`.
+  `endpoint_url` is **optional**: blank/omitted falls back to the SDK default
+  (`https://i.honch.io`), so leave it unset unless targeting a non-default host.
 - Source `firmware_version` from the project's existing firmware/app/build
   version. If none exists, add one project-owned constant and use it here; do
   not paste a one-time installer value into the Honch call.
@@ -108,11 +110,12 @@ under someone's home directory (it breaks for everyone else and in CI).
 - **Never** hardcode the raw project API key in frozen source or on-device
   files. Inject it via the wizard's secret-ref env tool, a build-time define, or
   a gitignored on-device secrets file — not committed source.
-- `endpoint_url` must be the HTTPS capture base (`https://i.honch.io`). Do
-  not disable TLS verification.
+- `endpoint_url` is optional and defaults to the HTTPS capture base
+  (`https://i.honch.io`) — leave it unset. If you do set it, keep it HTTPS;
+  never disable TLS verification.
 - Provide a caller-owned `device_id` (stable across reboots), `device_model`,
-  codebase-sourced `firmware_version`, `api_key`, `endpoint_url`, and an `event_buffer`
-  (`bytearray(>= 8192)`).
+  codebase-sourced `firmware_version`, `api_key`, and an `event_buffer`
+  (`bytearray(>= 8192)`). `endpoint_url` is optional (see above).
 
 ## Where to initialize
 
