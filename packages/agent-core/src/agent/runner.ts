@@ -33,8 +33,9 @@ export type AgentRunEvent = {
 };
 
 // The backend proxy pins the model server-side; this keeps the client request
-// aligned with what actually runs.
-const HONCH_AGENT_MODEL = "claude-opus-4-8";
+// aligned with what actually runs. Sonnet 5: the installer is agentic edit work
+// where Sonnet is plenty capable and ~5x cheaper than Opus per token.
+const HONCH_AGENT_MODEL = "claude-sonnet-5";
 
 export function buildAgentOptions(input: Omit<AgentRunInput, "prompt">) {
   return {
