@@ -53,7 +53,7 @@ typedef enum {
 
 typedef struct {
     const char *api_key;             // required (project key, honch_…)
-    const char *host;                // required, e.g. "https://i.honch.io"
+    const char *host;                // optional, defaults to "https://i.honch.io"
     const char *device_model;        // required
     const char *firmware_version;    // required, from the project's version source
     const char *environment;         // optional, defaults to "production"
@@ -140,6 +140,13 @@ developer's laptop; it breaks for everyone else and in CI.
    ```
    The component manager fetches it on the next `idf.py reconfigure`/`build`.
    Verify the resolved version against the installed `honch.h`.
+
+   **Version:** `^0.3.0` targets the current SDK major/minor and floats to newer
+   `0.3.x` patches. Before emitting it, confirm it still matches the latest
+   published `honch/honch` (see https://docs.honch.io/sdks/esp-idf) — if a newer
+   major/minor has shipped (e.g. `0.4.x`), pin THAT (`^0.4.0`), because a stale
+   `^0.3.0` would resolve to an old SDK that excludes the current release. Never
+   pin below the current published version.
 2. **Fallback — git submodule** (use this when the registry entry isn't
    reachable, e.g. it 404s):
    ```bash
